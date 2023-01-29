@@ -110,7 +110,7 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 	bool isDGPU = adapters[adapter_idx].is_dgpu;
 	impl = impl_list[adapter_idx];
 	mfxStatus sts;
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder =
 			new QSV_VPL_Encoder_Internal(impl, ver, isDGPU);
 		sts = pEncoder->Open(pParams, codec);
@@ -298,7 +298,7 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 bool qsv_encoder_is_dgpu(qsv_t *pContext)
 {
 	
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		return pEncoder->IsDGPU();
 	}
@@ -313,7 +313,7 @@ bool qsv_encoder_is_dgpu(qsv_t *pContext)
 int qsv_encoder_headers(qsv_t *pContext, uint8_t **pSPS, uint8_t **pPPS,
 			uint16_t *pnSPS, uint16_t *pnPPS)
 {
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		pEncoder->GetSPSPPS(pSPS, pPPS, pnSPS, pnPPS);
 	}
@@ -330,7 +330,7 @@ int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
 		       uint8_t *pDataUV, uint32_t strideY, uint32_t strideUV,
 		       mfxBitstream **pBS)
 {
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		mfxStatus sts = MFX_ERR_NONE;
 
@@ -366,7 +366,7 @@ int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
 			   uint64_t lock_key, uint64_t *next_key,
 			   mfxBitstream **pBS)
 {
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 
 		mfxStatus sts = MFX_ERR_NONE;
@@ -398,7 +398,7 @@ int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
 
 int qsv_encoder_close(qsv_t *pContext)
 {
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		delete pEncoder;
 		if (pEncoder)
@@ -437,7 +437,7 @@ int qsv_param_apply_profile(qsv_param_t *, const char *profile)
 int qsv_encoder_reconfig(qsv_t *pContext, qsv_param_t *pParams)
 {
 	
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 
 		pEncoder->UpdateParams(pParams);
@@ -464,7 +464,7 @@ int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
 			     uint8_t **pPPS, uint16_t *pnVPS, uint16_t *pnSPS,
 			     uint16_t *pnPPS)
 {
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_ICL) {
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN){
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		pEncoder->GetVpsSpsPps(pVPS, pSPS, pPPS, pnVPS, pnSPS, pnPPS);
 	}
