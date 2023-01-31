@@ -65,160 +65,165 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern "C" {
 #endif
 
-struct qsv_rate_control_info {
-	const char *name;
-	bool haswell_or_greater;
-};
+	struct qsv_rate_control_info {
+		const char* name;
+		bool haswell_or_greater;
+	};
 
-static const struct qsv_rate_control_info qsv_ratecontrols[] = {
-	{"CBR", false},   {"VBR", false}, {"VCM", true},    {"CQP", false},
-	{"AVBR", false},  {"ICQ", true},  {"LA_ICQ", true}, {"LA_CBR", true},
-	{"LA_VBR", true}, {0, false}};
+	static const struct qsv_rate_control_info qsv_ratecontrols[] = {
+		{"CBR", false},   {"VBR", false}, {"VCM", true},    {"CQP", false},
+		{"AVBR", false},  {"ICQ", true},  {"LA_ICQ", true}, {"LA_CBR", true},
+		{"LA_VBR", true}, {0, false} };
 
-static const struct qsv_rate_control_info qsv_av1_ratecontrols[] =
-	{{"CBR", false}, {"VBR", false}, {"CQP", false}, {0, false}};
+	static const struct qsv_rate_control_info qsv_av1_ratecontrols[] =
+	{ {"CBR", false}, {"VBR", false}, {"CQP", false}, {0, false} };
 
-static const char *const qsv_profile_names[] = {"high", "main", "baseline", 0};
-static const char *const qsv_profile_names_av1[] = {"main", 0};
-static const char *const qsv_profile_names_hevc[] = {"main", "main10", 0};
-static const char *const qsv_usage_names[] = {"quality",  "balanced", "speed",
-					      "veryslow", "slower",   "slow",
-					      "medium",   "fast",     "faster",
-					      "veryfast", 0};
-static const char *const qsv_latency_names[] = {"ultra-low", "low", "normal",
-						0};
-static const char* const qsv_params_condition[] = { "ON", "OFF", 0 };
-static const char* const qsv_params_condition_auto[] = { "ON", "OFF", "AUTO", 0 };
-static const char* const qsv_repartition_check_condition[] = {
-	"QUALITY", "PERFORMANCE", "AUTO", 0 };
-static const char* const qsv_gop_params[] = { "CLOSED", "STRICT", "OPEN", 0 };
-static const char* const qsv_mv_cost_scaling_params[] = { "DEFAULT", "1/2",
-							 "1/4", "1/8", 0 };
-static const char* const qsv_lookahead_ds_params[] = { "SLOW", "MEDIUM", "FAST",
-						      "AUTO", 0 };
-static const char* const qsv_trellis_params[] = {
-	"OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0};
-static const char* const qsv_trellis_names[] = {
-	"off", "i", "ip", "all", "ib", "p", "pb", "b", "auto", 0 };
-typedef struct qsv_t qsv_t;
+	static const char* const qsv_profile_names[] = { "high", "main", "baseline", 0 };
+	static const char* const qsv_profile_names_av1[] = { "main", 0 };
+	static const char* const qsv_profile_names_hevc[] = { "main", "main10", 0 };
+	static const char* const qsv_usage_names[] = { "quality",  "balanced", "speed",
+							  "veryslow", "slower",   "slow",
+							  "medium",   "fast",     "faster",
+							  "veryfast", 0 };
+	static const char* const qsv_latency_names[] = { "ultra-low", "low", "normal",
+							0 };
+	static const char* const qsv_params_condition[] = { "ON", "OFF", 0 };
+	static const char* const qsv_params_condition_auto[] = { "ON", "OFF", "AUTO", 0 };
+	static const char* const qsv_repartition_check_condition[] = {
+		"QUALITY", "PERFORMANCE", "AUTO", 0 };
+	static const char* const qsv_gop_params[] = { "CLOSED", "STRICT", "OPEN", 0 };
+	static const char* const qsv_mv_cost_scaling_params[] = { "DEFAULT", "1/2",
+								 "1/4", "1/8", 0 };
+	static const char* const qsv_lookahead_ds_params[] = { "SLOW", "MEDIUM", "FAST",
+								  "AUTO", 0 };
+	static const char* const qsv_trellis_params[] = {
+		"OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0 };
+	static const char* const qsv_trellis_names[] = {
+		"off", "i", "ip", "all", "ib", "p", "pb", "b", "auto", 0 };
+	typedef struct qsv_t qsv_t;
 
-struct adapter_info {
-	bool is_intel;
-	bool is_dgpu;
-	bool supports_av1;
-	bool supports_hevc;
-};
+	struct adapter_info {
+		bool is_intel;
+		bool is_dgpu;
+		bool supports_av1;
+		bool supports_hevc;
+	};
 
-enum qsv_codec {
-	QSV_CODEC_AVC,
-	QSV_CODEC_AV1,
-	QSV_CODEC_HEVC,
-};
+	enum qsv_codec {
+		QSV_CODEC_AVC,
+		QSV_CODEC_AV1,
+		QSV_CODEC_HEVC,
+	};
 
 #define MAX_ADAPTERS 10
-extern struct adapter_info adapters[MAX_ADAPTERS];
-extern size_t adapter_count;
+	extern struct adapter_info adapters[MAX_ADAPTERS];
+	extern size_t adapter_count;
 
-typedef struct {
-	mfxU16 nTargetUsage; /* 1 through 7, 1 being best quality and 7
-				being the best speed */
-	mfxU16 nWidth;       /* source picture width */
-	mfxU16 nHeight;      /* source picture height */
-	mfxU16 nAsyncDepth;
-	mfxU16 nFpsNum;
-	mfxU16 nFpsDen;
-	mfxU16 nTargetBitRate;
-	mfxU16 nMaxBitRate;
-	mfxU16 nCodecProfile;
-	mfxU16 nRateControl;
-	mfxU16 nAccuracy;
-	mfxU16 nConvergence;
-	mfxU16 nQPI;
-	mfxU16 nQPP;
-	mfxU16 nQPB;
-	mfxU16 nLADEPTH;
-	mfxU16 nKeyIntSec;
-	mfxU16 nbFrames;
-	mfxU16 nICQQuality;
-	mfxU16 VideoFormat;
-	mfxU16 VideoFullRange;
-	mfxU16 ColourPrimaries;
-	mfxU16 TransferCharacteristics;
-	mfxU16 MatrixCoefficients;
-	mfxU16 ChromaSampleLocTypeTopField;
-	mfxU16 ChromaSampleLocTypeBottomField;
-	mfxU16 DisplayPrimariesX[3];
-	mfxU16 DisplayPrimariesY[3];
-	mfxU16 WhitePointX;
-	mfxU16 WhitePointY;
-	mfxU32 MaxDisplayMasteringLuminance;
-	mfxU32 MinDisplayMasteringLuminance;
-	mfxU16 MaxContentLightLevel;
-	mfxU16 MaxPicAverageLightLevel;
-	bool bMBBRC;
-	bool bCQM;
-	bool bRDO;
-	bool bAdaptiveI;
-	bool bAdaptiveB;
-	int nGopOptFlag;
-	bool bUseRawRef;
-	bool bWeightedPred;
-	bool bWeightedBiPred;
-	bool bGlobalMotionBiasAdjustment;
-	bool bFadeDetection;
-	bool bDirectBiasAdjustment;
-	int nTrellis;
-	int nNumRefFrame;
-	int nMVCostScalingFactor;
-	int nLookAheadDS;
-	int nRepartitionCheckEnable;
-	int nMotionVectorsOverPicBoundaries;
-	bool video_fmt_10bit;
-} qsv_param_t;
+	typedef struct {
+		mfxU16 nTargetUsage; /* 1 through 7, 1 being best quality and 7
+					being the best speed */
+		mfxU16 nWidth;       /* source picture width */
+		mfxU16 nHeight;      /* source picture height */
+		mfxU16 nAsyncDepth;
+		mfxU16 nFpsNum;
+		mfxU16 nFpsDen;
+		mfxU16 nTargetBitRate;
+		mfxU16 nMaxBitRate;
+		mfxU16 nCodecProfile;
+		mfxU16 nRateControl;
+		mfxU16 nAccuracy;
+		mfxU16 nConvergence;
+		mfxU16 nQPI;
+		mfxU16 nQPP;
+		mfxU16 nQPB;
+		mfxU16 nLADEPTH;
+		mfxU16 nKeyIntSec;
+		mfxU16 nbFrames;
+		mfxU16 nICQQuality;
+		mfxU16 VideoFormat;
+		mfxU16 VideoFullRange;
+		mfxU16 ColourPrimaries;
+		mfxU16 TransferCharacteristics;
+		mfxU16 MatrixCoefficients;
+		mfxU16 ChromaSampleLocTypeTopField;
+		mfxU16 ChromaSampleLocTypeBottomField;
+		mfxU16 DisplayPrimariesX[3];
+		mfxU16 DisplayPrimariesY[3];
+		mfxU16 WhitePointX;
+		mfxU16 WhitePointY;
+		mfxU32 MaxDisplayMasteringLuminance;
+		mfxU32 MinDisplayMasteringLuminance;
+		mfxU16 MaxContentLightLevel;
+		mfxU16 MaxPicAverageLightLevel;
+		int nTemporalLayers;
+		bool bMBBRC;
+		bool bCQM;
+		bool bRDO;
+		bool bAdaptiveI;
+		bool bAdaptiveB;
+		bool bAdaptiveRef;
+		bool bAdaptiveCQM;
+		bool bAdaptiveMaxFrameSize;
+		bool bUseRDO;
+		int nGopOptFlag;
+		bool bUseRawRef;
+		bool bWeightedPred;
+		bool bWeightedBiPred;
+		bool bGlobalMotionBiasAdjustment;
+		bool bFadeDetection;
+		bool bDirectBiasAdjustment;
+		int nTrellis;
+		int nNumRefFrame;
+		int nMVCostScalingFactor;
+		int nLookAheadDS;
+		int nRepartitionCheckEnable;
+		int nMotionVectorsOverPicBoundaries;
+		bool video_fmt_10bit;
+	} qsv_param_t;
 
-enum qsv_cpu_platform {
-	QSV_CPU_PLATFORM_UNKNOWN,
-	QSV_CPU_PLATFORM_BNL,
-	QSV_CPU_PLATFORM_SNB,
-	QSV_CPU_PLATFORM_IVB,
-	QSV_CPU_PLATFORM_SLM,
-	QSV_CPU_PLATFORM_CHT,
-	QSV_CPU_PLATFORM_HSW,
-	QSV_CPU_PLATFORM_BDW,
-	QSV_CPU_PLATFORM_SKL,
-	QSV_CPU_PLATFORM_APL,
-	QSV_CPU_PLATFORM_KBL,
-	QSV_CPU_PLATFORM_GLK,
-	QSV_CPU_PLATFORM_CNL,
-	QSV_CPU_PLATFORM_ICL,
-	QSV_CPU_PLATFORM_TGL,
-	QSV_CPU_PLATFORM_RKL,
-	QSV_CPU_PLATFORM_ADL,
-	QSV_CPU_PLATFORM_RPL,
-	QSV_CPU_PLATFORM_INTEL
-};
+	enum qsv_cpu_platform {
+		QSV_CPU_PLATFORM_UNKNOWN,
+		QSV_CPU_PLATFORM_BNL,
+		QSV_CPU_PLATFORM_SNB,
+		QSV_CPU_PLATFORM_IVB,
+		QSV_CPU_PLATFORM_SLM,
+		QSV_CPU_PLATFORM_CHT,
+		QSV_CPU_PLATFORM_HSW,
+		QSV_CPU_PLATFORM_BDW,
+		QSV_CPU_PLATFORM_SKL,
+		QSV_CPU_PLATFORM_APL,
+		QSV_CPU_PLATFORM_KBL,
+		QSV_CPU_PLATFORM_GLK,
+		QSV_CPU_PLATFORM_CNL,
+		QSV_CPU_PLATFORM_ICL,
+		QSV_CPU_PLATFORM_TGL,
+		QSV_CPU_PLATFORM_RKL,
+		QSV_CPU_PLATFORM_ADL,
+		QSV_CPU_PLATFORM_RPL,
+		QSV_CPU_PLATFORM_INTEL
+	};
 
-int qsv_encoder_close(qsv_t *);
-int qsv_param_parse(qsv_param_t *, const char *name, const char *value);
-int qsv_param_apply_profile(qsv_param_t *, const char *profile);
-int qsv_param_default_preset(qsv_param_t *, const char *preset,
-			     const char *tune);
-int qsv_encoder_reconfig(qsv_t *, qsv_param_t *);
-void qsv_encoder_version(unsigned short *major, unsigned short *minor);
-qsv_t *qsv_encoder_open(qsv_param_t *, enum qsv_codec codec);
-bool qsv_encoder_is_dgpu(qsv_t *);
-int qsv_encoder_encode(qsv_t *, uint64_t, uint8_t *, uint8_t *, uint32_t,
-		       uint32_t, mfxBitstream **pBS);
-int qsv_encoder_encode_tex(qsv_t *, uint64_t, uint32_t, uint64_t, uint64_t *,
-			   mfxBitstream **pBS);
-int qsv_encoder_headers(qsv_t *, uint8_t **pSPS, uint8_t **pPPS,
-			uint16_t *pnSPS, uint16_t *pnPPS);
-enum qsv_cpu_platform qsv_get_cpu_platform();
-bool prefer_igpu_enc(int *iGPUIndex);
+	int qsv_encoder_close(qsv_t*);
+	int qsv_param_parse(qsv_param_t*, const char* name, const char* value);
+	int qsv_param_apply_profile(qsv_param_t*, const char* profile);
+	int qsv_param_default_preset(qsv_param_t*, const char* preset,
+		const char* tune);
+	int qsv_encoder_reconfig(qsv_t*, qsv_param_t*);
+	void qsv_encoder_version(unsigned short* major, unsigned short* minor);
+	qsv_t* qsv_encoder_open(qsv_param_t*, enum qsv_codec codec);
+	bool qsv_encoder_is_dgpu(qsv_t*);
+	int qsv_encoder_encode(qsv_t*, uint64_t, uint8_t*, uint8_t*, uint32_t,
+		uint32_t, mfxBitstream** pBS);
+	int qsv_encoder_encode_tex(qsv_t*, uint64_t, uint32_t, uint64_t, uint64_t*,
+		mfxBitstream** pBS);
+	int qsv_encoder_headers(qsv_t*, uint8_t** pSPS, uint8_t** pPPS,
+		uint16_t* pnSPS, uint16_t* pnPPS);
+	enum qsv_cpu_platform qsv_get_cpu_platform();
+	bool prefer_igpu_enc(int* iGPUIndex);
 
-int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **vVPS, uint8_t **pSPS,
-			     uint8_t **pPPS, uint16_t *pnVPS, uint16_t *pnSPS,
-			     uint16_t *pnPPS);
+	int qsv_hevc_encoder_headers(qsv_t* pContext, uint8_t** vVPS, uint8_t** pSPS,
+		uint8_t** pPPS, uint16_t* pnVPS, uint16_t* pnSPS,
+		uint16_t* pnPPS);
 
 #ifdef __cplusplus
 }

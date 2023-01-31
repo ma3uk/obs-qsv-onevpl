@@ -62,6 +62,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "QSV_Encoder_Internal_new.h"
 #include "common_utils.h"
 #include <obs-module.h>
+
 #include <string>
 #include <atomic>
 
@@ -70,21 +71,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 mfxIMPL impl = MFX_IMPL_HARDWARE_ANY;
-mfxVersion ver = {{0, 1}}; // for backward compatibility
-std::atomic<bool> is_active{false};
+mfxVersion ver = { {0, 1} }; // for backward compatibility
+std::atomic<bool> is_active{ false };
 
 
 
-void qsv_encoder_version(unsigned short *major, unsigned short *minor)
+void qsv_encoder_version(unsigned short* major, unsigned short* minor)
 {
 	*major = ver.Major;
 	*minor = ver.Minor;
 }
 
-qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
+qsv_t* qsv_encoder_open(qsv_param_t* pParams, enum qsv_codec codec)
 {
-	mfxIMPL impl_list[4] = {MFX_IMPL_HARDWARE, MFX_IMPL_HARDWARE2,
-				MFX_IMPL_HARDWARE3, MFX_IMPL_HARDWARE4};
+	mfxIMPL impl_list[4] = { MFX_IMPL_HARDWARE, MFX_IMPL_HARDWARE2,
+				MFX_IMPL_HARDWARE3, MFX_IMPL_HARDWARE4 };
 
 	obs_video_info ovi;
 	obs_get_video_info(&ovi);
@@ -98,7 +99,8 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 				break;
 			}
 		}
-	} else if (!adapters[adapter_idx].is_intel) {
+	}
+	else if (!adapters[adapter_idx].is_intel) {
 		for (size_t i = 0; i < 4; i++) {
 			if (adapters[i].is_intel) {
 				adapter_idx = i;
@@ -113,6 +115,7 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder =
 			new QSV_VPL_Encoder_Internal(impl, ver, isDGPU);
+
 		sts = pEncoder->Open(pParams, codec);
 
 		if (sts != MFX_ERR_NONE) {
@@ -192,7 +195,6 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 
 #undef WARN_ERR
 #undef WARN_ERR_IMPL
-
 			delete pEncoder;
 			if (pEncoder)
 				is_active.store(false);
@@ -295,9 +297,9 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 
 }
 
-bool qsv_encoder_is_dgpu(qsv_t *pContext)
+bool qsv_encoder_is_dgpu(qsv_t* pContext)
 {
-	
+
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		return pEncoder->IsDGPU();
@@ -306,12 +308,12 @@ bool qsv_encoder_is_dgpu(qsv_t *pContext)
 		QSV_MSDK_Encoder_Internal* pEncoder = (QSV_MSDK_Encoder_Internal*)pContext;
 		return pEncoder->IsDGPU();
 	}
-	
-	
+
+
 }
 
-int qsv_encoder_headers(qsv_t *pContext, uint8_t **pSPS, uint8_t **pPPS,
-			uint16_t *pnSPS, uint16_t *pnPPS)
+int qsv_encoder_headers(qsv_t* pContext, uint8_t** pSPS, uint8_t** pPPS,
+	uint16_t* pnSPS, uint16_t* pnPPS)
 {
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
@@ -321,29 +323,73 @@ int qsv_encoder_headers(qsv_t *pContext, uint8_t **pSPS, uint8_t **pPPS,
 		QSV_MSDK_Encoder_Internal* pEncoder = (QSV_MSDK_Encoder_Internal*)pContext;
 		pEncoder->GetSPSPPS(pSPS, pPPS, pnSPS, pnPPS);
 	}
-	
+
 
 	return 0;
 }
 
-int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
-		       uint8_t *pDataUV, uint32_t strideY, uint32_t strideUV,
-		       mfxBitstream **pBS)
+int qsv_encoder_encode(qsv_t* pContext, uint64_t ts, uint8_t* pDataY,
+	uint8_t* pDataUV, uint32_t strideY, uint32_t strideUV,
+	mfxBitstream** pBS)
 {
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
+
 		mfxStatus sts = MFX_ERR_NONE;
 
 		if (pDataY != NULL && pDataUV != NULL)
 			sts = pEncoder->Encode(ts, pDataY, pDataUV, strideY, strideUV,
 				pBS);
 
-		if (sts == MFX_ERR_NONE)
+		if (sts == MFX_ERR_NONE) {
 			return 0;
-		else if (sts == MFX_ERR_MORE_DATA)
+		}
+		else if (sts == MFX_ERR_MORE_DATA) {
 			return 1;
-		else
+		}
+		else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
+			blog(LOG_INFO, "Encode error: Need more buffer");
+			// Allocate more bitstream buffer memory here if needed...
 			return -1;
+		}
+		else if (sts == MFX_ERR_DEVICE_LOST) {
+			blog(LOG_INFO, "Encode error: Hardware device lost");
+			return -1;
+		}
+		else if (sts == MFX_ERR_INCOMPATIBLE_VIDEO_PARAM) {
+			blog(LOG_INFO, "Encode error: Incompability video params");
+			return -1;
+		}
+		else if (sts == MFX_WRN_IN_EXECUTION) {
+			blog(LOG_INFO, "Encode warning: In execution");
+
+			return 0;
+		}
+		else if (sts == MFX_ERR_REALLOC_SURFACE) {
+			blog(LOG_INFO, "Encode error: Need bigger surface alloc");
+			return -1;
+		}
+		else if (sts == MFX_ERR_MORE_BITSTREAM) {
+			blog(LOG_INFO, "Encode error: Need more bitstream size");
+			return -1;
+		}
+		else if (sts == MFX_ERR_GPU_HANG) {
+			blog(LOG_INFO, "Encode error: GPU hang");
+			return -1;
+		}
+		else if (sts == MFX_TASK_BUSY) {
+			blog(LOG_INFO, "Encode warn: task busy");
+			return 0;
+		}
+		else if (sts == MFX_ERR_DEVICE_FAILED) {
+			blog(LOG_INFO, "Encode error: Device failed");
+			return -1;
+		}
+		else {
+			blog(LOG_INFO, "Encode error ID: %d", sts);
+			return -1;
+		}
+
 	}
 	else {
 		QSV_MSDK_Encoder_Internal* pEncoder = (QSV_MSDK_Encoder_Internal*)pContext;
@@ -362,9 +408,9 @@ int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
 	}
 }
 
-int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
-			   uint64_t lock_key, uint64_t *next_key,
-			   mfxBitstream **pBS)
+int qsv_encoder_encode_tex(qsv_t* pContext, uint64_t ts, uint32_t tex_handle,
+	uint64_t lock_key, uint64_t* next_key,
+	mfxBitstream** pBS)
 {
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
@@ -373,12 +419,54 @@ int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
 
 		sts = pEncoder->Encode_tex(ts, tex_handle, lock_key, next_key, pBS);
 
-		if (sts == MFX_ERR_NONE)
+		if (sts == MFX_ERR_NONE) {
 			return 0;
-		else if (sts == MFX_ERR_MORE_DATA)
+		}
+		else if (sts == MFX_ERR_MORE_DATA) {
 			return 1;
-		else
+		}
+		else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
+			blog(LOG_INFO, "Encode error: Need more buffer");
+			// Allocate more bitstream buffer memory here if needed...
 			return -1;
+		}
+		else if (sts == MFX_ERR_DEVICE_LOST) {
+			blog(LOG_INFO, "Encode error: Hardware device lost");
+			return -1;
+		}
+		else if (sts == MFX_ERR_INCOMPATIBLE_VIDEO_PARAM) {
+			blog(LOG_INFO, "Encode error: Incompability video params");
+			return -1;
+		}
+		else if (sts == MFX_WRN_IN_EXECUTION) {
+			blog(LOG_INFO, "Encode warning: In execution");
+
+			return 0;
+		}
+		else if (sts == MFX_ERR_REALLOC_SURFACE) {
+			blog(LOG_INFO, "Encode error: Need bigger surface alloc");
+			return -1;
+		}
+		else if (sts == MFX_ERR_MORE_BITSTREAM) {
+			blog(LOG_INFO, "Encode error: Need more bitstream size");
+			return -1;
+		}
+		else if (sts == MFX_ERR_GPU_HANG) {
+			blog(LOG_INFO, "Encode error: GPU hang");
+			return -1;
+		}
+		else if (sts == MFX_TASK_BUSY) {
+			blog(LOG_INFO, "Encode warn: task busy");
+			return 0;
+		}
+		else if (sts == MFX_ERR_DEVICE_FAILED) {
+			blog(LOG_INFO, "Encode error: Device failed");
+			return -1;
+		}
+		else {
+			blog(LOG_INFO, "Encode error ID: %d", sts);
+			return -1;
+		}
 	}
 	else {
 		QSV_MSDK_Encoder_Internal* pEncoder = (QSV_MSDK_Encoder_Internal*)pContext;
@@ -396,10 +484,11 @@ int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
 	}
 }
 
-int qsv_encoder_close(qsv_t *pContext)
+int qsv_encoder_close(qsv_t* pContext)
 {
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
+		pEncoder->ClearData();
 		delete pEncoder;
 		if (pEncoder)
 			is_active.store(false);
@@ -434,17 +523,17 @@ int qsv_param_apply_profile(qsv_param_t *, const char *profile)
 }
 */
 
-int qsv_encoder_reconfig(qsv_t *pContext, qsv_param_t *pParams)
+int qsv_encoder_reconfig(qsv_t* pContext, qsv_param_t* pParams)
 {
-	
 	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 
 		pEncoder->UpdateParams(pParams);
 		mfxStatus sts = pEncoder->ReconfigureEncoder();
 
-		if (sts != MFX_ERR_NONE)
+		if (sts != MFX_ERR_NONE) {
 			return false;
+		}
 		return true;
 	}
 	else {
@@ -460,11 +549,11 @@ int qsv_encoder_reconfig(qsv_t *pContext, qsv_param_t *pParams)
 
 }
 
-int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
-			     uint8_t **pPPS, uint16_t *pnVPS, uint16_t *pnSPS,
-			     uint16_t *pnPPS)
+int qsv_hevc_encoder_headers(qsv_t* pContext, uint8_t** pVPS, uint8_t** pSPS,
+	uint8_t** pPPS, uint16_t* pnVPS, uint16_t* pnSPS,
+	uint16_t* pnPPS)
 {
-	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN){
+	if (qsv_get_cpu_platform() >= QSV_CPU_PLATFORM_TGL || qsv_get_cpu_platform() == QSV_CPU_PLATFORM_UNKNOWN) {
 		QSV_VPL_Encoder_Internal* pEncoder = (QSV_VPL_Encoder_Internal*)pContext;
 		pEncoder->GetVpsSpsPps(pVPS, pSPS, pPPS, pnVPS, pnSPS, pnPPS);
 	}
@@ -472,7 +561,7 @@ int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
 		QSV_MSDK_Encoder_Internal* pEncoder = (QSV_MSDK_Encoder_Internal*)pContext;
 		pEncoder->GetVpsSpsPps(pVPS, pSPS, pPPS, pnVPS, pnSPS, pnPPS);
 	}
-	
+
 
 	return 0;
 }

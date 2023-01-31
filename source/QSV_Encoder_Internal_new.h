@@ -48,6 +48,7 @@ private:
 	mfxIMPL mfx_impl;
 	mfxVersion mfx_version;
 	mfxSession mfx_session;
+	mfxEncodeCtrl mfx_EncControl;
 	mfxFrameAllocator mfx_FrameAllocator;
 	mfxVideoParam mfx_EncParams;
 	mfxFrameAllocResponse mfx_FrameAllocResponse;
@@ -66,6 +67,7 @@ private:
 	mfxExtCodingOption3 mfx_co3;
 	mfxExtCodingOption2 mfx_co2;
 	mfxExtCodingOption mfx_co;
+	mfxExtTemporalLayers mfx_tl;
 	mfxExtHEVCParam mfx_ExtHEVCParam{};
 	mfxExtVideoSignalInfo mfx_ExtVideoSignalInfo{};
 	mfxExtChromaLocInfo mfx_ExtChromaLocInfo{};
@@ -78,6 +80,7 @@ private:
 	mfxBitstream mfx_Bitstream;
 	bool b_isDGPU;
 	static mfxU16 g_numEncodersOpen;
+	mfxPayload mfx_PayLoad;
 	static mfxHDL
 		g_DX_Handle; // we only want one handle for all instances to use;
 };
