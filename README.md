@@ -1,7 +1,8 @@
 # obs-qsv-onevpl
 obs-qsv11 plugin with oneVPL support
 
-Implementation of the obs-sv 11 plugin with oneVPL support for Intel Tiger Lake processors and higher, as well as discrete DG1 and Arc Alchemist video cards.
+Implementation of the obs-qsv11 plugin with oneVPL support for Intel Tiger Lake processors and higher, as well as discrete DG1 and Arc Alchemist video cards.
+
 Fully working plugin, but need help with rewriting memory allocation to new internal memory
 At the moment, backward compatibility is maintained for Intel Ice Lake and below.
 Removed the code for the D3D9 implementation.
