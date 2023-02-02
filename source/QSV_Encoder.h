@@ -91,7 +91,7 @@ extern "C" {
 	static const char* const qsv_params_condition_auto[] = { "ON", "OFF", "AUTO", 0 };
 	static const char* const qsv_repartition_check_condition[] = {
 		"QUALITY", "PERFORMANCE", "AUTO", 0 };
-	static const char* const qsv_gop_params[] = { "CLOSED", "STRICT", "OPEN", 0 };
+	static const char* const qsv_gop_params[] = { "CLOSED", "STRICT", 0 };
 	static const char* const qsv_mv_cost_scaling_params[] = { "DEFAULT", "1/2",
 								 "1/4", "1/8", 0 };
 	static const char* const qsv_lookahead_ds_params[] = { "SLOW", "MEDIUM", "FAST",
@@ -159,13 +159,14 @@ extern "C" {
 		bool bMBBRC;
 		bool bCQM;
 		bool bRDO;
+		bool bExtBRC;
 		bool bAdaptiveI;
 		bool bAdaptiveB;
 		bool bAdaptiveRef;
 		bool bAdaptiveCQM;
 		bool bAdaptiveMaxFrameSize;
 		bool bUseRDO;
-		int nGopOptFlag;
+		bool bGopOptFlag;
 		bool bUseRawRef;
 		bool bWeightedPred;
 		bool bWeightedBiPred;

@@ -23,7 +23,7 @@ public:
 	mfxStatus ClearData();
 	mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, mfxSession* pSession,
 		mfxFrameAllocator* mfx_FrameAllocator, mfxHDL* deviceHandle,
-		bool bCreateSharedHandles, bool dx9hack);
+		bool bCreateSharedHandles, mfxU32 codec);
 	mfxStatus Reset(qsv_param_t* pParams, enum qsv_codec codec);
 	mfxStatus ReconfigureEncoder();
 	bool UpdateParams(qsv_param_t* pParams);
@@ -62,7 +62,7 @@ private:
 	mfxU16 mU16_SPSBufSize;
 	mfxU16 mU16_PPSBufSize;
 	mfxVideoParam mfx_VideoParams;
-	mfxExtMVOverPicBoundaries extMVOP;
+	mfxExtMVOverPicBoundaries mfx_MVOP;
 	std::vector<mfxExtBuffer*> extendedBuffers;
 	mfxExtCodingOption3 mfx_co3;
 	mfxExtCodingOption2 mfx_co2;

@@ -166,9 +166,9 @@ bool obs_module_load(void)
 
 	if (avc_supported) {
 		obs_register_encoder(&obs_qsv_encoder_tex_v2);
-		/*obs_register_encoder(&obs_qsv_encoder_tex);*/
+		obs_register_encoder(&obs_qsv_encoder_tex);
 		obs_register_encoder(&obs_qsv_encoder_v2);
-		/*obs_register_encoder(&obs_qsv_encoder);*/
+		obs_register_encoder(&obs_qsv_encoder);
 	}
 	if (av1_supported) {
 		obs_register_encoder(&obs_qsv_av1_encoder_tex);

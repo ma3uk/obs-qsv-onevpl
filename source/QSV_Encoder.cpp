@@ -427,7 +427,7 @@ int qsv_encoder_encode_tex(qsv_t* pContext, uint64_t ts, uint32_t tex_handle,
 		}
 		else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
 			blog(LOG_INFO, "Encode error: Need more buffer");
-			// Allocate more bitstream buffer memory here if needed...
+			
 			return -1;
 		}
 		else if (sts == MFX_ERR_DEVICE_LOST) {

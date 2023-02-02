@@ -223,32 +223,29 @@ static inline void add_strings(obs_property_t* list, const char* const* strings)
 #define TEXT_CONVERGENCE obs_module_text("Convergence")
 #define TEXT_ICQ_QUALITY obs_module_text("ICQQuality")
 #define TEXT_KEYINT_SEC obs_module_text("KeyframeIntervalSec")
-#define TEXT_BFRAMES obs_module_text("B Frames")
-#define TEXT_PERCEPTUAL_ENHANCEMENTS \
-	obs_module_text("SubjectiveVideoEnhancements")
-#define TEXT_NUM_REF_FRAME obs_module_text("Number of reference frames")
-#define TEXT_GOP_OPT_FLAG obs_module_text("GOP type")
-#define TEXT_LOOKAHEAD_DS obs_module_text("Lookahead quality")
-#define TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT \
-	obs_module_text("Global motion bias adjustment")
-#define TEXT_DIRECT_BIAS_ADJUSTMENT obs_module_text("Direct bias adjustment")
-#define TEXT_ADAPTIVE_I obs_module_text("Use adaptive I frames")
-#define TEXT_ADAPTIVE_B obs_module_text("Use adaptive B frames")
-#define TEXT_ADAPTIVE_REF obs_module_text("Use adaptive reference frames")
-#define TEXT_ADAPTIVE_CQM obs_module_text("Use adaptive CQM")
-#define TEXT_ADAPTIVE_FRAME_SIZE obs_module_text("Use adaptive max frame size")
-#define TEXT_FADE_DETECTION obs_module_text("Fade detection")
+#define TEXT_BFRAMES obs_module_text("BFrames")
+#define TEXT_PERCEPTUAL_ENHANCEMENTS obs_module_text("SubjectiveVideoEnhancements")
+#define TEXT_NUM_REF_FRAME obs_module_text("NumRefFrame")
+#define TEXT_GOP_OPT_FLAG obs_module_text("GOPOptFlag")
+#define TEXT_LOOKAHEAD_DS obs_module_text("LookaheadDS")
+#define TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT obs_module_text("GlobalMotionBiasAdjustment")
+#define TEXT_DIRECT_BIAS_ADJUSTMENT obs_module_text("DirectBiasAdjusment")
+#define TEXT_ADAPTIVE_I obs_module_text("AdaptiveI")
+#define TEXT_ADAPTIVE_B obs_module_text("AdaptiveB")
+#define TEXT_ADAPTIVE_REF obs_module_text("AdaptiveRef")
+#define TEXT_ADAPTIVE_CQM obs_module_text("AdaptiveCQM")
+#define TEXT_ADAPTIVE_MAX_FRAME_SIZE obs_module_text("AdaptiveMaxFrameSize")
+#define TEXT_FADE_DETECTION obs_module_text("FadeDetection")
 #define TEXT_TRELLIS obs_module_text("Trellis")
-#define TEXT_LA_DEPTH obs_module_text("Lookahead depth")
-#define TEXT_MOTION_VECTORS_OVER_PIC_BOUNDARIES \
-	obs_module_text("MV prediction between pictures")
-#define TEXT_REPARTITION_CHECK_ENABLE obs_module_text("Preferred mode")
-#define TEXT_WEIGHTED_PRED obs_module_text("Weighted prediction")
-#define TEXT_USE_RAW_REF obs_module_text("Use RAW reference")
-#define TEXT_MV_COST_SCALING_FACTOR obs_module_text("Motion vector scaling")
-#define TEXT_RDO obs_module_text("Rate distortion optimization(RDO)")
-#define TEXT_ASYNC_DEPTH obs_module_text("Async pipeline count")
-#define TEXT_TEMP_LAYERS obs_module_text("Temporal layers count")
+#define TEXT_LA_DEPTH obs_module_text("LookaheadDepth")
+#define TEXT_MV_OVER_PIC_BOUNDARIES obs_module_text("MVOverpicBoundaries")
+#define TEXT_REPARTITION_CHECK_ENABLE obs_module_text("PreferredMode")
+#define TEXT_WEIGHTED_PRED obs_module_text("WeightedPred")
+#define TEXT_USE_RAW_REF obs_module_text("UseRawRef")
+#define TEXT_MV_COST_SCALING_FACTOR obs_module_text("MVCostScalingFactor")
+#define TEXT_RDO obs_module_text("RDO")
+#define TEXT_ASYNC_DEPTH obs_module_text("AsyncDepth")
+#define TEXT_EXTBRC obs_module_text("ExtBRC")
 
 
 static bool update_latency(obs_data_t* settings)
@@ -399,8 +396,7 @@ static bool profile_modified(obs_properties_t* ppts, obs_property_t* p,
 
 	const char* gop_opt_flag_closed =
 		obs_data_get_string(settings, "gop_opt_flag");
-	bVisible = ((astrcmpi(gop_opt_flag_closed, "CLOSED") == 0 ||
-		astrcmpi(gop_opt_flag_closed, "OPEN") == 0));
+	bVisible = ((astrcmpi(gop_opt_flag_closed, "CLOSED") == 0));
 	p = obs_properties_get(ppts, "adaptive_i");
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "adaptive_b");
@@ -411,13 +407,13 @@ static bool profile_modified(obs_properties_t* ppts, obs_property_t* p,
 	}
 
 	const char* global_motion_bias_adjustment_enable =
-		obs_data_get_string(settings, "global_motion_bias_adjustment");
+		obs_data_get_string(settings, "globalmotionbias_adjustment");
 	bVisible =
 		((astrcmpi(global_motion_bias_adjustment_enable, "ON") == 0));
-	p = obs_properties_get(ppts, "mv_cost_scaling_factor");
+	p = obs_properties_get(ppts, "mv_costscaling_factor");
 	obs_property_set_visible(p, bVisible);
 	if (!bVisible) {
-		obs_data_erase(settings, "mv_cost_scaling_factor");
+		obs_data_erase(settings, "mv_costscaling_factor");
 	}
 
 	return true;
@@ -461,6 +457,11 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		add_rate_controls(prop, qsv_av1_ratecontrols);
 
 	obs_property_set_modified_callback(prop, rate_control_modified);
+
+	prop = obs_properties_add_list(props, "extbrc", TEXT_EXTBRC,
+		OBS_COMBO_TYPE_LIST,
+		OBS_COMBO_FORMAT_STRING);
+	add_strings(prop, qsv_params_condition);
 
 	prop = obs_properties_add_int(props, "bitrate", TEXT_TARGET_BITRATE, 50,
 		10000000, 50);
@@ -523,7 +524,7 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 	if (is_skl_or_greater_platform())
 		obs_properties_add_bool(props, "enhancements",
 			TEXT_PERCEPTUAL_ENHANCEMENTS);
-	prop = obs_properties_add_list(props, "repartition_check_enable",
+	prop = obs_properties_add_list(props, "repartition_check",
 		TEXT_REPARTITION_CHECK_ENABLE,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
@@ -533,9 +534,6 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
-
-	if (codec != QSV_CODEC_AV1)
-		obs_properties_add_int(props, "temp_layers", TEXT_TEMP_LAYERS, 0, 8, 1);
 
 	prop = obs_properties_add_list(props, "gop_opt_flag", TEXT_GOP_OPT_FLAG,
 		OBS_COMBO_TYPE_LIST,
@@ -563,7 +561,7 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
 
-	prop = obs_properties_add_list(props, "adaptive_frame_size", TEXT_ADAPTIVE_FRAME_SIZE,
+	prop = obs_properties_add_list(props, "adaptive_maxframesize", TEXT_ADAPTIVE_MAX_FRAME_SIZE,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
@@ -578,20 +576,20 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
 
-	prop = obs_properties_add_list(props, "global_motion_bias_adjustment",
+	prop = obs_properties_add_list(props, "globalmotionbias_adjustment",
 		TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
 	obs_property_set_modified_callback(prop, profile_modified);
 
-	prop = obs_properties_add_list(props, "mv_cost_scaling_factor",
+	prop = obs_properties_add_list(props, "mv_costscaling_factor",
 		TEXT_MV_COST_SCALING_FACTOR,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_mv_cost_scaling_params);
 
-	prop = obs_properties_add_list(props, "direct_bias_adjustment",
+	prop = obs_properties_add_list(props, "directbias_adjustment",
 		TEXT_DIRECT_BIAS_ADJUSTMENT,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
@@ -603,8 +601,8 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 	add_strings(prop, qsv_params_condition);
 
 	prop = obs_properties_add_list(props,
-		"motion_vectors_over_pic_boundaries",
-		TEXT_MOTION_VECTORS_OVER_PIC_BOUNDARIES,
+		"mv_overpic_boundaries",
+		TEXT_MV_OVER_PIC_BOUNDARIES,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition_auto);
@@ -676,19 +674,19 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 	int qpb = (int)obs_data_get_int(settings, "qpb");
 	int cqp = (int)obs_data_get_int(settings, "cqp");
 	int ver = (int)obs_data_get_int(settings, "__ver");
-	int temp_layers = (int)obs_data_get_int(settings, "temp_layers");
 	int icq_quality = (int)obs_data_get_int(settings, "icq_quality");
 	int keyint_sec = (int)obs_data_get_int(settings, "keyint_sec");
 	bool cbr_override = obs_data_get_bool(settings, "cbr");
+	const char* extbrc = obs_data_get_string(settings, "extbrc");
 	int bFrames = (int)obs_data_get_int(settings, "bframes");
 	bool enhancements = obs_data_get_bool(settings, "enhancements");
 	const char* repartition_check_enable =
-		obs_data_get_string(settings, "repartition_check_enable");
+		obs_data_get_string(settings, "repartitioncheck_enable");
 	const char* adaptive_i = obs_data_get_string(settings, "adaptive_i");
 	const char* adaptive_b = obs_data_get_string(settings, "adaptive_b");
 	const char* adaptive_ref = obs_data_get_string(settings, "adaptive_ref");
 	const char* adaptive_cqm = obs_data_get_string(settings, "adaptive_cqm");
-	const char* adaptive_frame_size = obs_data_get_string(settings, "adaptive_frame_size");
+	const char* adaptive_maxframesize = obs_data_get_string(settings, "adaptive_max_framesize");
 	const char* gop_opt_flag =
 		obs_data_get_string(settings, "gop_opt_flag");
 	const char* use_raw_ref = obs_data_get_string(settings, "use_raw_ref");
@@ -699,18 +697,18 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 		obs_data_get_string(settings, "weighted_pred");
 	const char* trellis = obs_data_get_string(settings, "trellis");
 	int num_ref_frame = (int)obs_data_get_int(settings, "num_ref_frame");
-	const char* global_motion_bias_adjustment =
-		obs_data_get_string(settings, "global_motion_bias_adjustment");
-	const char* mv_cost_scaling_factor =
-		obs_data_get_string(settings, "mv_cost_scaling_factor");
+	const char* globalmotionbias_adjustment =
+		obs_data_get_string(settings, "globalmotionbias_adjustment");
+	const char* mv_costscaling_factor =
+		obs_data_get_string(settings, "mv_costscaling_factor");
 	const char* fade_detection =
 		obs_data_get_string(settings, "fade_detection");
 	const char* lookahead_ds =
 		obs_data_get_string(settings, "lookahead_ds");
-	const char* direct_bias_adjustment =
-		obs_data_get_string(settings, "direct_bias_adjustment");
-	const char* motion_vectors_over_pic_boundaries = obs_data_get_string(
-		settings, "motion_vectors_over_pic_boundaries");
+	const char* directbias_adjustment =
+		obs_data_get_string(settings, "directbias_adjustment");
+	const char* mv_overpic_boundaries = obs_data_get_string(
+		settings, "mv_overpic_boundaries");
 	int la_depth = (int)obs_data_get_int(settings, "la_depth");
 
 	if (obs_data_has_user_value(settings, "bf"))
@@ -858,24 +856,21 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 		rate_control = "CBR";
 	}
 
-	if (astrcmpi(motion_vectors_over_pic_boundaries, "ON") == 0) {
+	if (astrcmpi(mv_overpic_boundaries, "ON") == 0) {
 		obsqsv->params.nMotionVectorsOverPicBoundaries = 1;
 	}
-	else if (astrcmpi(motion_vectors_over_pic_boundaries, "OFF")) {
+	else if (astrcmpi(mv_overpic_boundaries, "OFF") == 0) {
 		obsqsv->params.nMotionVectorsOverPicBoundaries = 0;
 	}
-	else if (astrcmpi(motion_vectors_over_pic_boundaries, "AUTO")) {
-		obsqsv->params.nMotionVectorsOverPicBoundaries = 3;
+	else if (astrcmpi(mv_overpic_boundaries, "AUTO") == 0) {
+		obsqsv->params.nMotionVectorsOverPicBoundaries = 2;
 	}
 
 	if (astrcmpi(gop_opt_flag, "CLOSED") == 0) {
-		obsqsv->params.nGopOptFlag = 0;
+		obsqsv->params.bGopOptFlag = true;
 	}
-	else if (astrcmpi(gop_opt_flag, "OPEN") == 0) {
-		obsqsv->params.nGopOptFlag = 1;
-	}
-	else if (astrcmpi(gop_opt_flag, "STRICT") == 0) {
-		obsqsv->params.nGopOptFlag = 2;
+	else {
+		obsqsv->params.bGopOptFlag = false;
 	}
 
 	if (astrcmpi(fade_detection, "ON") == 0) {
@@ -885,23 +880,30 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 		obsqsv->params.bFadeDetection = false;
 	}
 
-	if (astrcmpi(direct_bias_adjustment, "ON") == 0) {
+	if (astrcmpi(extbrc, "ON") == 0) {
+		obsqsv->params.bExtBRC = true;
+	}
+	else {
+		obsqsv->params.bExtBRC = false;
+	}
+
+	if (astrcmpi(directbias_adjustment, "ON") == 0) {
 		obsqsv->params.bDirectBiasAdjustment = true;
 	}
 	else {
 		obsqsv->params.bDirectBiasAdjustment = false;
 	}
 
-	if (astrcmpi(mv_cost_scaling_factor, "OFF") == 0) {
+	if (astrcmpi(mv_costscaling_factor, "OFF") == 0) {
 		obsqsv->params.nMVCostScalingFactor = 0;
 	}
-	else if (astrcmpi(mv_cost_scaling_factor, "1/2") == 0) {
+	else if (astrcmpi(mv_costscaling_factor, "1/2") == 0) {
 		obsqsv->params.nMVCostScalingFactor = 1;
 	}
-	else if (astrcmpi(mv_cost_scaling_factor, "1/4") == 0) {
+	else if (astrcmpi(mv_costscaling_factor, "1/4") == 0) {
 		obsqsv->params.nMVCostScalingFactor = 2;
 	}
-	else if (astrcmpi(mv_cost_scaling_factor, "1/8") == 0) {
+	else if (astrcmpi(mv_costscaling_factor, "1/8") == 0) {
 		obsqsv->params.nMVCostScalingFactor = 3;
 	}
 
@@ -921,7 +923,7 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 		obsqsv->params.bUseRawRef = false;
 	}
 
-	if (astrcmpi(global_motion_bias_adjustment, "ON") == 0) {
+	if (astrcmpi(globalmotionbias_adjustment, "ON") == 0) {
 		obsqsv->params.bGlobalMotionBiasAdjustment = true;
 	}
 	else {
@@ -931,38 +933,38 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 	if (astrcmpi(lookahead_ds, "SLOW") == 0) {
 		obsqsv->params.nLookAheadDS = 0;
 	}
-	else if (astrcmpi(lookahead_ds, "MEDIUM")) {
+	else if (astrcmpi(lookahead_ds, "MEDIUM") == 0) {
 		obsqsv->params.nLookAheadDS = 1;
 	}
-	else if (astrcmpi(lookahead_ds, "FAST")) {
+	else if (astrcmpi(lookahead_ds, "FAST") == 0) {
 		obsqsv->params.nLookAheadDS = 2;
 	}
-	else if (astrcmpi(lookahead_ds, "AUTO")) {
+	else if (astrcmpi(lookahead_ds, "AUTO") == 0) {
 		obsqsv->params.nLookAheadDS = 3;
 	}
 
-	if (astrcmpi(global_motion_bias_adjustment, "ON") == 0) {
+	if (astrcmpi(globalmotionbias_adjustment, "ON") == 0) {
 		obsqsv->params.bGlobalMotionBiasAdjustment = true;
 	}
 	else {
 		obsqsv->params.bGlobalMotionBiasAdjustment = false;
 	}
 
-	if (astrcmpi(global_motion_bias_adjustment, "ON") == 0) {
+	if (astrcmpi(globalmotionbias_adjustment, "ON") == 0) {
 		obsqsv->params.bGlobalMotionBiasAdjustment = true;
 	}
 	else {
 		obsqsv->params.bGlobalMotionBiasAdjustment = false;
 	}
 
-	if (astrcmpi(global_motion_bias_adjustment, "ON") == 0) {
+	if (astrcmpi(globalmotionbias_adjustment, "ON") == 0) {
 		obsqsv->params.bGlobalMotionBiasAdjustment = true;
 	}
 	else {
 		obsqsv->params.bGlobalMotionBiasAdjustment = false;
 	}
 
-	if (astrcmpi(global_motion_bias_adjustment, "ON") == 0) {
+	if (astrcmpi(globalmotionbias_adjustment, "ON") == 0) {
 		obsqsv->params.bGlobalMotionBiasAdjustment = true;
 	}
 	else {
@@ -970,15 +972,14 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 	}
 
 	if ((astrcmpi(adaptive_i, "ON") == 0) &&
-		(astrcmpi(gop_opt_flag, "CLOSED") == 0 ||
-			astrcmpi(gop_opt_flag, "OPEN") == 0)) {
+		(astrcmpi(gop_opt_flag, "CLOSED") == 0)) {
 		obsqsv->params.bAdaptiveI = true;
 	}
 	else {
 		obsqsv->params.bAdaptiveI = false;
 	}
 
-	if (astrcmpi(adaptive_frame_size, "ON")) {
+	if (astrcmpi(adaptive_maxframesize, "ON") == 0) {
 		obsqsv->params.bAdaptiveMaxFrameSize = true;
 	}
 	else {
@@ -1001,14 +1002,14 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 		obsqsv->params.bAdaptiveB = false;
 	}
 
-	if (astrcmpi(adaptive_ref, "ON")) {
+	if (astrcmpi(adaptive_ref, "ON") == 0) {
 		obsqsv->params.bAdaptiveRef = true;
 	}
 	else {
 		obsqsv->params.bAdaptiveRef = false;
 	}
 
-	if (astrcmpi(rdo, "ON")) {
+	if (astrcmpi(rdo, "ON") == 0) {
 		obsqsv->params.bUseRDO = true;
 	}
 	else {
@@ -1106,9 +1107,6 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 		obsqsv->params.nQPB = actual_cqp;
 	}
 
-	if (temp_layers >= (int)0 && temp_layers < 9) {
-		obsqsv->params.nTemporalLayers = temp_layers;
-	}
 	obsqsv->params.nTargetBitRate = (mfxU16)target_bitrate;
 	obsqsv->params.nMaxBitRate = (mfxU16)max_bitrate;
 	obsqsv->params.nWidth = (mfxU16)width;

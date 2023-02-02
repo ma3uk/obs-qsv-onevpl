@@ -86,10 +86,10 @@ target_sources(
           device_directx9.h
           QSV_Encoder.cpp
           QSV_Encoder.h
+          QSV_Encoder_Internal.cpp
+          QSV_Encoder_Internal.h
 		  QSV_Encoder_Internal_new.cpp
           QSV_Encoder_Internal_new.h
-		  QSV_Encoder_new.cpp
-          QSV_Encoder_new.h
           bits/linux_defs.h
           bits/windows_defs.h)
 

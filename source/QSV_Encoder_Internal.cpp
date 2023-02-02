@@ -188,22 +188,9 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 	else if (codec == QSV_CODEC_HEVC)
 		m_mfxEncParams.mfx.CodecId = MFX_CODEC_HEVC;
 
-	switch (pParams->nGopOptFlag) {
-	case 0:
+	if (pParams->bGopOptFlag) {
 		m_mfxEncParams.mfx.GopOptFlag = MFX_GOP_CLOSED;
-		blog(LOG_INFO, "\tGopOptFlag set to CLOSED:     %d",
-			pParams->nGopOptFlag);
-		break;
-	case 1:
-		m_mfxEncParams.mfx.GopOptFlag = 0x00;
-		blog(LOG_INFO, "\tGopOptFlag set to OPEN:     %d",
-			pParams->nGopOptFlag);
-		break;
-	case 2:
-		m_mfxEncParams.mfx.GopOptFlag = MFX_GOP_STRICT;
-		blog(LOG_INFO, "\tGopOptFlag set to STRICT:     %d",
-			pParams->nGopOptFlag);
-		break;
+		blog(LOG_INFO, "\tGopOptFlag set: CLOSED");
 	}
 
 	if (((int)pParams->nNumRefFrame >= 0) &&
