@@ -7,7 +7,8 @@ Fully working plugin, but need help with rewriting memory allocation to new inte
 At the moment, backward compatibility is maintained for Intel Ice Lake and below.
 Removed the code for the D3D9 implementation.
 
-How to instal:
+**How to instal:**
+
 Place the file obs-qsv11.dll to the OBS Studio installation folder *"obs-studio directory"*/obs-plugins/64bit with file replacement. Success!
 
 Place the file obs-qsv-test.exe in *"obs-studio directory"*/bin/64bit with file replacement. This is necessary to fix the definition of available codecs and dGPUs.
