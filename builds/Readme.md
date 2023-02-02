@@ -1,4 +1,4 @@
-Place the file obsqsv11.dll to the OBS Studio installation folder *"obs-studio directory"*/obs-plugins/64bit with file replacement. Success!
+Place the file obs-qsv11.dll to the OBS Studio installation folder *"obs-studio directory"*/obs-plugins/64bit with file replacement. Success!
 
 Place the file obs-qsv-test.exe in *"obs-studio directory"*/bin/64bit with file replacement. This is necessary to fix the definition of available codecs and dGPUs.
 
