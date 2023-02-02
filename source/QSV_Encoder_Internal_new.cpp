@@ -334,6 +334,10 @@ mfxStatus QSV_VPL_Encoder_Internal::InitParams(qsv_param_t* pParams,
 			blog(LOG_INFO, "\tMBBRC set: ON");
 		}
 
+		if (codec == QSV_CODEC_AVC) {
+			mfx_co2.BitrateLimit = MFX_CODINGOPTION_ON;
+		}
+
 		if (pParams->nbFrames > 1) {
 			mfx_co2.BRefType = MFX_B_REF_PYRAMID;
 			blog(LOG_INFO, "\tBPyramid set: ON");
@@ -575,9 +579,10 @@ mfxStatus QSV_VPL_Encoder_Internal::InitParams(qsv_param_t* pParams,
 			mfx_co.RateDistortionOpt = MFX_CODINGOPTION_ON;
 			blog(LOG_INFO, "RDO set: ON");
 		}
-
-		mfx_co.VuiNalHrdParameters = MFX_CODINGOPTION_ON;
-		mfx_co.NalHrdConformance = MFX_CODINGOPTION_ON;
+		if (codec == QSV_CODEC_AVC) {
+			mfx_co.VuiNalHrdParameters = MFX_CODINGOPTION_ON;
+			mfx_co.NalHrdConformance = MFX_CODINGOPTION_ON;
+		}
 		mfx_co.ResetRefList = MFX_CODINGOPTION_ON;
 
 		extendedBuffers.push_back((mfxExtBuffer*)&mfx_co);

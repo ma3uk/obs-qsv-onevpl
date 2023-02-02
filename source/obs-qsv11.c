@@ -183,6 +183,28 @@ static void obs_qsv_defaults(obs_data_t* settings, int ver,
 	obs_data_set_default_int(settings, "bframes", 3);
 	obs_data_set_default_int(settings, "async_depth", 4);
 	obs_data_set_default_bool(settings, "enhancements", false);
+
+	obs_data_set_default_string(settings, "repartitioncheck_enable", "QUALITY");
+	obs_data_set_default_string(settings, "adaptive_i", "OFF");
+	obs_data_set_default_string(settings, "adaptive_b", "OFF");
+	obs_data_set_default_string(settings, "adaptive_ref", "OFF");
+	obs_data_set_default_string(settings, "adaptive_cqm", "OFF");
+	obs_data_set_default_string(settings, "adaptive_maxframesize", "OFF");
+	obs_data_set_default_string(settings, "gop_opt_flag", "STRICT");
+	obs_data_set_default_string(settings, "use_raw_ref", "OFF");
+	obs_data_set_default_string(settings, "nal_hrd_conformance", "ON");
+	obs_data_set_default_string(settings, "rdo", "OFF");
+	obs_data_set_default_string(settings, "weighted_pred", "OFF");
+	obs_data_set_default_string(settings, "trellis", "OFF");
+	obs_data_set_default_int(settings, "num_ref_frame", 0);
+	obs_data_set_default_string(settings, "globalmotionbias_adjustment", "OFF");
+	obs_data_set_default_string(settings, "mv_costscaling_factor", "DEFAULT");
+	obs_data_set_default_string(settings, "fade_detection", "OFF");
+	obs_data_set_default_string(settings, "lookahead_ds", "AUTO");
+	obs_data_set_default_string(settings, "directbias_adjustment", "OFF");
+	obs_data_set_default_string(settings, "mv_overpic_boundaries", "OFF");
+	obs_data_set_default_int(settings, "la_depth", 10);
+	obs_data_set_default_string(settings, "extbrc", "OFF");
 }
 
 static void obs_qsv_defaults_h264_v1(obs_data_t* settings)
@@ -517,64 +539,86 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		obs_module_text("Latency.ToolTip"));
 
 	if (codec != QSV_CODEC_AV1)
-		obs_properties_add_int(props, "bframes", TEXT_BFRAMES, 0, 16, 1);
+		obs_properties_add_int_slider(props, "bframes", TEXT_BFRAMES, 0, 16, 1);
 
 	obs_properties_add_int(props, "async_depth", TEXT_ASYNC_DEPTH, 1, 64, 1);
 
 	if (is_skl_or_greater_platform())
 		obs_properties_add_bool(props, "enhancements",
 			TEXT_PERCEPTUAL_ENHANCEMENTS);
-	prop = obs_properties_add_list(props, "repartition_check",
-		TEXT_REPARTITION_CHECK_ENABLE,
-		OBS_COMBO_TYPE_LIST,
-		OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_repartition_check_condition);
+	if (codec == QSV_CODEC_AVC) {
+		prop = obs_properties_add_list(props, "repartitioncheck_enable",
+			TEXT_REPARTITION_CHECK_ENABLE,
+			OBS_COMBO_TYPE_LIST,
+			OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_repartition_check_condition);
+		obs_property_set_long_description(prop,
+			obs_module_text("PreferredMode.ToolTip"));
+	}
 
 	prop = obs_properties_add_list(props, "rdo", TEXT_RDO,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("RDO.ToolTip"));
 
 	prop = obs_properties_add_list(props, "gop_opt_flag", TEXT_GOP_OPT_FLAG,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_gop_params);
 	obs_property_set_modified_callback(prop, profile_modified);
+	obs_property_set_long_description(prop,
+		obs_module_text("GOPOptFlag.ToolTip"));
 
 	prop = obs_properties_add_list(props, "adaptive_i", TEXT_ADAPTIVE_I,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("AdaptiveI.ToolTip"));
 
 	prop = obs_properties_add_list(props, "adaptive_b", TEXT_ADAPTIVE_B,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("AdaptiveB.ToolTip"));
 
 	prop = obs_properties_add_list(props, "adaptive_ref", TEXT_ADAPTIVE_REF,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("AdaptiveRef.ToolTip"));
 
 	prop = obs_properties_add_list(props, "adaptive_cqm", TEXT_ADAPTIVE_CQM,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("AdaptiveCQM.ToolTip"));
 
 	prop = obs_properties_add_list(props, "adaptive_maxframesize", TEXT_ADAPTIVE_MAX_FRAME_SIZE,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("AdaptiveMaxFrameSize.ToolTip"));
 
 	prop = obs_properties_add_list(props, "use_raw_ref", TEXT_USE_RAW_REF,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("UseRawRef.ToolTip"));
 
 	prop = obs_properties_add_list(props, "fade_detection",
 		TEXT_FADE_DETECTION, OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("FadeDetection.ToolTip"));
 
 	prop = obs_properties_add_list(props, "globalmotionbias_adjustment",
 		TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT,
@@ -582,23 +626,31 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
 	obs_property_set_modified_callback(prop, profile_modified);
+	obs_property_set_long_description(prop,
+		obs_module_text("GlobalMotionBiasAdjustment.ToolTip"));
 
 	prop = obs_properties_add_list(props, "mv_costscaling_factor",
 		TEXT_MV_COST_SCALING_FACTOR,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_mv_cost_scaling_params);
+	obs_property_set_long_description(prop,
+		obs_module_text("MVCostScalingFactor.ToolTip"));
 
 	prop = obs_properties_add_list(props, "directbias_adjustment",
 		TEXT_DIRECT_BIAS_ADJUSTMENT,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("DirectBiasAdjusment.ToolTip"));
 
 	prop = obs_properties_add_list(props, "weighted_pred",
 		TEXT_WEIGHTED_PRED, OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(prop,
+		obs_module_text("WeightedPred.ToolTip"));
 
 	prop = obs_properties_add_list(props,
 		"mv_overpic_boundaries",
@@ -606,25 +658,33 @@ static obs_properties_t* obs_qsv_props(enum qsv_codec codec, void* unused,
 		OBS_COMBO_TYPE_LIST,
 		OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition_auto);
+	obs_property_set_long_description(prop,
+		obs_module_text("MVOverpicBoundaries.ToolTip"));
+	if (codec == QSV_CODEC_AVC) {
+		prop = obs_properties_add_list(props, "trellis", TEXT_TRELLIS,
+			OBS_COMBO_TYPE_LIST,
+			OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_trellis_params);
+		obs_property_set_long_description(prop,
+			obs_module_text("Trellis.ToolTip"));
+	}
 
-	prop = obs_properties_add_list(props, "trellis", TEXT_TRELLIS,
-		OBS_COMBO_TYPE_LIST,
-		OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_trellis_params);
+	if (codec != QSV_CODEC_AV1) {
+		obs_properties_add_int_slider(props, "num_ref_frame",
+			TEXT_NUM_REF_FRAME, 0, 16, 1);
 
-	obs_properties_add_int_slider(props, "num_ref_frame",
-		TEXT_NUM_REF_FRAME, 0, 16, 1);
+		prop = obs_properties_add_list(props, "lookahead_ds", TEXT_LOOKAHEAD_DS,
+			OBS_COMBO_TYPE_LIST,
+			OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_lookahead_ds_params);
+		obs_property_set_long_description(prop,
+			obs_module_text("LookaheadDS.ToolTip"));
 
-	prop = obs_properties_add_list(props, "lookahead_ds", TEXT_LOOKAHEAD_DS,
-		OBS_COMBO_TYPE_LIST,
-		OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_lookahead_ds_params);
+		//obs_properties_add_int(props, "lookahead_ds", TEXT_LOOKAHEAD_DS, 0, 3, 1);
 
-	//obs_properties_add_int(props, "lookahead_ds", TEXT_LOOKAHEAD_DS, 0, 3, 1);
-
-	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 10, 100,
-		5);
-
+		obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 10, 100,
+			5);
+	}
 	return props;
 }
 
@@ -680,13 +740,13 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 	const char* extbrc = obs_data_get_string(settings, "extbrc");
 	int bFrames = (int)obs_data_get_int(settings, "bframes");
 	bool enhancements = obs_data_get_bool(settings, "enhancements");
-	const char* repartition_check_enable =
+	const char* repartitioncheck_enable =
 		obs_data_get_string(settings, "repartitioncheck_enable");
 	const char* adaptive_i = obs_data_get_string(settings, "adaptive_i");
 	const char* adaptive_b = obs_data_get_string(settings, "adaptive_b");
 	const char* adaptive_ref = obs_data_get_string(settings, "adaptive_ref");
 	const char* adaptive_cqm = obs_data_get_string(settings, "adaptive_cqm");
-	const char* adaptive_maxframesize = obs_data_get_string(settings, "adaptive_max_framesize");
+	const char* adaptive_maxframesize = obs_data_get_string(settings, "adaptive_maxframesize");
 	const char* gop_opt_flag =
 		obs_data_get_string(settings, "gop_opt_flag");
 	const char* use_raw_ref = obs_data_get_string(settings, "use_raw_ref");
@@ -721,34 +781,55 @@ static void update_params(struct obs_qsv* obsqsv, obs_data_t* settings)
 
 	int width = (int)obs_encoder_get_width(obsqsv->encoder);
 	int height = (int)obs_encoder_get_height(obsqsv->encoder);
-	if (astrcmpi(target_usage, "quality") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BEST_QUALITY;
-	else if (astrcmpi(target_usage, "balanced") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BALANCED;
-	else if (astrcmpi(target_usage, "speed") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
-	else if (astrcmpi(target_usage, "veryslow") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_1;
-	else if (astrcmpi(target_usage, "slower") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_2;
-	else if (astrcmpi(target_usage, "slow") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_3;
-	else if (astrcmpi(target_usage, "medium") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_4;
-	else if (astrcmpi(target_usage, "fast") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_5;
-	else if (astrcmpi(target_usage, "faster") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_6;
-	else if (astrcmpi(target_usage, "veryfast") == 0)
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_7;
 
-	if (astrcmpi(repartition_check_enable, "QUALITY") == 0) {
+	if (astrcmpi(target_usage, "quality") == 0) {
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BEST_QUALITY;
+		blog(LOG_INFO, "Target usage set: Quality");
+	}
+	else if (astrcmpi(target_usage, "balanced") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BALANCED;
+		blog(LOG_INFO, "Target usage set: Balanced");
+	}
+	else if (astrcmpi(target_usage, "speed") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
+		blog(LOG_INFO, "Target usage set: Speed");
+	}
+	else if (astrcmpi(target_usage, "veryslow") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_1;
+		blog(LOG_INFO, "Target usage set: Veryslow");
+	}
+	else if (astrcmpi(target_usage, "slower") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_2;
+		blog(LOG_INFO, "Target usage set: Slower");
+	}
+	else if (astrcmpi(target_usage, "slow") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_3;
+		blog(LOG_INFO, "Target usage set: Slow");
+	}
+	else if (astrcmpi(target_usage, "medium") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_4;
+		blog(LOG_INFO, "Target usage set: Medium");
+	}
+	else if (astrcmpi(target_usage, "fast") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_5;
+		blog(LOG_INFO, "Target usage set: Fast");
+	}
+	else if (astrcmpi(target_usage, "faster") == 0){
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_6;
+		blog(LOG_INFO, "Target usage set: Faster");
+	}
+	else if (astrcmpi(target_usage, "veryfast") == 0) {
+		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_7;
+		blog(LOG_INFO, "Target usage set: Veryfast");
+	}
+
+	if (astrcmpi(repartitioncheck_enable, "QUALITY") == 0) {
 		obsqsv->params.nRepartitionCheckEnable = 1;
 	}
-	else if (astrcmpi(repartition_check_enable, "PERFORMANCE")) {
+	else if (astrcmpi(repartitioncheck_enable, "PERFORMANCE")) {
 		obsqsv->params.nRepartitionCheckEnable = 0;
 	}
-	else if (astrcmpi(repartition_check_enable, "AUTO")) {
+	else if (astrcmpi(repartitioncheck_enable, "AUTO")) {
 		obsqsv->params.nRepartitionCheckEnable = 3;
 	}
 
