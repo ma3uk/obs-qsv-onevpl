@@ -6,7 +6,7 @@
 
 #pragma once
 #include <exception>
-#include "mfxstructures.h"
+#include "vpl/mfxstructures.h"
 
 namespace MFX {
 template <class T>

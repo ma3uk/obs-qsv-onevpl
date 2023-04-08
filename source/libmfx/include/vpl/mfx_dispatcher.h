@@ -25,7 +25,7 @@ enum {
     DEFAULT_API_VERSION_MINOR = MFX_VERSION_MINOR
 };
 
-enum { VPL_MINIMUM_VERSION_MAJOR = 1, VPL_MINIMUM_VERSION_MINOR = 0 };
+enum { VPL_MINIMUM_VERSION_MAJOR = 2, VPL_MINIMUM_VERSION_MINOR = 0 };
 
 //
 // declare functions' integer identifiers.
