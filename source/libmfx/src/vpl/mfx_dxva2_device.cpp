@@ -3,7 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define MFX_DEPRECATED_OFF
+
 #define INITGUID
 #include <d3d9.h>
 #include <dxgi.h>

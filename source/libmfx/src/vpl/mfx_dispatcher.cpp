@@ -3,8 +3,9 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-//#define MFX_DEPRECATED_OFF
 #define MFX_DEPRECATED_OFF
+#define ONEVPL_EXPERIMENTAL
+#define MFX_ENABLE_ENCTOOLS
 #include "mfx_dispatcher.h"
 #include "mfx_dispatcher_log.h"
 #include "mfx_load_dll.h"
@@ -19,6 +20,7 @@
 #include "mfx_dxva2_device.h"
 #include "mfx_vector.h"
 #include "mfxvideo++.h"
+
 #if _MSC_VER
     #pragma warning(disable : 4355)
 #endif

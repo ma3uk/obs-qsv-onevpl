@@ -3,7 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define MFX_DEPRECATED_OFF
+
 #include "mfx_dispatcher_vpl_log.h"
 
 DispatcherLogVPL::DispatcherLogVPL() : m_logLevel(0), m_logFileName(), m_logFile(nullptr) {}

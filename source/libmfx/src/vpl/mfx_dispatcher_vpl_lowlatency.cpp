@@ -3,7 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define MFX_DEPRECATED_OFF
+
 #include "mfx_dispatcher_vpl.h"
 
 #if defined(_WIN32) || defined(_WIN64)

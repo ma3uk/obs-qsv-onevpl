@@ -3,12 +3,12 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define MFX_DEPRECATED_OFF
+
 #if defined(MFX_DISPATCHER_LOG)
 
-    #include "mfx_dispatcher_log.h"
+    #include "windows/mfx_dispatcher_log.h"
     #include <windows.h>
-    #include "mfxstructures.h"
+    #include "vpl/mfxstructures.h"
     #if defined(DISPATCHER_LOG_REGISTER_EVENT_PROVIDER)
         #include <evntprov.h>
         #include <winmeta.h>

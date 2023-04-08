@@ -4,6 +4,8 @@
   # SPDX-License-Identifier: MIT
   ############################################################################*/
 #define MFX_DEPRECATED_OFF
+#define ONEVPL_EXPERIMENTAL
+#define MFX_ENABLE_ENCTOOLS
 #include <windows.h>
 
 #include <stringapiset.h>

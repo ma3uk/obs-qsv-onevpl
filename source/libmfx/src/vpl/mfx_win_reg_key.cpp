@@ -3,7 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define MFX_DEPRECATED_OFF
+
 #if !defined(MEDIASDK_UWP_DISPATCHER)
     #include "mfx_win_reg_key.h"
     #include "mfx_dispatcher_log.h"
