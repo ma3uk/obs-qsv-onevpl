@@ -3,7 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ###########################################################################*/
-#define MFX_DEPRECATED_OFF
+
 #ifndef __MFXVIDEOPLUSPLUS_H
 #define __MFXVIDEOPLUSPLUS_H
 

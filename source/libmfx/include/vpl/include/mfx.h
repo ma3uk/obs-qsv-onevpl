@@ -19,9 +19,7 @@
 #include "mfxbrc.h"
 #include "mfxmvc.h"
 #include "mfxpcp.h"
-#include "mfxvp8.h"
-#include "mfxjpeg.h"
-
+#include "private/mfxenctools.h"
 #include "mfxsurfacepool.h"
 
 #ifdef ONEVPL_EXPERIMENTAL
