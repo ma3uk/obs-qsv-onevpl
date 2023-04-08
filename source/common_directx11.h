@@ -2,9 +2,9 @@
 
 #include "common_utils.h"
 
-#include <windows.h>
+#include <Windows.h>
 #include <d3d11.h>
-#include <dxgi1_2.h>
+#include <dxgi1_6.h>
 #include <atlbase.h>
 
 #define DEVICE_MGR_TYPE MFX_HANDLE_D3D11_DEVICE

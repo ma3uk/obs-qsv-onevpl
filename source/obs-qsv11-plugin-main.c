@@ -143,7 +143,7 @@ bool obs_module_load(void)
 	if (adapter_count > MAX_ADAPTERS)
 		adapter_count = MAX_ADAPTERS;
 
-	for (size_t i = 0; i < adapter_count; i++) {
+	for (size_t i = 0; i < adapter_count; ++i) {
 		char section[16];
 		snprintf(section, sizeof(section), "%u", (int)i);
 

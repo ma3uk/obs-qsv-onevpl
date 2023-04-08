@@ -55,11 +55,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #pragma once
-
+#include <Windows.h>
 #include "mfxstructures.h"
 #include "mfxadapter.h"
 #include <stdint.h>
-#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,8 +77,8 @@ extern "C" {
 	static const struct qsv_rate_control_info qsv_av1_ratecontrols[] =
 	{ {"CBR", false}, {"VBR", false}, {"CQP", false}, {0, false} };
 
-	static const char* const qsv_profile_names[] = { "high", "main", "baseline", 0 };
-	static const char* const qsv_profile_names_av1[] = { "main", 0 };
+	static const char* const qsv_profile_names[] = { "high", "main", "baseline","high10", "high422", 0};
+	static const char* const qsv_profile_names_av1[] = { "main", "high", 0};
 	static const char* const qsv_profile_names_hevc[] = { "main", "main10", 0 };
 	static const char* const qsv_usage_names[] = { "quality",  "balanced", "speed",
 							  "veryslow", "slower",   "slow",
@@ -155,7 +154,12 @@ extern "C" {
 		mfxU32 MinDisplayMasteringLuminance;
 		mfxU16 MaxContentLightLevel;
 		mfxU16 MaxPicAverageLightLevel;
-		int nTemporalLayers;
+		int bRepeatPPS;
+		int bEnableMAD;
+		int bFixedFrameRate;
+		int bVuiNalHrd;
+		int bNalHrdConformance;
+		bool bQualityEnchance;
 		bool bMBBRC;
 		bool bCQM;
 		bool bRDO;
@@ -164,6 +168,7 @@ extern "C" {
 		bool bAdaptiveB;
 		bool bAdaptiveRef;
 		bool bAdaptiveCQM;
+		bool bAdaptiveLTR;
 		bool bAdaptiveMaxFrameSize;
 		bool bUseRDO;
 		bool bGopOptFlag;
@@ -173,13 +178,19 @@ extern "C" {
 		bool bGlobalMotionBiasAdjustment;
 		bool bFadeDetection;
 		bool bDirectBiasAdjustment;
+		bool bLowPower;
+		bool video_fmt_10bit;
 		int nTrellis;
 		int nNumRefFrame;
 		int nMVCostScalingFactor;
 		int nLookAheadDS;
 		int nRepartitionCheckEnable;
 		int nMotionVectorsOverPicBoundaries;
-		bool video_fmt_10bit;
+		int nTemporalLayers;
+		int nWinBRCMaxAvgSize;
+		int nWinBRCSize;
+		int nMaxDecFrameBuffering;
+
 	} qsv_param_t;
 
 	enum qsv_cpu_platform {

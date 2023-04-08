@@ -2,14 +2,11 @@
 
 // ATTENTION: If D3D surfaces are used, DX9_D3D or DX11_D3D must be set in project settings or hardcoded here
 
-#ifdef DX9_D3D
-#include "common_directx.h"
-#elif DX11_D3D
+
 #include "common_directx11.h"
-#include "common_directx9.h"
-#endif
 
 #include <intrin.h>
+#include <wrl/client.h>
 
 /* =======================================================
  * Windows implementation of OS-specific utility functions
@@ -56,37 +53,6 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession *pSession,
 		sts = pSession->SetFrameAllocator(pmfxAllocator);
 		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	} else if (pmfxAllocator && dx9hack) {
-		// Initialize Intel Media SDK Session
-		sts = pSession->Init(impl, &ver);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-		// Create DirectX device context
-		if (deviceHandle == NULL || *deviceHandle == NULL) {
-			sts = DX9_CreateHWDevice(*pSession, deviceHandle, NULL,
-						 false);
-			MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-		}
-		if (*deviceHandle == NULL)
-			return MFX_ERR_DEVICE_FAILED;
-
-		// Provide device manager to Media SDK
-		sts = pSession->SetHandle(MFX_HANDLE_D3D9_DEVICE_MANAGER,
-					  *deviceHandle);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-		pmfxAllocator->pthis =
-			*pSession; // We use Media SDK session ID as the allocation identifier
-		pmfxAllocator->Alloc = dx9_simple_alloc;
-		pmfxAllocator->Free = dx9_simple_free;
-		pmfxAllocator->Lock = dx9_simple_lock;
-		pmfxAllocator->Unlock = dx9_simple_unlock;
-		pmfxAllocator->GetHDL = dx9_simple_gethdl;
-
-		// Since we are using video memory we must provide Media SDK with an external allocator
-		sts = pSession->SetFrameAllocator(pmfxAllocator);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
 	} else {
 		// Initialize Intel Media SDK Session
 		sts = pSession->Init(impl, &ver);
@@ -97,10 +63,7 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession *pSession,
 
 void Release()
 {
-#if defined(DX9_D3D) || defined(DX11_D3D)
 	CleanupHWDevice();
-	DX9_CleanupHWDevice();
-#endif
 }
 
 void mfxGetTime(mfxTime *timestamp)

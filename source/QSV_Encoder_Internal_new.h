@@ -22,8 +22,7 @@ public:
 		mfxBitstream** pBS);
 	mfxStatus ClearData();
 	mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, mfxSession* pSession,
-		mfxFrameAllocator* mfx_FrameAllocator, mfxHDL* deviceHandle,
-		bool bCreateSharedHandles, mfxU32 codec);
+		mfxFrameAllocator* mfx_FrameAllocator, mfxHDL* deviceHandle);
 	mfxStatus Reset(qsv_param_t* pParams, enum qsv_codec codec);
 	mfxStatus ReconfigureEncoder();
 	bool UpdateParams(qsv_param_t* pParams);
@@ -48,13 +47,14 @@ private:
 	mfxIMPL mfx_impl;
 	mfxVersion mfx_version;
 	mfxSession mfx_session;
+	mfxExtTuneEncodeQuality mfx_Tune;
 	mfxEncodeCtrl mfx_EncControl;
 	mfxFrameAllocator mfx_FrameAllocator;
 	mfxVideoParam mfx_EncParams;
 	mfxFrameAllocResponse mfx_FrameAllocResponse;
 	mfxFrameSurface1** mfx_FrameSurf;
 	mfxU16 mU16_SurfNum;
-	MFXVideoENCODE* mfx_VidEnc;
+	MFXVideoENCODE* mfx_VideoEnc;
 	mfxU8 mU8_VPSBuffer[1024];
 	mfxU8 mU8_SPSBuffer[1024];
 	mfxU8 mU8_PPSBuffer[1024];
@@ -67,7 +67,7 @@ private:
 	mfxExtCodingOption3 mfx_co3;
 	mfxExtCodingOption2 mfx_co2;
 	mfxExtCodingOption mfx_co;
-	mfxExtTemporalLayers mfx_tl;
+	mfxExtAvcTemporalLayers mfx_tl;
 	mfxExtHEVCParam mfx_ExtHEVCParam{};
 	mfxExtVideoSignalInfo mfx_ExtVideoSignalInfo{};
 	mfxExtChromaLocInfo mfx_ExtChromaLocInfo{};

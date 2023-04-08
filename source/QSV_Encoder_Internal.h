@@ -103,6 +103,7 @@ private:
 	MFXVideoSession m_session;
 	mfxFrameAllocator m_mfxAllocator;
 	mfxVideoParam m_mfxEncParams;
+	mfxEncodeCtrl mfx_EncControl;
 	mfxFrameAllocResponse m_mfxResponse;
 	mfxFrameSurface1** m_pmfxSurfaces;
 	mfxU16 m_nSurfNum;
@@ -119,6 +120,7 @@ private:
 	mfxExtCodingOption3 m_co3;
 	mfxExtCodingOption2 m_co2;
 	mfxExtCodingOption m_co;
+	mfxExtAvcTemporalLayers mfx_tl;
 	mfxExtHEVCParam m_ExtHEVCParam{};
 	mfxExtVideoSignalInfo m_ExtVideoSignalInfo{};
 	mfxExtChromaLocInfo m_ExtChromaLocInfo{};

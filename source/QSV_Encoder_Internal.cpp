@@ -54,6 +54,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #define MFX_DEPRECATED_OFF
+#define ONEVPL_EXPERIMENTAL
+#define MFX_ENABLE_ENCTOOLS
 #include "QSV_Encoder_Internal.h"
 #include "QSV_Encoder.h"
 #include "mfxvideo++.h"
@@ -179,7 +181,7 @@ mfxStatus QSV_MSDK_Encoder_Internal::Open(qsv_param_t* pParams, enum qsv_codec c
 mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 	enum qsv_codec codec)
 {
-	memset(&m_mfxEncParams, 0, sizeof(m_mfxEncParams));
+	memset(&m_mfxEncParams, 0, sizeof(mfxVideoParam));
 
 	if (codec == QSV_CODEC_AVC)
 		m_mfxEncParams.mfx.CodecId = MFX_CODEC_AVC;
@@ -188,23 +190,24 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 	else if (codec == QSV_CODEC_HEVC)
 		m_mfxEncParams.mfx.CodecId = MFX_CODEC_HEVC;
 
-	if (pParams->bGopOptFlag) {
+	if ((bool)pParams->bGopOptFlag) {
 		m_mfxEncParams.mfx.GopOptFlag = MFX_GOP_CLOSED;
 		blog(LOG_INFO, "\tGopOptFlag set: CLOSED");
 	}
 
 	if (((int)pParams->nNumRefFrame >= 0) &&
-		((int)pParams->nNumRefFrame < 17)) {
+	    ((int)pParams->nNumRefFrame < 17)) {
 		m_mfxEncParams.mfx.NumRefFrame = pParams->nNumRefFrame;
-		blog(LOG_INFO, "\tNumRefFrame set to:     %d",
-			pParams->nNumRefFrame);
+		blog(LOG_INFO, "\tNumRefFrame set to: %d",
+		     pParams->nNumRefFrame);
 	}
+
+	m_mfxEncParams.mfx.NumThread = 64;
 
 	if (codec == QSV_CODEC_HEVC) {
 		m_mfxEncParams.mfx.NumSlice = 0;
 		m_mfxEncParams.mfx.IdrInterval = 1;
-	}
-	else {
+	} else {
 		m_mfxEncParams.mfx.NumSlice = 1;
 	}
 	m_mfxEncParams.mfx.TargetUsage = pParams->nTargetUsage;
@@ -216,8 +219,7 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 		m_mfxEncParams.mfx.FrameInfo.BitDepthChroma = 10;
 		m_mfxEncParams.mfx.FrameInfo.BitDepthLuma = 10;
 		m_mfxEncParams.mfx.FrameInfo.Shift = 1;
-	}
-	else {
+	} else {
 		m_mfxEncParams.mfx.FrameInfo.FourCC = MFX_FOURCC_NV12;
 	}
 	m_mfxEncParams.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
@@ -235,15 +237,16 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 		m_mfxEncParams.mfx.LowPower = MFX_CODINGOPTION_OFF;
 
 	enum qsv_cpu_platform qsv_platform = qsv_get_cpu_platform();
-	if ((m_isDGPU || qsv_platform >= QSV_CPU_PLATFORM_ICL ||
-		qsv_platform == QSV_CPU_PLATFORM_UNKNOWN) &&
-		(pParams->nbFrames == 0) &&
-		(m_ver.Major == 1 && m_ver.Minor >= 31)) {
+	if ((m_isDGPU || qsv_platform == QSV_CPU_PLATFORM_UNKNOWN) &&
+	    (pParams->nbFrames == 0) &&
+	    (m_ver.Major >= 1 && m_ver.Minor >= 0)) {
 		m_mfxEncParams.mfx.LowPower = MFX_CODINGOPTION_ON;
+		blog(LOG_INFO, "Lowpower set: ON");
 		if (pParams->nRateControl == MFX_RATECONTROL_LA_ICQ ||
-			pParams->nRateControl == MFX_RATECONTROL_LA_HRD ||
-			pParams->nRateControl == MFX_RATECONTROL_LA)
+		    pParams->nRateControl == MFX_RATECONTROL_LA_HRD ||
+		    pParams->nRateControl == MFX_RATECONTROL_LA)
 			pParams->nRateControl = MFX_RATECONTROL_VBR;
+		blog(LOG_INFO, "Ratecontrol set: VBR");
 	}
 
 	m_mfxEncParams.mfx.RateControlMethod = pParams->nRateControl;
@@ -278,13 +281,16 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 		break;
 	case MFX_RATECONTROL_LA:
 		m_mfxEncParams.mfx.TargetKbps = pParams->nTargetBitRate;
+		m_mfxEncParams.mfx.BufferSizeInKB = pParams->nTargetBitRate;
+		m_mfxEncParams.mfx.InitialDelayInKB = pParams->nTargetBitRate;
 		break;
 	case MFX_RATECONTROL_LA_ICQ:
 		m_mfxEncParams.mfx.ICQQuality = pParams->nICQQuality;
 		break;
 	case MFX_RATECONTROL_LA_HRD:
 		m_mfxEncParams.mfx.TargetKbps = pParams->nTargetBitRate;
-		m_mfxEncParams.mfx.MaxKbps = pParams->nTargetBitRate;
+		m_mfxEncParams.mfx.BufferSizeInKB = pParams->nTargetBitRate;
+		m_mfxEncParams.mfx.InitialDelayInKB = pParams->nTargetBitRate;
 		break;
 	}
 
@@ -292,317 +298,401 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 
 	m_mfxEncParams.mfx.GopPicSize =
 		(mfxU16)(pParams->nKeyIntSec * pParams->nFpsNum /
-			(float)pParams->nFpsDen);
+			 (float)pParams->nFpsDen);
 
-	if (m_ver.Major == 1 && m_ver.Minor >= 8) {
+	if (m_ver.Major >= 1 && m_ver.Minor >= 0) {
 		memset(&m_co2, 0, sizeof(mfxExtCodingOption2));
 		m_co2.Header.BufferId = MFX_EXTBUFF_CODING_OPTION2;
 		m_co2.Header.BufferSz = sizeof(m_co2);
-		if (codec != QSV_CODEC_AVC)
-			m_co2.RepeatPPS = MFX_CODINGOPTION_ON;
-		if (pParams->nRateControl == MFX_RATECONTROL_LA_ICQ ||
-			pParams->nRateControl == MFX_RATECONTROL_LA ||
-			pParams->nRateControl == MFX_RATECONTROL_LA_HRD)
-			m_co2.LookAheadDepth = pParams->nLADEPTH;
-		blog(LOG_INFO, "\tLookahead set to:     %d",
-			pParams->nLADEPTH);
-		if ((pParams->bMBBRC && pParams->nRateControl != MFX_RATECONTROL_LA_ICQ) || (pParams->bMBBRC && pParams->nRateControl != MFX_RATECONTROL_LA) || (pParams->bMBBRC && pParams->nRateControl != MFX_RATECONTROL_LA_HRD))
-			m_co2.MBBRC = MFX_CODINGOPTION_ON;
-		//m_co2.ExtBRC = MFX_CODINGOPTION_ON;
-		if (pParams->nbFrames > 1)
-			m_co2.BRefType = MFX_B_REF_PYRAMID;
+		/*m_co2.IntRefType = MFX_REFRESH_SLICE;*/
+		//m_co2.IntRefCycleSize = 60;
 
-		switch (pParams->nTrellis) {
-		case 0:
+		if (pParams->bRepeatPPS == 1) {
+			m_co2.RepeatPPS = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tRepeatPPS set: ON");
+		} else if (pParams->bRepeatPPS == 0 || codec != QSV_CODEC_AVC) {
+			m_co2.RepeatPPS = MFX_CODINGOPTION_OFF;
+			blog(LOG_INFO, "\tRepeatPPS set: OFF");
+		}
+
+		if (pParams->bEnableMAD == 1) {
+			m_co2.EnableMAD = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tMAD set: ON");
+		} else if (pParams->bEnableMAD == 0) {
+			m_co2.EnableMAD = MFX_CODINGOPTION_OFF;
+			blog(LOG_INFO, "\tMAD set: OFF");
+		}
+
+		if (pParams->bFixedFrameRate == 1) {
+			m_co2.FixedFrameRate = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tFixedFrameRate set: ON");
+		} else if (pParams->bFixedFrameRate == 0) {
+			m_co2.FixedFrameRate = MFX_CODINGOPTION_OFF;
+			blog(LOG_INFO, "\tFixedFrameRate set: OFF");
+		}
+
+		if (pParams->nRateControl == MFX_RATECONTROL_LA_ICQ ||
+		    pParams->nRateControl == MFX_RATECONTROL_LA ||
+		    pParams->nRateControl == MFX_RATECONTROL_LA_HRD) {
+			m_co2.LookAheadDepth = pParams->nLADEPTH;
+			blog(LOG_INFO, "\tLookahead set to:     %d",
+			     pParams->nLADEPTH);
+		}
+
+		if ((pParams->bMBBRC &&
+		     (pParams->nRateControl != MFX_RATECONTROL_LA_ICQ)) ||
+		    (pParams->bMBBRC &&
+		     (pParams->nRateControl != MFX_RATECONTROL_LA)) ||
+		    (pParams->bMBBRC &&
+		     (pParams->nRateControl != MFX_RATECONTROL_LA_HRD))) {
+			m_co2.MBBRC = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tMBBRC set: ON");
+		}
+		//test
+		m_co2.BitrateLimit = MFX_CODINGOPTION_ON;
+
+		if (pParams->nbFrames > 1) {
+			m_co2.BRefType = MFX_B_REF_PYRAMID;
+			blog(LOG_INFO, "\tBPyramid set: ON");
+		}
+
+		switch ((int)pParams->nTrellis) {
+		case (int)0:
 			m_co2.Trellis = MFX_TRELLIS_OFF;
-			blog(LOG_INFO, "\tTrellis disabled:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: OFF");
 			break;
 		case 1:
 			m_co2.Trellis = MFX_TRELLIS_I;
-			blog(LOG_INFO, "\tTrellis set I:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: I");
 			break;
 		case 2:
 			m_co2.Trellis = MFX_TRELLIS_I | MFX_TRELLIS_P;
-			blog(LOG_INFO, "\tTrellis set IP:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: IP");
 			break;
 		case 3:
 			m_co2.Trellis = MFX_TRELLIS_I | MFX_TRELLIS_P |
-				MFX_TRELLIS_B;
-			blog(LOG_INFO, "\tTrellis set IPB:     %d",
-				pParams->nTrellis);
+					MFX_TRELLIS_B;
+			blog(LOG_INFO, "\tTrellis set: IPB");
 			break;
 		case 4:
 			m_co2.Trellis = MFX_TRELLIS_I | MFX_TRELLIS_B;
-			blog(LOG_INFO, "\tTrellis set IB:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: IB");
 			break;
 		case 5:
 			m_co2.Trellis = MFX_TRELLIS_P;
-			blog(LOG_INFO, "\tTrellis set P:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: P");
 			break;
 		case 6:
 			m_co2.Trellis = MFX_TRELLIS_P | MFX_TRELLIS_B;
-			blog(LOG_INFO, "\tTrellis set PB:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: PB");
 			break;
 		case 7:
-			blog(LOG_INFO, "\tTrellis set B:     %d",
-				pParams->nTrellis);
+			m_co2.Trellis = MFX_TRELLIS_B;
+			blog(LOG_INFO, "\tTrellis set: B");
 			break;
 		default:
 			m_co2.Trellis = MFX_TRELLIS_UNKNOWN;
-			blog(LOG_INFO, "\tTrellis set unknown:     %d",
-				pParams->nTrellis);
+			blog(LOG_INFO, "\tTrellis set: AUTO");
 			break;
 		}
 
-		if (pParams->bAdaptiveI) {
+		if ((bool)pParams->bAdaptiveI) {
 			m_co2.AdaptiveI = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO, "\tAdaptiveI enabled:     %d",
-				pParams->bAdaptiveI);
-		}
-		else {
-			m_co2.AdaptiveI = MFX_CODINGOPTION_OFF;
-			blog(LOG_INFO, "\tAdaptiveI disabled:     %d",
-				pParams->bAdaptiveI);
+			blog(LOG_INFO, "\tAdaptiveI set: ON");
 		}
 
-		if (pParams->bAdaptiveB) {
+		if ((bool)pParams->bAdaptiveB) {
 			m_co2.AdaptiveB = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO, "\tAdaptiveB enabled:     %d",
-				pParams->bAdaptiveB);
-		}
-		else {
-			m_co2.AdaptiveB = MFX_CODINGOPTION_OFF;
-			blog(LOG_INFO, "\tAdaptiveB disabled:     %d",
-				pParams->bAdaptiveB);
+			blog(LOG_INFO, "\tAdaptiveB set: ON");
 		}
 
-		switch (pParams->nLookAheadDS) {
-		case 0:
+		switch ((int)pParams->nLookAheadDS) {
+		case (int)0:
 			m_co2.LookAheadDS = MFX_LOOKAHEAD_DS_OFF;
-			blog(LOG_INFO, "\tLookAheadDS set to off:     %d",
-				pParams->nLookAheadDS);
+			blog(LOG_INFO, "\tLookAheadDS set: SLOW");
 			break;
 		case 1:
 			m_co2.LookAheadDS = MFX_LOOKAHEAD_DS_2x;
-			blog(LOG_INFO, "\tLookAheadDS set to 2x:     %d",
-				pParams->nLookAheadDS);
+			blog(LOG_INFO, "\tLookAheadDS set: MEDIUM");
 			break;
 		case 2:
 			m_co2.LookAheadDS = MFX_LOOKAHEAD_DS_4x;
-			blog(LOG_INFO, "\tLookAheadDS set to 4x:     %d",
-				pParams->nLookAheadDS);
+			blog(LOG_INFO, "\tLookAheadDS set: FAST");
 			break;
 		default:
 			m_co2.LookAheadDS = MFX_LOOKAHEAD_DS_UNKNOWN;
-			blog(LOG_INFO, "\tLookAheadDS set to unknown:     %d",
-				pParams->nLookAheadDS);
+			blog(LOG_INFO, "\tLookAheadDS set: AUTO");
 			break;
 		}
 
-		if (pParams->bUseRawRef) {
+		if ((bool)pParams->bUseRawRef) {
 			m_co2.UseRawRef = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO, "\tUseRawRef enabled:     %d",
-				pParams->bUseRawRef);
-		}
-		else {
-			m_co2.UseRawRef = MFX_CODINGOPTION_OFF;
-			blog(LOG_INFO, "\tUseRawRef disabled:     %d",
-				pParams->bUseRawRef);
+			blog(LOG_INFO, "\tUseRawRef set: ON");
 		}
 
 		if (m_mfxEncParams.mfx.LowPower == MFX_CODINGOPTION_ON) {
 			if (codec == QSV_CODEC_AVC)
 				m_co2.RepeatPPS = MFX_CODINGOPTION_OFF;
 			if (pParams->nRateControl == MFX_RATECONTROL_CBR ||
-				pParams->nRateControl == MFX_RATECONTROL_VBR) {
+			    pParams->nRateControl == MFX_RATECONTROL_VBR) {
 				m_co2.LookAheadDepth = pParams->nLADEPTH;
 			}
 		}
+		if ((bool)pParams->bExtBRC) {
+			m_co2.ExtBRC = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tExtBRC set: ON");
+		}
 
-		extendedBuffers.push_back((mfxExtBuffer*)&m_co2);
-
+		extendedBuffers.push_back((mfxExtBuffer *)&m_co2);
+		blog(LOG_INFO, "mfx_co2 enabled");
 	}
 
-	if ((m_mfxEncParams.mfx.LowPower == MFX_CODINGOPTION_ON) ||
-		(m_ver.Major == 1 && m_ver.Minor >= 16)) {
+	if (m_ver.Major >= 1 && m_ver.Minor >= 0) {
 		memset(&m_co3, 0, sizeof(mfxExtCodingOption3));
 		m_co3.Header.BufferId = MFX_EXTBUFF_CODING_OPTION3;
 		m_co3.Header.BufferSz = sizeof(m_co3);
 		m_co3.ScenarioInfo = MFX_SCENARIO_GAME_STREAMING;
-		m_co3.AdaptiveMaxFrameSize = MFX_CODINGOPTION_ON;
+		m_co3.ContentInfo = MFX_CONTENT_NOISY_VIDEO;
 
-		switch (pParams->nMotionVectorsOverPicBoundaries) {
-		case 0:
+		if ((bool)pParams->bAdaptiveLTR) {
+			m_co3.AdaptiveLTR = MFX_CODINGOPTION_ON;
+		}
+
+		if ((bool)pParams->bExtBRC) {
+			m_co3.CPUEncToolsProcessing = MFX_CODINGOPTION_ON;
+		}
+
+		if (codec == QSV_CODEC_HEVC) {
+			//test
+			m_co3.GPB = MFX_CODINGOPTION_ON;
+		}
+
+		//if (pParams->nbFrames <= 1) {
+		//	m_co3.PRefType = MFX_P_REF_PYRAMID;
+		//	blog(LOG_INFO, "\tPRef set: Pyramid");
+		//}
+		//else {
+		//	m_co3.PRefType = MFX_P_REF_SIMPLE;
+		//	blog(LOG_INFO, "\tPRef set: Simple");
+		//}
+
+		if ((bool)pParams->bAdaptiveMaxFrameSize) {
+			m_co3.AdaptiveMaxFrameSize = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tAdaptiveMaxFrameSize set: ON");
+		}
+
+		if ((bool)pParams->bAdaptiveCQM) {
+			m_co3.AdaptiveCQM = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tAdaptiveCQM set: ON");
+		}
+
+		if ((bool)pParams->bAdaptiveRef) {
+			m_co3.AdaptiveRef = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tAdaptiveRef set: ON");
+		}
+
+		if (pParams->nRateControl == MFX_RATECONTROL_LA_ICQ ||
+		    pParams->nRateControl == MFX_RATECONTROL_LA ||
+		    pParams->nRateControl == MFX_RATECONTROL_LA_HRD) {
+			if ((int)pParams->nWinBRCMaxAvgSize > 0) {
+				m_co3.WinBRCMaxAvgKbps =
+					pParams->nWinBRCMaxAvgSize;
+				blog(LOG_INFO, "WinBRCMaxSize set: %d",
+				     pParams->nWinBRCMaxAvgSize);
+			}
+
+			if ((int)pParams->nWinBRCSize > 0) {
+				m_co3.WinBRCSize = (pParams->nFpsNum *
+						    pParams->nWinBRCSize);
+				blog(LOG_INFO, "WinBRCSize set: %d",
+				     (pParams->nFpsNum * pParams->nWinBRCSize));
+			}
+
+			//m_co3.BRCPanicMode = MFX_CODINGOPTION_ON;
+		}
+
+		switch ((int)pParams->nMotionVectorsOverPicBoundaries) {
+		case (int)0:
 			m_co3.MotionVectorsOverPicBoundaries =
 				MFX_CODINGOPTION_OFF;
 			blog(LOG_INFO,
-				"\tMotionVectorsOverPicBoundaries disabled:     %d",
-				pParams->nMotionVectorsOverPicBoundaries);
+			     "\tMotionVectorsOverPicBoundaries set: OFF");
 			break;
 		case 1:
 			m_co3.MotionVectorsOverPicBoundaries =
 				MFX_CODINGOPTION_ON;
 			blog(LOG_INFO,
-				"\tMotionVectorsOverPicBoundaries enabled:     %d",
-				pParams->nMotionVectorsOverPicBoundaries);
+			     "\tMotionVectorsOverPicBoundaries set: ON");
 			break;
 		case 2:
 			m_co3.MotionVectorsOverPicBoundaries =
 				MFX_CODINGOPTION_UNKNOWN;
 			blog(LOG_INFO,
-				"\tMotionVectorsOverPicBoundaries set auto:     %d",
-				pParams->nMotionVectorsOverPicBoundaries);
+			     "\tMotionVectorsOverPicBoundaries set: AUTO");
 			break;
 		}
 
-
-		if (pParams->bGlobalMotionBiasAdjustment) {
-			m_co3.GlobalMotionBiasAdjustment = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO,
-				"\tGlobalMotionBiasAdjustment enabled:     %d",
-				pParams->bGlobalMotionBiasAdjustment);
-		}
-		else {
-			m_co3.GlobalMotionBiasAdjustment = MFX_CODINGOPTION_OFF;
-			blog(LOG_INFO,
-				"\tGlobalMotionBiasAdjustment disabled:     %d",
-				pParams->bGlobalMotionBiasAdjustment);
-		}
-
-		switch (pParams->nRepartitionCheckEnable) {
-		case 0:
+		switch ((int)pParams->nRepartitionCheckEnable) {
+		case (int)0:
 			m_co3.RepartitionCheckEnable = MFX_CODINGOPTION_OFF;
 			blog(LOG_INFO,
-				"\tRepartitionCheckEnable set performance:     %d",
-				pParams->nRepartitionCheckEnable);
+			     "\tRepartitionCheckEnable set: PERFORMANCE");
 			break;
 		case 1:
 			m_co3.RepartitionCheckEnable = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO,
-				"\tRepartitionCheckEnable set quality:     %d",
-				pParams->nRepartitionCheckEnable);
+			blog(LOG_INFO, "\tRepartitionCheckEnable set: QUALITY");
 			break;
 		case 2:
 			m_co3.RepartitionCheckEnable = MFX_CODINGOPTION_UNKNOWN;
-			blog(LOG_INFO,
-				"\tRepartitionCheckEnable set auto:     %d",
-				pParams->nRepartitionCheckEnable);
+			blog(LOG_INFO, "\tRepartitionCheckEnable set: AUTO");
 			break;
 		}
 
-		if (pParams->bWeightedPred) {
+		if ((bool)pParams->bWeightedPred) {
 			m_co3.WeightedPred = MFX_WEIGHTED_PRED_IMPLICIT;
-			blog(LOG_INFO,
-				"\tWeightedPred implicit enabled:     %d",
-				pParams->bWeightedPred);
-		}
-		else {
-			m_co3.WeightedPred = MFX_WEIGHTED_PRED_DEFAULT;
-			blog(LOG_INFO, "\tWeightedPred default enabled:     %d",
-				pParams->bWeightedPred);
+			blog(LOG_INFO, "\tWeightedPred set: ON");
 		}
 
-		if (pParams->bWeightedBiPred) {
+		if (((bool)pParams->bWeightedBiPred &&
+		     m_mfxEncParams.mfx.LowPower != MFX_CODINGOPTION_ON) ||
+		    m_isDGPU) {
 			m_co3.WeightedBiPred = MFX_WEIGHTED_PRED_IMPLICIT;
-			blog(LOG_INFO,
-				"\tWeightedBiPred implicit enabled:     %d",
-				pParams->bWeightedBiPred);
-		}
-		else {
-			m_co3.WeightedBiPred = MFX_WEIGHTED_PRED_DEFAULT;
-			blog(LOG_INFO,
-				"\tWeightedBiPred default enabled:     %d",
-				pParams->bWeightedBiPred);
+			blog(LOG_INFO, "\tWeightedBiPred set: ON");
 		}
 
-		if (pParams->bGlobalMotionBiasAdjustment) {
+		if ((int)pParams->bGlobalMotionBiasAdjustment) {
+			m_co3.GlobalMotionBiasAdjustment = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "\tGlobalMotionBiasAdjustment set: ON");
+
 			switch (pParams->nMVCostScalingFactor) {
-			case 0:
+			case (int)0:
 				m_co3.MVCostScalingFactor = (mfxU16)0;
 				blog(LOG_INFO,
-					"\tMVCostScalingFactor set 0:     %d",
-					pParams->nMVCostScalingFactor);
+				     "\tMVCostScalingFactor set: DEFAULT");
 				break;
 			case 1:
 				m_co3.MVCostScalingFactor = (mfxU16)1;
 				blog(LOG_INFO,
-					"\tMVCostScalingFactor set 1/2:     %d",
-					pParams->nMVCostScalingFactor);
+				     "\tMVCostScalingFactor set: 1/2");
 				break;
 			case 2:
 				m_co3.MVCostScalingFactor = (mfxU16)2;
 				blog(LOG_INFO,
-					"\tMVCostScalingFactor set 1/4:     %d",
-					pParams->nMVCostScalingFactor);
+				     "\tMVCostScalingFactor set: 1/4");
 				break;
 			case 3:
 				m_co3.MVCostScalingFactor = (mfxU16)3;
 				blog(LOG_INFO,
-					"\tMVCostScalingFactor set 1/8:     %d",
-					pParams->nMVCostScalingFactor);
+				     "\tMVCostScalingFactor set: 1/8");
 				break;
 			}
 		}
 
-		if (pParams->bDirectBiasAdjustment) {
+		if ((bool)pParams->bDirectBiasAdjustment) {
 			m_co3.DirectBiasAdjustment = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO, "\tDirectBiasAdjustment enabled:     %d",
-				pParams->bDirectBiasAdjustment);
-		}
-		else {
-			m_co3.DirectBiasAdjustment = MFX_CODINGOPTION_OFF;
-			blog(LOG_INFO,
-				"\tDirectBiasAdjustment disabled:     %d",
-				pParams->bDirectBiasAdjustment);
+			blog(LOG_INFO, "\tDirectBiasAdjustment set: ON");
 		}
 
-		if (pParams->bFadeDetection) {
+		if ((bool)pParams->bFadeDetection) {
 			m_co3.FadeDetection = MFX_CODINGOPTION_ON;
-			blog(LOG_INFO, "\tFadeDetection enabled:     %d",
-				pParams->bFadeDetection);
-		}
-		else {
-			m_co3.FadeDetection = MFX_CODINGOPTION_OFF;
-			blog(LOG_INFO, "\tFadeDetection disabled:     %d",
-				pParams->bFadeDetection);
+			blog(LOG_INFO, "\tFadeDetection set: ON");
 		}
 
-		extendedBuffers.push_back((mfxExtBuffer*)&m_co3);
+		extendedBuffers.push_back((mfxExtBuffer *)&m_co3);
+		blog(LOG_INFO, "mfx_co3 enabled");
 
+		if (pParams->nTemporalLayers > 0 &&
+		    pParams->nTemporalLayers < 9) {
+			memset(&mfx_tl, 0, sizeof(mfxExtAvcTemporalLayers));
+			mfx_tl.Header.BufferId =
+				MFX_EXTBUFF_AVC_TEMPORAL_LAYERS;
+			mfx_tl.Header.BufferSz = sizeof(mfx_tl);
+			mfx_tl.BaseLayerPID = 0;
+			int LayersScaleList[] = {1, 2, 4, 8, 16, 32, 64, 128};
+			for (int i = 0; i < pParams->nTemporalLayers; ++i) {
+				mfx_tl.Layer[i].Scale = LayersScaleList[i];
+			}
+			extendedBuffers.push_back((mfxExtBuffer *)&mfx_tl);
+			blog(LOG_INFO, "TemporalLayers enabled");
+		}
+	}
+
+	if (m_ver.Major >= 1 && m_ver.Minor >= 0) {
 		memset(&m_co, 0, sizeof(mfxExtCodingOption));
 		m_co.Header.BufferId = MFX_EXTBUFF_CODING_OPTION;
 		m_co.Header.BufferSz = sizeof(m_co);
-		m_co.IntraPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
-		m_co.InterPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
-		m_co.MVPrecision = MFX_MVPRECISION_QUARTERPEL;
-		m_co.MaxDecFrameBuffering = (int)(pParams->nLADEPTH + pParams->nFpsNum);
-		m_co.RateDistortionOpt = MFX_CODINGOPTION_ON;
+		//test
+		m_co.FieldOutput = MFX_CODINGOPTION_ON;
 
-		extendedBuffers.push_back((mfxExtBuffer*)&m_co);
+		if ((bool)pParams->bQualityEnchance) {
+			m_co.IntraPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
+			m_co.InterPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
+			m_co.MVPrecision = MFX_MVPRECISION_QUARTERPEL;
+			m_co.AUDelimiter = MFX_CODINGOPTION_ON;
+
+			blog(LOG_INFO, "\tQualityEnchance set: ON");
+		}
+
+		if ((int)pParams->nMaxDecFrameBuffering > 0) {
+			m_co.MaxDecFrameBuffering =
+				pParams->nMaxDecFrameBuffering;
+			blog(LOG_INFO, "\tMaxDecFrameBuffering set: %d",
+			     pParams->nMaxDecFrameBuffering);
+		}
+
+		if ((bool)pParams->bUseRDO) {
+			m_co.RateDistortionOpt = MFX_CODINGOPTION_ON;
+			blog(LOG_INFO, "RDO set: ON");
+		}
+
+		if (codec == QSV_CODEC_AVC) {
+			if (pParams->bVuiNalHrd == 1) {
+				m_co.VuiNalHrdParameters = MFX_CODINGOPTION_ON;
+				blog(LOG_INFO, "VuiNalHrdParameters set: ON");
+			} else if (pParams->bVuiNalHrd == 0) {
+				m_co.VuiNalHrdParameters = MFX_CODINGOPTION_OFF;
+				blog(LOG_INFO, "VuiNalHrdParameters set: OFF");
+			}
+
+			if (pParams->bNalHrdConformance == 1) {
+				m_co.NalHrdConformance = MFX_CODINGOPTION_ON;
+				blog(LOG_INFO, "NalHrdConformance set: ON");
+			} else if (pParams->bNalHrdConformance == 0) {
+				m_co.NalHrdConformance = MFX_CODINGOPTION_OFF;
+				blog(LOG_INFO, "NalHrdConformance set: OFF");
+			}
+		}
+		//m_co.ResetRefList = MFX_CODINGOPTION_ON;
+
+		extendedBuffers.push_back((mfxExtBuffer *)&m_co);
+		blog(LOG_INFO, "mfx_co enabled");
 	}
+
+	//Wait next VPL release for support this
+	//memset(&mfx_Tune, 0, sizeof(mfxExtTuneEncodeQuality));
+	//mfx_Tune.Header.BufferId = MFX_EXTBUFF_TUNE_ENCODE_QUALITY;
+	//mfx_Tune.Header.BufferSz = sizeof(mfxExtTuneEncodeQuality);
+	//mfx_Tune.TuneQuality = MFX_ENCODE_TUNE_PERCEPTUAL;
+
+	//extendedBuffers.push_back((mfxExtBuffer *)&mfx_Tune);
 
 	if (codec == QSV_CODEC_HEVC) {
 		if ((pParams->nWidth & 15) || (pParams->nHeight & 15)) {
-			memset(&m_ExtHEVCParam, 0, sizeof(m_ExtHEVCParam));
+			memset(&m_ExtHEVCParam, 0, sizeof(mfxExtHEVCParam));
 			m_ExtHEVCParam.Header.BufferId = MFX_EXTBUFF_HEVC_PARAM;
-			m_ExtHEVCParam.Header.BufferSz = sizeof(m_ExtHEVCParam);
+			m_ExtHEVCParam.Header.BufferSz =
+				sizeof(mfxExtHEVCParam);
 			m_ExtHEVCParam.PicWidthInLumaSamples = pParams->nWidth;
 			m_ExtHEVCParam.PicHeightInLumaSamples =
 				pParams->nHeight;
 			extendedBuffers.push_back(
-				(mfxExtBuffer*)&m_ExtHEVCParam);
+				(mfxExtBuffer *)&m_ExtHEVCParam);
 		}
 	}
 
-	memset(&m_ExtVideoSignalInfo, 0, sizeof(m_ExtVideoSignalInfo));
+	memset(&m_ExtVideoSignalInfo, 0, sizeof(mfxExtVideoSignalInfo));
 	m_ExtVideoSignalInfo.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
-	m_ExtVideoSignalInfo.Header.BufferSz = sizeof(m_ExtVideoSignalInfo);
+	m_ExtVideoSignalInfo.Header.BufferSz = sizeof(mfxExtVideoSignalInfo);
 	m_ExtVideoSignalInfo.VideoFormat = pParams->VideoFormat;
 	m_ExtVideoSignalInfo.VideoFullRange = pParams->VideoFullRange;
 	m_ExtVideoSignalInfo.ColourDescriptionPresent = 1;
@@ -610,28 +700,27 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 	m_ExtVideoSignalInfo.TransferCharacteristics =
 		pParams->TransferCharacteristics;
 	m_ExtVideoSignalInfo.MatrixCoefficients = pParams->MatrixCoefficients;
-	extendedBuffers.push_back((mfxExtBuffer*)&m_ExtVideoSignalInfo);
+	extendedBuffers.push_back((mfxExtBuffer *)&m_ExtVideoSignalInfo);
 
 	/* TODO: Ask Intel why this is MFX_ERR_UNSUPPORTED */
-#if 0
-	memset(&m_ExtChromaLocInfo, 0, sizeof(m_ExtChromaLocInfo));
-	m_ExtChromaLocInfo.Header.BufferId = MFX_EXTBUFF_CHROMA_LOC_INFO;
-	m_ExtChromaLocInfo.Header.BufferSz = sizeof(m_ExtChromaLocInfo);
-	m_ExtChromaLocInfo.ChromaLocInfoPresentFlag = 1;
-	m_ExtChromaLocInfo.ChromaSampleLocTypeTopField =
+	//Worked with oneVPL, but very unstable
+	/*memset(&mfx_ExtChromaLocInfo, 0, sizeof(mfx_ExtChromaLocInfo));
+	mfx_ExtChromaLocInfo.Header.BufferId = MFX_EXTBUFF_CHROMA_LOC_INFO;
+	mfx_ExtChromaLocInfo.Header.BufferSz = sizeof(mfx_ExtChromaLocInfo);
+	mfx_ExtChromaLocInfo.ChromaLocInfoPresentFlag = 1;
+	mfx_ExtChromaLocInfo.ChromaSampleLocTypeTopField =
 		pParams->ChromaSampleLocTypeTopField;
-	m_ExtChromaLocInfo.ChromaSampleLocTypeBottomField =
+	mfx_ExtChromaLocInfo.ChromaSampleLocTypeBottomField =
 		pParams->ChromaSampleLocTypeBottomField;
-	extendedBuffers.push_back((mfxExtBuffer*)&m_ExtChromaLocInfo);
-#endif
+	extendedBuffers.push_back((mfxExtBuffer*)&mfx_ExtChromaLocInfo);*/
 
 	if (codec != QSV_CODEC_AV1 && pParams->MaxContentLightLevel > 0) {
 		memset(&m_ExtMasteringDisplayColourVolume, 0,
-			sizeof(m_ExtMasteringDisplayColourVolume));
+		       sizeof(mfxExtMasteringDisplayColourVolume));
 		m_ExtMasteringDisplayColourVolume.Header.BufferId =
 			MFX_EXTBUFF_MASTERING_DISPLAY_COLOUR_VOLUME;
 		m_ExtMasteringDisplayColourVolume.Header.BufferSz =
-			sizeof(m_ExtMasteringDisplayColourVolume);
+			sizeof(mfxExtMasteringDisplayColourVolume);
 		m_ExtMasteringDisplayColourVolume.InsertPayloadToggle =
 			MFX_PAYLOAD_IDR;
 		m_ExtMasteringDisplayColourVolume.DisplayPrimariesX[0] =
@@ -655,14 +744,14 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 		m_ExtMasteringDisplayColourVolume.MinDisplayMasteringLuminance =
 			pParams->MinDisplayMasteringLuminance;
 		extendedBuffers.push_back(
-			(mfxExtBuffer*)&m_ExtMasteringDisplayColourVolume);
+			(mfxExtBuffer *)&m_ExtMasteringDisplayColourVolume);
 
 		memset(&m_ExtContentLightLevelInfo, 0,
-			sizeof(m_ExtContentLightLevelInfo));
+		       sizeof(mfxExtContentLightLevelInfo));
 		m_ExtContentLightLevelInfo.Header.BufferId =
 			MFX_EXTBUFF_CONTENT_LIGHT_LEVEL_INFO;
 		m_ExtContentLightLevelInfo.Header.BufferSz =
-			sizeof(m_ExtContentLightLevelInfo);
+			sizeof(mfxExtContentLightLevelInfo);
 		m_ExtContentLightLevelInfo.InsertPayloadToggle =
 			MFX_PAYLOAD_IDR;
 		m_ExtContentLightLevelInfo.MaxContentLightLevel =
@@ -670,7 +759,7 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 		m_ExtContentLightLevelInfo.MaxPicAverageLightLevel =
 			pParams->MaxPicAverageLightLevel;
 		extendedBuffers.push_back(
-			(mfxExtBuffer*)&m_ExtContentLightLevelInfo);
+			(mfxExtBuffer *)&m_ExtContentLightLevelInfo);
 	}
 
 	// Width must be a multiple of 16
@@ -679,20 +768,24 @@ mfxStatus QSV_MSDK_Encoder_Internal::InitParams(qsv_param_t* pParams,
 	m_mfxEncParams.mfx.FrameInfo.Width = MSDK_ALIGN16(pParams->nWidth);
 	m_mfxEncParams.mfx.FrameInfo.Height = MSDK_ALIGN16(pParams->nHeight);
 
-	if (m_bUseTexAlloc)
-		m_mfxEncParams.IOPattern = MFX_IOPATTERN_IN_VIDEO_MEMORY;
-	else
-		m_mfxEncParams.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+	m_mfxEncParams.IOPattern =
+		MFX_IOPATTERN_IN_VIDEO_MEMORY /*| MFX_IOPATTERN_OUT_VIDEO_MEMORY*/;
 
 	m_mfxEncParams.ExtParam = extendedBuffers.data();
 	m_mfxEncParams.NumExtParam = (mfxU16)extendedBuffers.size();
 
+	memset(&mfx_EncControl, 0, sizeof(mfxEncodeCtrl));
+	mfx_EncControl.ExtParam = extendedBuffers.data();
+	mfx_EncControl.NumExtParam = (mfxU16)extendedBuffers.size();
+	blog(LOG_INFO, "Feature extended buffer size: %d",
+	     extendedBuffers.size());
 	// We dont check what was valid or invalid here, just try changing lower power.
 	// Ensure set values are not overwritten so in case it wasnt lower power we fail
 	// during the parameter check.
-	mfxVideoParam validParams = { 0 };
+	mfxVideoParam validParams = {0};
 	memcpy(&validParams, &m_mfxEncParams, sizeof(validParams));
-	mfxStatus sts = m_pmfxENC->Query(&m_mfxEncParams, &validParams);
+	mfxStatus sts =
+		MFXVideoENCODE_Query(m_session, &m_mfxEncParams, &validParams);
 	if (sts == MFX_ERR_UNSUPPORTED || sts == MFX_ERR_UNDEFINED_BEHAVIOR) {
 		if (m_mfxEncParams.mfx.LowPower == MFX_CODINGOPTION_ON) {
 			m_mfxEncParams.mfx.LowPower = MFX_CODINGOPTION_OFF;

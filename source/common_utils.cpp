@@ -220,8 +220,7 @@ mfxStatus WriteSection(mfxU8 *plane, mfxU16 factor, mfxU16 chunksize,
 		       mfxFrameInfo *pInfo, mfxFrameData *pData, mfxU32 i,
 		       mfxU32 j, FILE *fSink)
 {
-	if (chunksize != fwrite(plane +
-					(pInfo->CropY * pData->Pitch / factor +
+	if (chunksize != fwrite(plane + (pInfo->CropY * pData->Pitch / factor +
 					 pInfo->CropX) +
 					i * pData->Pitch + j,
 				1, chunksize, fSink))

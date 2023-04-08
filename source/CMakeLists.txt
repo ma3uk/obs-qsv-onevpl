@@ -44,6 +44,11 @@ target_sources(
 			libmfx/include/vpl/include/mfxsurfacepool.h
 			libmfx/include/vpl/include/mfxvideo.h
 			libmfx/include/vpl/include/mfxvp8.h
+			libmfx/include/vpl/include/private/mfxav1.h
+			libmfx/include/vpl/include/private/mfxdeprecated.h
+			libmfx/include/vpl/include/private/mfxenctools.h
+			libmfx/include/vpl/include/private/mfxplugin.h
+			libmfx/include/vpl/include/private/mfxpxp.h
 			libmfx/include/vpl/include/legacy/mfxvideo++.h
 			libmfx/include/vpl/mfx_dispatcher_vpl.h
 			libmfx/include/vpl/mfx_dispatcher_vpl_log.h
@@ -63,13 +68,15 @@ target_sources(
 			libmfx/src/vpl/mfx_dispatcher_vpl_loader.cpp
 			libmfx/src/vpl/mfx_dispatcher_vpl_log.cpp
 			libmfx/src/vpl/mfx_dispatcher_vpl_lowlatency.cpp
-			libmfx/src/vpl/mfx_dispatcher_vpl_msdk.cpp
-			)
+			libmfx/src/vpl/mfx_dispatcher_vpl_msdk.cpp)
 
 target_include_directories(
-  libmfx INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libmfx/include/vpl/include
+  libmfx INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libmfx/include/vpl/include/
                    ${CMAKE_CURRENT_SOURCE_DIR}/libmfx/include/vpl/
-				   ${CMAKE_CURRENT_SOURCE_DIR}/libmfx/include/vpl/include/legacy)
+				   ${CMAKE_CURRENT_SOURCE_DIR}/libmfx/include/vpl/include/legacy/
+				   ${CMAKE_CURRENT_SOURCE_DIR}/libmfx/include/vpl/include/
+				   ${CMAKE_CURRENT_SOURCE_DIR}libmfx/src/vpl/enctool/
+				   )
 
 target_sources(
   obs-qsv11
