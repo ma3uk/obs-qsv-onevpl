@@ -34,7 +34,7 @@ IDXGIAdapter *GetIntelDeviceAdapterHandle(mfxSession session)
 {
 	mfxU32 adapterNum = 0;
 	mfxIMPL impl;
-	
+
 	MFXQueryIMPL(session, &impl);
 
 	mfxIMPL baseImpl = MFX_IMPL_BASETYPE(
@@ -48,35 +48,30 @@ IDXGIAdapter *GetIntelDeviceAdapterHandle(mfxSession session)
 		}
 	}
 
-	HRESULT hres = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, __uuidof(IDXGIFactory7),(void **)(&g_pDXGIFactory));
+	HRESULT hres = CreateDXGIFactory1(__uuidof(IDXGIFactory2),
+					  (void **)(&g_pDXGIFactory));
 	if (FAILED(hres))
-		return nullptr;
+		return NULL;
 
 	IDXGIAdapter *adapter;
 	hres = g_pDXGIFactory->EnumAdapters(adapterNum, &adapter);
 	if (FAILED(hres))
-		return nullptr;
+		return NULL;
 
 	return adapter;
 }
 
 // Create HW device context
-mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle, HWND hWnd,
-			 bool bCreateSharedHandles)
+mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle)
 {
 	//Note: not using bCreateSharedHandles for DX11 -- for API consistency only
-	hWnd; // Window handle not required by DX11 since we do not showcase rendering.
-	bCreateSharedHandles; // For rendering, not used here. Just for consistencies sake.
+	/*hWnd; */// Window handle not required by DX11 since we do not showcase rendering.
+	/*bCreateSharedHandles; */// For rendering, not used here. Just for consistencies sake.
 
 	HRESULT hres = S_OK;
 
 	static D3D_FEATURE_LEVEL FeatureLevels[] = {D3D_FEATURE_LEVEL_11_1,
-						    D3D_FEATURE_LEVEL_11_0,
-						    D3D_FEATURE_LEVEL_10_1,
-						    D3D_FEATURE_LEVEL_10_0,
-						    D3D_FEATURE_LEVEL_9_3,
-						    D3D_FEATURE_LEVEL_9_2,
-						    D3D_FEATURE_LEVEL_9_1 };
+						    D3D_FEATURE_LEVEL_11_0};
 	D3D_FEATURE_LEVEL pFeatureLevelsOut;
 
 	g_pAdapter = GetIntelDeviceAdapterHandle(session);
@@ -378,8 +373,8 @@ mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr)
 	case DXGI_FORMAT_NV12:
 		ptr->Pitch = (mfxU16)lockedRect.RowPitch;
 		ptr->Y = (mfxU8 *)lockedRect.pData;
-		ptr->U = (mfxU8 *)lockedRect.pData +
-			 desc.Height * lockedRect.RowPitch;
+		ptr->U = (mfxU8 *)((mfxU8 *)lockedRect.pData +
+			 desc.Height * lockedRect.RowPitch);
 		ptr->V = ptr->U + 1;
 		break;
 	case DXGI_FORMAT_B8G8R8A8_UNORM:

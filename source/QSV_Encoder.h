@@ -69,15 +69,21 @@ extern "C" {
 		bool haswell_or_greater;
 	};
 
-	static const struct qsv_rate_control_info qsv_ratecontrols[] = {
-		{"CBR", false},   {"VBR", false}, {"VCM", true},    {"CQP", false},
-		{"AVBR", false},  {"ICQ", true},  {"LA_ICQ", true}, {"LA_CBR", true},
-		{"LA_VBR", true}, {0, false} };
+	static const struct qsv_rate_control_info qsv_ratecontrols_avc[] = {
+		{"CBR", false},   {"VBR", false}, {"VCM", true},    {"CQP", false},   {"AVBR", false},  {"ICQ", true},
+		{"LA_ICQ", true},     {"LA_CBR", true}, {"LA_EXT_CBR", true},
+		{"LA_VBR", true}, {"LA_EXT_VBR", true}, {0, false}};
 
-	static const struct qsv_rate_control_info qsv_av1_ratecontrols[] =
-	{ {"CBR", false}, {"VBR", false}, {"CQP", false}, {0, false} };
+	static const struct qsv_rate_control_info qsv_ratecontrols_hevc[] = {
+		{"CBR", false},   {"VBR", false},   {"VCM", true},
+		{"CQP", false},          {"AVBR", false}, {"ICQ", true},
+		{"LA_EXT_VBR", true}, {"LA_EXT_CBR", true}, {0, false}};
 
-	static const char* const qsv_profile_names[] = { "high", "main", "baseline","high10", "high422", 0};
+	static const struct qsv_rate_control_info qsv_ratecontrols_av1[] ={
+		{"CBR", false},       {"VBR", false},       {"CQP", false},
+		{"LA_EXT_VBR", false}, {"LA_EXT_CBR", false}, {0, false}};
+
+	static const char* const qsv_profile_names_avc[] = { "high", "main", "baseline","high10", "high422", 0};
 	static const char* const qsv_profile_names_av1[] = { "main", "high", 0};
 	static const char* const qsv_profile_names_hevc[] = { "main", "main10", 0 };
 	static const char* const qsv_usage_names[] = { "quality",  "balanced", "speed",
@@ -87,18 +93,34 @@ extern "C" {
 	static const char* const qsv_latency_names[] = { "ultra-low", "low", "normal",
 							0 };
 	static const char* const qsv_params_condition[] = { "ON", "OFF", 0 };
-	static const char* const qsv_params_condition_auto[] = { "ON", "OFF", "AUTO", 0 };
-	static const char* const qsv_repartition_check_condition[] = {
-		"QUALITY", "PERFORMANCE", "AUTO", 0 };
-	static const char* const qsv_gop_params[] = { "CLOSED", "STRICT", 0 };
-	static const char* const qsv_mv_cost_scaling_params[] = { "DEFAULT", "1/2",
+	static const char* const qsv_params_condition_tristate[] = { "ON", "OFF", "AUTO", 0 };
+	static const char* const qsv_params_condition_gop[] = { "CLOSED", "OPEN", 0 };
+	static const char *const qsv_params_condition_mv_cost_scaling[] = {
+		"DEFAULT", "1/2",
 								 "1/4", "1/8", 0 };
-	static const char* const qsv_lookahead_ds_params[] = { "SLOW", "MEDIUM", "FAST",
+	static const char *const qsv_params_condition_lookahead_ds[] = {
+		"SLOW", "MEDIUM", "FAST",
 								  "AUTO", 0 };
-	static const char* const qsv_trellis_params[] = {
+	static const char *const qsv_params_condition_trellis[] = {
 		"OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0 };
 	static const char* const qsv_trellis_names[] = {
 		"off", "i", "ip", "all", "ib", "p", "pb", "b", "auto", 0 };
+	static const char *const qsv_params_condition_hevc_sao[] = {"AUTO",   "DISABLE", "LUMA",
+						   "CHROMA", "ALL", 0};
+	static const char *const qsv_params_condition_hevc_ctu[] = {
+		"AUTO", "16", "32", "64", 0};
+	static const char *const qsv_params_condition_tune_quality[] = {
+		"DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", 0};
+	static const char *const qsv_params_condition_denoise_mode[] = {
+		"DEFAULT",
+		"AUTO | BDRATE | PRE ENCODE",
+		"AUTO | ADJUST | POST ENCODE",
+		"AUTO | SUBJECTIVE | PRE ENCODE",
+		"MANUAL | PRE ENCODE",
+		"MANUAL | POST ENCODE",
+		"OFF",
+		0};
+
 	typedef struct qsv_t qsv_t;
 
 	struct adapter_info {
@@ -135,9 +157,9 @@ extern "C" {
 		mfxU16 nQPI;
 		mfxU16 nQPP;
 		mfxU16 nQPB;
-		mfxU16 nLADEPTH;
+		mfxU16 nLADepth;
 		mfxU16 nKeyIntSec;
-		mfxU16 nbFrames;
+		mfxU16 nGOPRefDist;
 		mfxU16 nICQQuality;
 		mfxU16 VideoFormat;
 		mfxU16 VideoFullRange;
@@ -154,42 +176,50 @@ extern "C" {
 		mfxU32 MinDisplayMasteringLuminance;
 		mfxU16 MaxContentLightLevel;
 		mfxU16 MaxPicAverageLightLevel;
+		mfxU16 SAO;
+		mfxU16 nCTU;
+		mfxU16 nWinBRCMaxAvgSize;
+		mfxU16 nWinBRCSize;
+		mfxU16 nMaxDecFrameBuffering;
+		mfxU16 nNumRefFrame;
+		mfxU16 nDenoiseStrength;
+
+		int bQualityEnchance;
+		int bMBBRC;
+		int bExtBRC;
+		int bAdaptiveI;
+		int bAdaptiveB;
+		int bAdaptiveRef;
+		int bAdaptiveCQM;
+		int bAdaptiveLTR;
+		int bAdaptiveMaxFrameSize;
+		int bRDO;
 		int bRepeatPPS;
 		int bEnableMAD;
 		int bFixedFrameRate;
 		int bVuiNalHrd;
 		int bNalHrdConformance;
-		bool bQualityEnchance;
-		bool bMBBRC;
-		bool bCQM;
-		bool bRDO;
-		bool bExtBRC;
-		bool bAdaptiveI;
-		bool bAdaptiveB;
-		bool bAdaptiveRef;
-		bool bAdaptiveCQM;
-		bool bAdaptiveLTR;
-		bool bAdaptiveMaxFrameSize;
-		bool bUseRDO;
-		bool bGopOptFlag;
-		bool bUseRawRef;
-		bool bWeightedPred;
-		bool bWeightedBiPred;
-		bool bGlobalMotionBiasAdjustment;
-		bool bFadeDetection;
-		bool bDirectBiasAdjustment;
-		bool bLowPower;
+		int bLowPower;
+		int bRawRef;
+		int bGPB;
+		int bDirectBiasAdjustment;
+		int bGopOptFlag;
+		int bWeightedPred;
+		int bWeightedBiPred;
+		int bGlobalMotionBiasAdjustment;
+		int bLAExtBRC;
+		//bool bFadeDetection;
 		bool video_fmt_10bit;
+
+		int nDeviceNum;
 		int nTrellis;
-		int nNumRefFrame;
+		int nDenoiseMode;
 		int nMVCostScalingFactor;
 		int nLookAheadDS;
-		int nRepartitionCheckEnable;
+		//int nRepartitionCheckEnable;
 		int nMotionVectorsOverPicBoundaries;
-		int nTemporalLayers;
-		int nWinBRCMaxAvgSize;
-		int nWinBRCSize;
-		int nMaxDecFrameBuffering;
+		int nTuneQualityMode;
+		int nNumRefFrameLayers;
 
 	} qsv_param_t;
 

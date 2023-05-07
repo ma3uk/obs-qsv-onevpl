@@ -12,54 +12,54 @@
  * Windows implementation of OS-specific utility functions
  */
 
-mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession *pSession,
-		     mfxFrameAllocator *pmfxAllocator, mfxHDL *deviceHandle,
-		     bool bCreateSharedHandles, bool dx9hack)
-{
-	bCreateSharedHandles; // (Hugh) Currently unused
-	pmfxAllocator;        // (Hugh) Currently unused
-
-	mfxStatus sts = MFX_ERR_NONE;
-
-	// If mfxFrameAllocator is provided it means we need to setup DirectX device and memory allocator
-	if (pmfxAllocator && !dx9hack) {
-		// Initialize Intel Media SDK Session
-		sts = pSession->Init(impl, &ver);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-		// Create DirectX device context
-		if (deviceHandle == NULL || *deviceHandle == NULL) {
-			sts = CreateHWDevice(*pSession, deviceHandle, NULL,
-					     bCreateSharedHandles);
-			MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-		}
-
-		if (deviceHandle == NULL || *deviceHandle == NULL)
-			return MFX_ERR_DEVICE_FAILED;
-
-		// Provide device manager to Media SDK
-		sts = pSession->SetHandle(DEVICE_MGR_TYPE, *deviceHandle);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-		pmfxAllocator->pthis =
-			*pSession; // We use Media SDK session ID as the allocation identifier
-		pmfxAllocator->Alloc = simple_alloc;
-		pmfxAllocator->Free = simple_free;
-		pmfxAllocator->Lock = simple_lock;
-		pmfxAllocator->Unlock = simple_unlock;
-		pmfxAllocator->GetHDL = simple_gethdl;
-
-		// Since we are using video memory we must provide Media SDK with an external allocator
-		sts = pSession->SetFrameAllocator(pmfxAllocator);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	} else {
-		// Initialize Intel Media SDK Session
-		sts = pSession->Init(impl, &ver);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-	}
-	return sts;
-}
+//mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession *pSession,
+//		     mfxFrameAllocator *pmfxAllocator, mfxHDL *deviceHandle,
+//		     bool bCreateSharedHandles, bool dx9hack)
+//{
+//	bCreateSharedHandles; // (Hugh) Currently unused
+//	pmfxAllocator;        // (Hugh) Currently unused
+//
+//	mfxStatus sts = MFX_ERR_NONE;
+//
+//	// If mfxFrameAllocator is provided it means we need to setup DirectX device and memory allocator
+//	if (pmfxAllocator && !dx9hack) {
+//		// Initialize Intel Media SDK Session
+//		sts = pSession->Init(impl, &ver);
+//		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+//
+//		// Create DirectX device context
+//		if (deviceHandle == NULL || *deviceHandle == NULL) {
+//			sts = CreateHWDevice(*pSession, deviceHandle, NULL,
+//					     bCreateSharedHandles);
+//			MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+//		}
+//
+//		if (deviceHandle == NULL || *deviceHandle == NULL)
+//			return MFX_ERR_DEVICE_FAILED;
+//
+//		// Provide device manager to Media SDK
+//		sts = pSession->SetHandle(DEVICE_MGR_TYPE, *deviceHandle);
+//		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+//
+//		pmfxAllocator->pthis =
+//			*pSession; // We use Media SDK session ID as the allocation identifier
+//		pmfxAllocator->Alloc = simple_alloc;
+//		pmfxAllocator->Free = simple_free;
+//		pmfxAllocator->Lock = simple_lock;
+//		pmfxAllocator->Unlock = simple_unlock;
+//		pmfxAllocator->GetHDL = simple_gethdl;
+//
+//		// Since we are using video memory we must provide Media SDK with an external allocator
+//		sts = pSession->SetFrameAllocator(pmfxAllocator);
+//		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+//
+//	} else {
+//		// Initialize Intel Media SDK Session
+//		sts = pSession->Init(impl, &ver);
+//		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+//	}
+//	return sts;
+//}
 
 void Release()
 {

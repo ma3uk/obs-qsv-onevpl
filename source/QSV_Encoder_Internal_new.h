@@ -1,6 +1,7 @@
 #pragma once
 #include "QSV_Encoder.h"
 #include "common_utils.h"
+#include "mfx.h"
 
 #include <vector>
 
@@ -22,7 +23,9 @@ public:
 		mfxBitstream** pBS);
 	mfxStatus ClearData();
 	mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, mfxSession* pSession,
-		mfxFrameAllocator* mfx_FrameAllocator, mfxHDL* deviceHandle);
+			     mfxFrameAllocator *mfx_FrameAllocator,
+			     mfxHDL *deviceHandle, int deviceNum,
+			     enum qsv_codec);
 	mfxStatus Reset(qsv_param_t* pParams, enum qsv_codec codec);
 	mfxStatus ReconfigureEncoder();
 	bool UpdateParams(qsv_param_t* pParams);
@@ -51,10 +54,15 @@ private:
 	mfxEncodeCtrl mfx_EncControl;
 	mfxFrameAllocator mfx_FrameAllocator;
 	mfxVideoParam mfx_EncParams;
+	mfxInitializationParam mfx_InitParams;
 	mfxFrameAllocResponse mfx_FrameAllocResponse;
 	mfxFrameSurface1** mfx_FrameSurf;
 	mfxU16 mU16_SurfNum;
 	MFXVideoENCODE* mfx_VideoEnc;
+	mfxExtEncToolsConfig mfx_EncToolsConf;
+	mfxExtAV1BitstreamParam mfx_ExtAV1BitstreamParam;
+	mfxExtAV1ResolutionParam mfx_ExtAV1ResolutionParam;
+	mfxExtAV1TileParam mfx_ExtAV1TileParam;
 	mfxU8 mU8_VPSBuffer[1024];
 	mfxU8 mU8_SPSBuffer[1024];
 	mfxU8 mU8_PPSBuffer[1024];
@@ -62,8 +70,9 @@ private:
 	mfxU16 mU16_SPSBufSize;
 	mfxU16 mU16_PPSBufSize;
 	mfxVideoParam mfx_VideoParams;
-	mfxExtMVOverPicBoundaries mfx_MVOP;
+	mfxExtMVOverPicBoundaries mfx_ExtMVOverPicBoundaries;
 	std::vector<mfxExtBuffer*> extendedBuffers;
+	std::vector<mfxExtBuffer *> ctrlExtendedBuffers;
 	mfxExtCodingOption3 mfx_co3;
 	mfxExtCodingOption2 mfx_co2;
 	mfxExtCodingOption mfx_co;
@@ -73,6 +82,9 @@ private:
 	mfxExtChromaLocInfo mfx_ExtChromaLocInfo{};
 	mfxExtMasteringDisplayColourVolume mfx_ExtMasteringDisplayColourVolume{};
 	mfxExtContentLightLevelInfo mfx_ExtContentLightLevelInfo{};
+	mfxExtVPPDenoise2 mfx_VPPDenoise;
+	mfxExtVPPScaling mfx_VPPScaling;
+	mfxExtAVCRoundingOffset mfx_AVCRoundingOffset;
 	mfxU16 mU16_TaskPool;
 	Task* t_TaskPool;
 	int n_TaskIdx;
