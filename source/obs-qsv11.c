@@ -171,6 +171,7 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_int(settings, "max_bitrate", 3000);
 	obs_data_set_default_string(settings, "profile",
 				    codec == QSV_CODEC_AVC ? "high" : "main");
+	obs_data_set_default_string(settings, "hevc_tier", "main");
 	obs_data_set_default_string(settings, "rate_control", "CBR");
 
 	obs_data_set_default_int(settings, "__ver", ver);
@@ -184,7 +185,7 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_int(settings, "icq_quality", 23);
 
 	obs_data_set_default_int(settings, "keyint_sec", 3);
-	obs_data_set_default_int(settings, "gop_ref_dist", codec == MFX_CODEC_AV1 ? 2 : 3);
+	obs_data_set_default_int(settings, "gop_ref_dist", 4);
 	obs_data_set_default_int(settings, "async_depth", 4);
 	obs_data_set_default_string(settings, "denoise_mode", "OFF");
 	obs_data_set_default_int(settings, "denoise_strength", 50);
@@ -258,6 +259,7 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_TARGET_BITRATE obs_module_text("Bitrate")
 #define TEXT_MAX_BITRATE obs_module_text("MaxBitrate")
 #define TEXT_PROFILE obs_module_text("Profile")
+#define TEXT_HEVC_TIER obs_module_text("Tier")
 #define TEXT_RATE_CONTROL obs_module_text("RateControl")
 #define TEXT_ACCURACY obs_module_text("Accuracy")
 #define TEXT_CONVERGENCE obs_module_text("Convergence")
@@ -366,10 +368,7 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		   astrcmpi(rate_control, "LA_VBR") == 0 ||
 		   astrcmpi(rate_control, "LA_CBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
-		   (astrcmpi(low_power_mode, "ON") == 0 &&
-		    (astrcmpi(rate_control, "CBR") == 0 ||
-		     astrcmpi(rate_control, "VBR") == 0));
+		   astrcmpi(rate_control, "LA_EXT_VBR") == 0;
 
 	p = obs_properties_get(ppts, "la_depth");
 	obs_property_set_visible(p, bVisible);
@@ -380,9 +379,10 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_data_erase(settings, "lookahead_ds");
 	}
 
-	bVisible = astrcmpi(rate_control, "LA_ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_CBR") == 0;
+	bVisible = astrcmpi(rate_control, "LA_VBR") == 0 ||
+		   astrcmpi(rate_control, "LA_CBR") == 0 ||
+		   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
+		   astrcmpi(rate_control, "LA_EXT_CBR") == 0;
 	p = obs_properties_get(ppts, "winbrc_max_avg_size");
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "winbrc_size");
@@ -392,24 +392,22 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_data_erase(settings, "winbrc_size");
 	}
 
-	bVisible = astrcmpi(rate_control, "CBR") == 0 ||
-		   astrcmpi(rate_control, "VBR") == 0;
-	p = obs_properties_get(ppts, "enhancements");
-	obs_property_set_visible(p, bVisible);
+	bVisible = astrcmpi(rate_control, "LA_ICQ") == 0 ||
+		   astrcmpi(rate_control, "LA_VBR") == 0 ||
+		   astrcmpi(rate_control, "LA_CBR") == 0;
+	p = obs_properties_get(ppts, "extbrc");
+	obs_property_set_visible(p, !bVisible);
+	if (bVisible) {
+		obs_data_set_string(settings, "extbrc", "OFF");
+	}
 
-	bVisible = astrcmpi(rate_control, "LA_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_CBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
+	bVisible = astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_VBR") == 0;
 	if (bVisible) {
 		obs_data_set_string(settings, "extbrc", "ON");
 	}
 
-	bVisible = (astrcmpi(low_power_mode, "ON") == 0 &&
-		   (astrcmpi(rate_control, "LA_ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_CBR") == 0)) ||
-		   astrcmpi(rate_control, "CBR") == 0 ||
+	bVisible = astrcmpi(rate_control, "CBR") == 0 ||
 		   astrcmpi(rate_control, "VBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_VBR") == 0;
@@ -473,6 +471,12 @@ static bool visible_modified(obs_properties_t *ppts, obs_property_t *p,
 	p = obs_properties_get(ppts, "denoise_strength");
 	obs_property_set_visible(p, bVisible);
 
+	
+	const char *extbrc = obs_data_get_string(settings, "extbrc");
+	bVisible = astrcmpi(extbrc, "ON") == 0;
+	p = obs_properties_get(ppts, "extbrc_warning");
+	obs_property_set_visible(p, bVisible);
+
 	return true;
 }
 
@@ -533,16 +537,23 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 				       OBS_COMBO_TYPE_LIST,
 				       OBS_COMBO_FORMAT_STRING);
 
-	if (codec == QSV_CODEC_AVC)
+	if (codec == QSV_CODEC_AVC) {
 		add_strings(prop, qsv_profile_names_avc);
-	else if (codec == QSV_CODEC_AV1)
+	} else if (codec == QSV_CODEC_AV1) {
 		add_strings(prop, qsv_profile_names_av1);
-	else if (codec == QSV_CODEC_HEVC)
+	} else if (codec == QSV_CODEC_HEVC) {
 		add_strings(prop, qsv_profile_names_hevc);
-
+	}
 	obs_property_set_modified_callback(prop, profile_modified);
 
-	if (ver >= 2) {
+	if (codec == QSV_CODEC_HEVC) {
+		prop = obs_properties_add_list(props, "hevc_tier", TEXT_HEVC_TIER,
+					       OBS_COMBO_TYPE_LIST,
+					       OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_profile_tiers_hevc);
+	}
+
+	if (ver >= 1) {
 		prop = obs_properties_add_list(props, "tune_quality",
 					       TEXT_TUNE_QUALITY_MODE,
 					       OBS_COMBO_TYPE_LIST,
@@ -576,7 +587,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_properties_add_int(props, "convergence", TEXT_CONVERGENCE, 0, 10,
 			       1);
 
-	if (ver >= 2) {
+	if (ver >= 1) {
 		obs_properties_add_int(props, "cqp", "CQP", 1,
 				       codec == QSV_CODEC_AV1 ? 63 : 51, 1);
 	} else {
@@ -618,11 +629,12 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_properties_add_int_slider(props, "num_ref_frame",
 				      TEXT_NUM_REF_FRAME, 0, 15, 1);
 
-	if (codec == QSV_CODEC_HEVC) {
+	if (codec != QSV_CODEC_AV1) {
 		obs_properties_add_int_slider(props, "num_ref_frame_layers",
-					      TEXT_NUM_REF_FRAME_LAYERS, 1, 8,
+					      TEXT_NUM_REF_FRAME_LAYERS, 1, 9,
 					      1);
-
+	}
+	if (codec == QSV_CODEC_HEVC) {
 		prop = obs_properties_add_list(props, "hevc_gpb", TEXT_HEVC_GPB,
 					       OBS_COMBO_TYPE_LIST,
 					       OBS_COMBO_FORMAT_STRING);
@@ -633,6 +645,8 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	
 	prop = obs_properties_add_int_slider(props, "gop_ref_dist", TEXT_GOP_REF_DIST, 1,
 				      (codec == QSV_CODEC_AV1) ? 33 : 16, 1);
+	obs_property_set_long_description(prop, obs_module_text("ExtBRC only work with GOPRefDist when set to: 1, 2, 4, 8, 16"));
+	obs_property_long_description(prop);
 
 	obs_properties_add_int(props, "async_depth", TEXT_ASYNC_DEPTH, 1, 1000,
 			       1);
@@ -676,7 +690,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(prop,
 					  obs_module_text("AdaptiveB.ToolTip"));
 
-	if (ver >= 2) {
+	if (ver >= 1) {
 		prop = obs_properties_add_list(props, "adaptive_ref",
 					       TEXT_ADAPTIVE_REF,
 					       OBS_COMBO_TYPE_LIST,
@@ -861,7 +875,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 static obs_properties_t *obs_qsv_props_h264(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return obs_qsv_props(QSV_CODEC_AVC, unused, 1);
+	return obs_qsv_props(QSV_CODEC_AVC, unused, 2);
 }
 
 static obs_properties_t *obs_qsv_props_h264_v2(void *unused)
@@ -892,6 +906,7 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	const char *target_usage =
 		obs_data_get_string(settings, "target_usage");
 	const char *profile = obs_data_get_string(settings, "profile");
+	const char *hevc_tier = obs_data_get_string(settings, "hevc_tier");
 	const char *rate_control =
 		obs_data_get_string(settings, "rate_control");
 	int target_bitrate = (int)obs_data_get_int(settings, "bitrate");
@@ -1028,38 +1043,44 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	if (obsqsv->codec == QSV_CODEC_AVC) {
 		codec = "H.264";
 		if (astrcmpi(profile, "baseline") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AVC_BASELINE;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_BASELINE;
 		else if (astrcmpi(profile, "main") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AVC_MAIN;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_MAIN;
 		else if (astrcmpi(profile, "high") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AVC_HIGH;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_HIGH;
 		else if (astrcmpi(profile, "high10") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AVC_HIGH10;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_HIGH10;
 		else if (astrcmpi(profile, "high422") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AVC_HIGH_422;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_HIGH_422;
 
 	} else if (obsqsv->codec == QSV_CODEC_HEVC) {
 		codec = "HEVC";
 		if (astrcmpi(profile, "main") == 0) {
-			obsqsv->params.nCodecProfile = MFX_PROFILE_HEVC_MAIN;
+			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAIN;
 
 			if (obs_p010_tex_active()) {
 				blog(LOG_WARNING,
 				     "[qsv encoder] Forcing main10 for P010");
-				obsqsv->params.nCodecProfile =
+				obsqsv->params.CodecProfile =
 					MFX_PROFILE_HEVC_MAIN10;
 			}
 
 		} else if (astrcmpi(profile, "main10") == 0) {
-			obsqsv->params.nCodecProfile = MFX_PROFILE_HEVC_MAIN10;
+			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAIN10;
+		}
+
+		if (astrcmpi(hevc_tier, "main") == 0) {
+			obsqsv->params.HEVCTier = MFX_TIER_HEVC_MAIN;
+		} else {
+			obsqsv->params.HEVCTier = MFX_TIER_HEVC_HIGH;
 		}
 
 	} else if (obsqsv->codec == QSV_CODEC_AV1) {
 		codec = "AV1";
 		if (astrcmpi(profile, "main") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AV1_MAIN;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AV1_MAIN;
 		else if (astrcmpi(profile, "high") == 0)
-			obsqsv->params.nCodecProfile = MFX_PROFILE_AV1_HIGH;
+			obsqsv->params.CodecProfile = MFX_PROFILE_AV1_HIGH;
 	}
 
 	obsqsv->params.VideoFormat = 5;
@@ -1355,9 +1376,9 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	}
 
 	if (astrcmpi(denoise_mode, "OFF") == 0) {
-		obsqsv->params.nDenoiseMode = (int)0;
-	} else if (astrcmpi(denoise_mode, "DEFAULT") == 0) {
 		obsqsv->params.nDenoiseMode = (int)-1;
+	} else if (astrcmpi(denoise_mode, "DEFAULT") == 0) {
+		obsqsv->params.nDenoiseMode = (int)0;
 	} else if (astrcmpi(denoise_mode, "AUTO | BDRATE | PRE ENCODE") == 0) {
 		obsqsv->params.nDenoiseMode = (int)1;
 	} else if (astrcmpi(denoise_mode, "AUTO | ADJUST | POST ENCODE") == 0) {
@@ -1402,31 +1423,31 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	}
 
 	if (astrcmpi(rate_control, "CBR") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_CBR;
+		obsqsv->params.RateControl = MFX_RATECONTROL_CBR;
 	} else if (astrcmpi(rate_control, "VBR") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_VBR;
+		obsqsv->params.RateControl = MFX_RATECONTROL_VBR;
 	} else if (astrcmpi(rate_control, "VCM") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_VCM;
+		obsqsv->params.RateControl = MFX_RATECONTROL_VCM;
 	} else if (astrcmpi(rate_control, "CQP") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_CQP;
+		obsqsv->params.RateControl = MFX_RATECONTROL_CQP;
 	} else if (astrcmpi(rate_control, "AVBR") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_AVBR;
+		obsqsv->params.RateControl = MFX_RATECONTROL_AVBR;
 	} else if (astrcmpi(rate_control, "ICQ") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_ICQ;
+		obsqsv->params.RateControl = MFX_RATECONTROL_ICQ;
 	} else if (astrcmpi(rate_control, "LA_ICQ") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_LA_ICQ;
+		obsqsv->params.RateControl = MFX_RATECONTROL_LA_ICQ;
 	} else if (astrcmpi(rate_control, "LA_VBR") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_LA;
+		obsqsv->params.RateControl = MFX_RATECONTROL_LA;
 	} else if (astrcmpi(rate_control, "LA_CBR") == 0) {
-		obsqsv->params.nRateControl = MFX_RATECONTROL_LA_HRD;
+		obsqsv->params.RateControl = MFX_RATECONTROL_LA_HRD;
 	} else if (astrcmpi(rate_control, "LA_EXT_CBR") == 0) {
 		obsqsv->params.bLAExtBRC = 1;
-		obsqsv->params.nRateControl = MFX_RATECONTROL_CBR;
+		obsqsv->params.RateControl = MFX_RATECONTROL_CBR;
 		obsqsv->params.bExtBRC = 1;
 		la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;
 	} else if (astrcmpi(rate_control, "LA_EXT_VBR") == 0) {
 		obsqsv->params.bLAExtBRC = 1;
-		obsqsv->params.nRateControl = MFX_RATECONTROL_VBR;
+		obsqsv->params.RateControl = MFX_RATECONTROL_VBR;
 		obsqsv->params.bExtBRC = 1;
 		la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;
 	}
@@ -1460,6 +1481,7 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	obsqsv->params.nHeight = (mfxU16)height;
 	obsqsv->params.nFpsNum = (mfxU16)voi->fps_num;
 	obsqsv->params.nFpsDen = (mfxU16)voi->fps_den;
+
 	obsqsv->params.nGOPRefDist = (mfxU16)gop_ref_dist;
 	obsqsv->params.nKeyIntSec = (mfxU16)keyint_sec;
 	obsqsv->params.nICQQuality = (mfxU16)icq_quality;
@@ -1474,29 +1496,29 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	     "\trate_control:   %s",
 	     codec, rate_control);
 
-	if (obsqsv->params.nRateControl != MFX_RATECONTROL_LA_ICQ &&
-	    obsqsv->params.nRateControl != MFX_RATECONTROL_ICQ &&
-	    obsqsv->params.nRateControl != MFX_RATECONTROL_CQP)
+	if (obsqsv->params.RateControl != MFX_RATECONTROL_LA_ICQ &&
+	    obsqsv->params.RateControl != MFX_RATECONTROL_ICQ &&
+	    obsqsv->params.RateControl != MFX_RATECONTROL_CQP)
 		blog(LOG_INFO, "\ttarget_bitrate: %d",
 		     (int)obsqsv->params.nTargetBitRate);
 
-	if (obsqsv->params.nRateControl == MFX_RATECONTROL_VBR ||
-	    obsqsv->params.nRateControl == MFX_RATECONTROL_VCM)
+	if (obsqsv->params.RateControl == MFX_RATECONTROL_VBR ||
+	    obsqsv->params.RateControl == MFX_RATECONTROL_VCM)
 		blog(LOG_INFO, "\tmax_bitrate:    %d",
 		     (int)obsqsv->params.nMaxBitRate);
 
-	if (obsqsv->params.nRateControl == MFX_RATECONTROL_LA_ICQ ||
-	    obsqsv->params.nRateControl == MFX_RATECONTROL_ICQ)
+	if (obsqsv->params.RateControl == MFX_RATECONTROL_LA_ICQ ||
+	    obsqsv->params.RateControl == MFX_RATECONTROL_ICQ)
 		blog(LOG_INFO, "\tICQ Quality:    %d",
 		     (int)obsqsv->params.nICQQuality);
 
-	/*if (obsqsv->params.nRateControl == MFX_RATECONTROL_LA_ICQ ||
-		obsqsv->params.nRateControl == MFX_RATECONTROL_LA ||
-		obsqsv->params.nRateControl == MFX_RATECONTROL_LA_HRD)
+	/*if (obsqsv->params.RateControl == MFX_RATECONTROL_LA_ICQ ||
+		obsqsv->params.RateControl == MFX_RATECONTROL_LA ||
+		obsqsv->params.RateControl == MFX_RATECONTROL_LA_HRD)
 		blog(LOG_INFO, "\tLookahead Depth:%d",
 			(int)obsqsv->params.nLADEPTH);*/
 
-	if (obsqsv->params.nRateControl == MFX_RATECONTROL_CQP)
+	if (obsqsv->params.RateControl == MFX_RATECONTROL_CQP)
 		blog(LOG_INFO,
 		     "\tqpi:            %d\n"
 		     "\tqpb:            %d\n"

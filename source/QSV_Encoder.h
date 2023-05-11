@@ -86,6 +86,7 @@ extern "C" {
 	static const char* const qsv_profile_names_avc[] = { "high", "main", "baseline","high10", "high422", 0};
 	static const char* const qsv_profile_names_av1[] = { "main", "high", 0};
 	static const char* const qsv_profile_names_hevc[] = { "main", "main10", 0 };
+	static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
 	static const char* const qsv_usage_names[] = { "quality",  "balanced", "speed",
 							  "veryslow", "slower",   "slow",
 							  "medium",   "fast",     "faster",
@@ -150,8 +151,9 @@ extern "C" {
 		mfxU16 nFpsDen;
 		mfxU16 nTargetBitRate;
 		mfxU16 nMaxBitRate;
-		mfxU16 nCodecProfile;
-		mfxU16 nRateControl;
+		mfxU16 CodecProfile;
+		mfxU16 HEVCTier;
+		mfxU16 RateControl;
 		mfxU16 nAccuracy;
 		mfxU16 nConvergence;
 		mfxU16 nQPI;

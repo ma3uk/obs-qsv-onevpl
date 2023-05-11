@@ -24,8 +24,7 @@ public:
 	mfxStatus ClearData();
 	mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, mfxSession* pSession,
 			     mfxFrameAllocator *mfx_FrameAllocator,
-			     mfxHDL *deviceHandle, int deviceNum,
-			     enum qsv_codec);
+			     mfxHDL *deviceHandle, int deviceNum);
 	mfxStatus Reset(qsv_param_t* pParams, enum qsv_codec codec);
 	mfxStatus ReconfigureEncoder();
 	bool UpdateParams(qsv_param_t* pParams);
@@ -33,7 +32,8 @@ public:
 	bool IsDGPU() const { return b_isDGPU; }
 
 protected:
-	mfxStatus InitParams(qsv_param_t* pParams, enum qsv_codec codec);
+	mfxStatus InitEncParams(qsv_param_t* pParams, enum qsv_codec codec);
+	mfxStatus InitEncCtrlParams(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus AllocateSurfaces();
 	mfxStatus GetVideoParam(enum qsv_codec codec);
 	mfxStatus InitBitstream();
@@ -53,6 +53,7 @@ private:
 	mfxExtTuneEncodeQuality mfx_Tune;
 	mfxEncodeCtrl mfx_EncControl;
 	mfxFrameAllocator mfx_FrameAllocator;
+	mfxFrameAllocRequest mfx_FrameAllocRequest;
 	mfxVideoParam mfx_EncParams;
 	mfxInitializationParam mfx_InitParams;
 	mfxFrameAllocResponse mfx_FrameAllocResponse;
@@ -63,6 +64,8 @@ private:
 	mfxExtAV1BitstreamParam mfx_ExtAV1BitstreamParam;
 	mfxExtAV1ResolutionParam mfx_ExtAV1ResolutionParam;
 	mfxExtAV1TileParam mfx_ExtAV1TileParam;
+	mfxExtCodingOptionVPS mfx_ExtCOVPS;
+	mfxExtCodingOptionSPSPPS mfx_ExtCOSPSPPS;
 	mfxU8 mU8_VPSBuffer[1024];
 	mfxU8 mU8_SPSBuffer[1024];
 	mfxU8 mU8_PPSBuffer[1024];
@@ -71,8 +74,8 @@ private:
 	mfxU16 mU16_PPSBufSize;
 	mfxVideoParam mfx_VideoParams;
 	mfxExtMVOverPicBoundaries mfx_ExtMVOverPicBoundaries;
-	std::vector<mfxExtBuffer*> extendedBuffers;
-	std::vector<mfxExtBuffer *> ctrlExtendedBuffers;
+	std::vector<mfxExtBuffer*> mfx_ExtendedBuffers;
+	std::vector<mfxExtBuffer *> mfx_CtrlExtendedBuffers;
 	mfxExtCodingOption3 mfx_co3;
 	mfxExtCodingOption2 mfx_co2;
 	mfxExtCodingOption mfx_co;

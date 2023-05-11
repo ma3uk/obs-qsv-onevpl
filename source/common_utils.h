@@ -72,9 +72,11 @@
 	}
 #define MSDK_MAX(A, B) (((A) > (B)) ? (A) : (B))
 
+#define INIT_MFX_EXT_BUFFER(x, id) { (x).Header.BufferId = (id); (x).Header.BufferSz = sizeof(x); }
+
 // Usage of the following two macros are only required for certain Windows DirectX11 use cases
-#define WILL_READ 0x1000
-#define WILL_WRITE 0x2000
+constexpr auto WILL_READ = 0x1000;
+constexpr auto WILL_WRITE = 0x2000;
 
 // =================================================================
 // Intel Media SDK memory allocator entrypoints....
