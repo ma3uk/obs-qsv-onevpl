@@ -335,10 +335,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitEncParams(qsv_param_t *pParams,
 	switch (pParams->RateControl) {
 	case MFX_RATECONTROL_CBR:
 		mfx_EncParams.mfx.TargetKbps = (mfxU16)pParams->nTargetBitRate;
-		mfx_EncParams.mfx.MaxKbps = (mfxU16)pParams->nTargetBitRate;
-		mfx_EncParams.mfx.BufferSizeInKB = (mfxU16)pParams->nTargetBitRate;
-		//mfx_EncParams.mfx.BufferSizeInKB = (mfxU16)(mfx_EncParams.mfx.TargetKbps / pParams->nFpsNum * pParams->nLADepth);
-		mfx_EncParams.mfx.InitialDelayInKB = (mfxU16)(mfx_EncParams.mfx.BufferSizeInKB / 2);
 		break;
 	case MFX_RATECONTROL_VBR:
 	case MFX_RATECONTROL_VCM:
