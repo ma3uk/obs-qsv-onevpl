@@ -58,8 +58,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 #define MFX_DEPRECATED_OFF
 #define ONEVPL_EXPERIMENTAL
-#define MFX_ENABLE_ENCTOOLS
-#define MFX_ENABLE_H265_VIDEO_ENCODE
 
 #include "obs-qsv-onevpl-encoder.h"
 #include "obs-qsv-onevpl-encoder-internal.h"
@@ -75,7 +73,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 mfxIMPL impl = MFX_IMPL_HARDWARE_ANY;
 mfxVersion ver = {{0, 1}}; // for backward compatibility
 std::atomic<bool> is_active{false};
-
+bool isDGPU = false;
 void qsv_encoder_version(unsigned short *major, unsigned short *minor)
 {
 	*major = ver.Major;
@@ -107,8 +105,8 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 			}
 		}
 	}
-
-	bool isDGPU = adapters[adapter_idx].is_dgpu;
+	blog(LOG_INFO, "Selected adapter: %d", adapter_idx);
+	isDGPU = adapters[adapter_idx].is_dgpu;
 	impl = impl_list[adapter_idx];
 	mfxStatus sts;
 	QSV_VPL_Encoder_Internal *pEncoder =

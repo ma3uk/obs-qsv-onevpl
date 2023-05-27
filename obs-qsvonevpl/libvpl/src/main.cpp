@@ -5,8 +5,7 @@
   ############################################################################*/
 #define MFX_DEPRECATED_OFF
 #define ONEVPL_EXPERIMENTAL
-#define MFX_ENABLE_ENCTOOLS
-#define MFX_ENABLE_H265_VIDEO_ENCODE
+
 #include <windows.h>
 
 #include <stringapiset.h>

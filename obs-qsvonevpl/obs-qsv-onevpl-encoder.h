@@ -72,14 +72,10 @@ static const char *const qsv_ratecontrols_hevc[] = {
 	"CBR", "VBR",        "VCM",        "CQP", "AVBR",
 	"ICQ", "LA_EXT_VBR", "LA_EXT_CBR", 0};
 
-static const char *const qsv_ratecontrols_av1[] = {"CBR",
-						   "VBR",
-						   "CQP",
-						   "ICQ",
-						   "LA_EXT_VBR",
-						   "LA_EXT_CBR",
-						   "LA_EXT_ICQ",
-						   0};
+static const char *const qsv_ratecontrols_av1[] = {"CBR",        "VBR",
+						   "CQP",        "ICQ",
+						   "LA_EXT_VBR", "LA_EXT_CBR",
+						   "LA_EXT_ICQ", 0};
 
 static const char *const qsv_profile_names_avc[] = {
 	"high", "main", "baseline", "high10", "high422", 0};
@@ -96,6 +92,10 @@ static const char *const qsv_params_condition[] = {"ON", "OFF", 0};
 static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
 							    0};
 static const char *const qsv_params_condition_gop[] = {"CLOSED", "OPEN", 0};
+static const char *const qsv_params_condition_intra_ref_encoding[] = {
+	"VERTICAL", "HORIZONTAL", 0};
+static const char *const qsv_params_condition_hyper_mode[] = {"OFF",
+							      "ADAPTIVE", 0};
 //static const char *const qsv_params_condition_weighted_pred[] = {
 //	"AUTO", "DEFAULT", "IMPLICIT", "EXPLICIT", 0};
 static const char *const qsv_params_condition_p_ref_type[] = {
@@ -109,7 +109,8 @@ static const char *const qsv_params_condition_lookahead_ds[] = {
 static const char *const qsv_params_condition_trellis[] = {
 	"OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0};
 static const char *const qsv_params_condition_scenario[] = {
-	"OFF", "ARCHIVE", "LIVE STREAMING", "GAME STREAMING", "REMOTE GAMING", "AUTO", 0};
+	"OFF",  "ARCHIVE", "LIVE STREAMING", "GAME STREAMING", "REMOTE GAMING",
+	"AUTO", 0};
 static const char *const qsv_params_condition_scenario_la[] = {
 	"OFF", "ARCHIVE", "LIVE STREAMING", "REMOTE GAMING", "AUTO", 0};
 static const char *const qsv_trellis_names[] = {"off", "i",  "ip", "all",  "ib",
@@ -187,13 +188,16 @@ typedef struct {
 	mfxU32 MinDisplayMasteringLuminance;
 	mfxU16 MaxContentLightLevel;
 	mfxU16 MaxPicAverageLightLevel;
-	mfxU16 SAO;
+	mfxU16 nIntraRefCycleSize;
+
 	mfxU16 nCTU;
 	mfxU16 nWinBRCMaxAvgSize;
 	mfxU16 nWinBRCSize;
 	mfxU16 nNumRefFrame;
 	mfxU16 nDenoiseStrength;
-	
+
+	mfxI16 nIntraRefQPDelta;
+
 	int bQualityEnchance;
 	int bMBBRC;
 	int bExtBRC;
@@ -220,10 +224,14 @@ typedef struct {
 	int bBPyramid;
 	int bCPUEncTools;
 	int bDeblockingIdc;
+	int bIntraRefEncoding;
+
 	//bool bFadeDetection;
 	bool video_fmt_10bit;
 	bool bResetAllowed;
 	bool bCustomBufferSize;
+
+	int nIntraRefType;
 
 	int nDeviceNum;
 	int nTrellis;
@@ -239,6 +247,8 @@ typedef struct {
 	int nNumRefFrameLayers;
 	int nMaxFrameSizeIMultiplier;
 	int nMaxFrameSizePMultiplier;
+	int nSAO;
+	int nHyperMode;
 
 } qsv_param_t;
 

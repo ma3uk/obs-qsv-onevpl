@@ -220,14 +220,21 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 
 	obs_data_set_default_string(settings, "extbrc", "AUTO");
 	obs_data_set_default_string(settings, "b_pyramid", "AUTO");
-	obs_data_set_default_string(settings, "deblocking", "AUTO");
+	//obs_data_set_default_string(settings, "deblocking", "ON");
 	obs_data_set_default_string(settings, "cpu_brc_control", "OFF");
 	obs_data_set_default_string(settings, "cpu_buffer_hints", "OFF");
 	obs_data_set_default_string(settings, "low_power", "AUTO");
 	obs_data_set_default_string(settings, "cpu_enc_tools", "AUTO");
 	obs_data_set_default_string(settings, "hevc_sao", "AUTO");
-	obs_data_set_default_string(settings, "hevc_ctu", "AUTO");
+	//obs_data_set_default_string(settings, "hevc_ctu", "AUTO");
 	obs_data_set_default_string(settings, "hevc_gpb", "AUTO");
+
+	obs_data_set_default_string(settings, "intra_ref_encoding", "OFF");
+	obs_data_set_default_string(settings, "intra_ref_type", "VERTICAL");
+	obs_data_set_default_int(settings, "intra_ref_cycle_size", 2);
+	obs_data_set_default_int(settings, "intra_ref_qp_delta", 0);
+
+	obs_data_set_default_string(settings, "hyper_mode", "ADAPTIVE");
 }
 
 static void obs_qsv_defaults_h264_v2(obs_data_t *settings)
@@ -307,15 +314,22 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_ADAPTIVE_LTR obs_module_text("AdaptiveLTR")
 #define TEXT_LOW_POWER obs_module_text("LowPower mode")
 #define TEXT_HEVC_SAO obs_module_text("SampleAdaptiveOffset")
-#define TEXT_HEVC_CTU obs_module_text("LCUSize")
+//#define TEXT_HEVC_CTU obs_module_text("LCUSize")
 #define TEXT_HEVC_GPB obs_module_text("GPB")
 #define TEXT_TUNE_QUALITY_MODE obs_module_text("TuneQualityMode")
 #define TEXT_SCENARIO obs_module_text("Scenario")
-#define TEXT_DEBLOCKING obs_module_text("Deblocking")
+//#define TEXT_DEBLOCKING obs_module_text("Deblocking")
 #define TEXT_CPU_ENC_TOOLS obs_module_text("CPUEncTools")
 #define TEXT_DEVICE_NUM obs_module_text("Select GPU")
 #define TEXT_DENOISE_STRENGTH obs_module_text("Denoise strength")
 #define TEXT_DENOISE_MODE obs_module_text("Denoise mode")
+
+#define TEXT_INTRA_REF_ENCODING obs_module_text("IntraRefEncoding")
+#define TEXT_INTRA_REF_TYPE obs_module_text("IntraRefType")
+#define TEXT_INTRA_REF_CYCLE_SIZE obs_module_text("IntraRefCycleSize")
+#define TEXT_INTRA_REF_QP_DELTA obs_module_text("IntraRefQPDelta")
+#define TEXT_HYPER_MODE obs_module_text("HyperMode")
+
 bool rate_control_check = false;
 static bool update_latency(obs_data_t *settings)
 {
@@ -417,8 +431,8 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
 	if (bVisible) {
-		obs_data_set_string(settings, "extbrc", "ON");
-		//obs_data_set_string(settings, "scenario", "REMOTE GAMING");
+		/*obs_data_set_string(settings, "extbrc", "ON");*/
+		obs_data_set_string(settings, "scenario", "LIVE STREAMING");
 	}
 	const char *cpu_enc_tools =
 		obs_data_get_string(settings, "cpu_enc_tools");
@@ -487,6 +501,16 @@ static bool visible_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_data_erase(settings, "max_frame_size_i_multiplier");
 		obs_data_erase(settings, "max_frame_size_p_multiplier");
 	}
+
+	const char *intra_ref_encoding =
+		obs_data_get_string(settings, "intra_ref_encoding");
+	bVisible = astrcmpi(intra_ref_encoding, "ON") == 0;
+	p = obs_properties_get(ppts, "intra_ref_type");
+	obs_property_set_visible(p, bVisible);
+	p = obs_properties_get(ppts, "intra_ref_cycle_size");
+	obs_property_set_visible(p, bVisible);
+	p = obs_properties_get(ppts, "intra_ref_qp_delta");
+	obs_property_set_visible(p, bVisible);
 
 	return true;
 }
@@ -843,6 +867,32 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(prop,
 					  obs_module_text("LowPower.ToolTip"));
 
+	prop = obs_properties_add_list(props, "intra_ref_encoding",
+				       TEXT_INTRA_REF_ENCODING,
+				       OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	add_strings(prop, qsv_params_condition);
+	obs_property_set_modified_callback(prop, visible_modified);
+	obs_property_set_long_description(
+		prop, obs_module_text("IntraRefEncoding.ToolTip"));
+
+	prop = obs_properties_add_list(props, "intra_ref_type",
+				       TEXT_INTRA_REF_TYPE, OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	add_strings(prop, qsv_params_condition_intra_ref_encoding);
+	obs_property_set_long_description(
+		prop, obs_module_text("IntraRefType.ToolTip"));
+
+	obs_properties_add_int(props, "intra_ref_cycle_size",
+			       TEXT_INTRA_REF_CYCLE_SIZE, 2, 1000, 1);
+	obs_property_set_long_description(
+		prop, obs_module_text("IntraRefCycleSize.ToolTip"));
+
+	obs_properties_add_int(props, "intra_ref_qp_delta",
+			       TEXT_INTRA_REF_QP_DELTA, -51, 51, 1);
+	obs_property_set_long_description(
+		prop, obs_module_text("IntraRefQPDelta.ToolTip"));
+
 	obs_properties_add_int(props, "device_num", "Select GPU:", -1, 5, 1);
 	obs_property_set_long_description(prop,
 					  obs_module_text("DeviceNum.ToolTip"));
@@ -879,21 +929,28 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 					  obs_module_text("Scenario.ToolTip"));
 	obs_property_set_modified_callback(prop, rate_control_modified);
 
-	prop = obs_properties_add_list(props, "deblocking", TEXT_DEBLOCKING,
+	prop = obs_properties_add_list(props, "hyper_mode", TEXT_HYPER_MODE,
 				       OBS_COMBO_TYPE_LIST,
 				       OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_params_condition_tristate);
-	obs_property_set_long_description(
-		prop, obs_module_text("Deblocking.ToolTip"));
-	obs_property_set_modified_callback(prop, rate_control_modified);
+	obs_property_set_long_description(prop,
+					  obs_module_text("HyperMode.ToolTip"));
+	add_strings(prop, qsv_params_condition_hyper_mode);
+
+	//prop = obs_properties_add_list(props, "deblocking", TEXT_DEBLOCKING,
+	//			       OBS_COMBO_TYPE_LIST,
+	//			       OBS_COMBO_FORMAT_STRING);
+	//add_strings(prop, qsv_params_condition_tristate);
+	//obs_property_set_long_description(
+	//	prop, obs_module_text("Deblocking.ToolTip"));
+	//obs_property_set_modified_callback(prop, rate_control_modified);
 
 	if (codec == QSV_CODEC_HEVC) {
-		prop = obs_properties_add_list(props, "hevc_ctu", TEXT_HEVC_CTU,
-					       OBS_COMBO_TYPE_LIST,
-					       OBS_COMBO_FORMAT_STRING);
-		add_strings(prop, qsv_params_condition_hevc_ctu);
-		obs_property_set_long_description(
-			prop, obs_module_text("CTU.ToolTip"));
+		//prop = obs_properties_add_list(props, "hevc_ctu", TEXT_HEVC_CTU,
+		//			       OBS_COMBO_TYPE_LIST,
+		//			       OBS_COMBO_FORMAT_STRING);
+		//add_strings(prop, qsv_params_condition_hevc_ctu);
+		//obs_property_set_long_description(
+		//	prop, obs_module_text("CTU.ToolTip"));
 
 		prop = obs_properties_add_list(props, "hevc_sao", TEXT_HEVC_SAO,
 					       OBS_COMBO_TYPE_LIST,
@@ -1010,12 +1067,12 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	const char *mv_overpic_boundaries =
 		obs_data_get_string(settings, "mv_overpic_boundaries");
 	const char *hevc_sao = obs_data_get_string(settings, "hevc_sao");
-	const char *hevc_ctu = obs_data_get_string(settings, "hevc_ctu");
+	//const char *hevc_ctu = obs_data_get_string(settings, "hevc_ctu");
 	const char *hevc_gpb = obs_data_get_string(settings, "hevc_gpb");
 	const char *tune_quality =
 		obs_data_get_string(settings, "tune_quality");
 	const char *scenario = obs_data_get_string(settings, "scenario");
-	const char *deblocking = obs_data_get_string(settings, "deblocking");
+	//const char *deblocking = obs_data_get_string(settings, "deblocking");
 	const char *cpu_enc_tools =
 		obs_data_get_string(settings, "cpu_enc_tools");
 	const char *cpu_brc_control =
@@ -1027,6 +1084,16 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		(int)obs_data_get_int(settings, "max_frame_size_i_multiplier");
 	int max_frame_size_p_multiplier =
 		(int)obs_data_get_int(settings, "max_frame_size_p_multiplier");
+	const char *hyper_mode = obs_data_get_string(settings, "hyper_mode");
+	const char *intra_ref_encoding =
+		obs_data_get_string(settings, "intra_ref_encoding");
+	const char *intra_ref_type =
+		obs_data_get_string(settings, "intra_ref_type");
+	int intra_ref_cycle_size =
+		(int)obs_data_get_int(settings, "intra_ref_cycle_size");
+	int intra_ref_qp_delta =
+		(int)obs_data_get_int(settings, "intra_ref_qp_delta");
+
 	int width = (int)obs_encoder_get_width(obsqsv->encoder);
 	int height = (int)obs_encoder_get_height(obsqsv->encoder);
 
@@ -1270,13 +1337,13 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.bExtBRC = -1;
 	}
 
-	if (astrcmpi(deblocking, "ON") == 0) {
-		obsqsv->params.bDeblockingIdc = 1;
-	} else if (astrcmpi(deblocking, "OFF") == 0) {
-		obsqsv->params.bDeblockingIdc = 0;
-	} else {
-		obsqsv->params.bDeblockingIdc = -1;
-	}
+	//if (astrcmpi(deblocking, "ON") == 0) {
+	//	obsqsv->params.bDeblockingIdc = 1;
+	//} else if (astrcmpi(deblocking, "OFF") == 0) {
+	//	obsqsv->params.bDeblockingIdc = 0;
+	//} else {
+	//	obsqsv->params.bDeblockingIdc = -1;
+	//}
 
 	if (astrcmpi(cpu_enc_tools, "ON") == 0) {
 		obsqsv->params.bCPUEncTools = 1;
@@ -1391,6 +1458,22 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.nMaxFrameSizeType = -1;
 	}
 
+	if (astrcmpi(intra_ref_encoding, "ON") == 0) {
+		obsqsv->params.bIntraRefEncoding = 1;
+	} else if (astrcmpi(adaptive_cqm, "OFF") == 0) {
+		obsqsv->params.bAdaptiveCQM = 0;
+	} else {
+		obsqsv->params.bAdaptiveCQM = -1;
+	}
+
+	if (astrcmpi(intra_ref_type, "VERTICAL") == 0) {
+		obsqsv->params.nIntraRefType = 0;
+	} else if (astrcmpi(intra_ref_type, "HORIZONTAL") == 0) {
+		obsqsv->params.nIntraRefType = 1;
+	} else {
+		obsqsv->params.bAdaptiveCQM = -1;
+	}
+
 	if (astrcmpi(adaptive_cqm, "ON") == 0) {
 		obsqsv->params.bAdaptiveCQM = 1;
 	} else if (astrcmpi(adaptive_cqm, "OFF") == 0) {
@@ -1455,6 +1538,12 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.bBPyramid = -1;
 	}
 
+	if (astrcmpi(hyper_mode, "OFF") == 0) {
+		obsqsv->params.nHyperMode = 0;
+	} else {
+		obsqsv->params.nHyperMode = -1;
+	}
+
 	if (astrcmpi(trellis, "OFF") == 0) {
 		obsqsv->params.nTrellis = (int)0;
 	} else if (astrcmpi(trellis, "AUTO") == 0) {
@@ -1494,27 +1583,26 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.nDenoiseStrength = denoise_strength;
 	}
 
-	if (astrcmpi(hevc_ctu, "16") == 0) {
-		obsqsv->params.nCTU = (mfxU16)16;
-	} else if (astrcmpi(hevc_ctu, "32") == 0) {
-		obsqsv->params.nCTU = (mfxU16)32;
-	} else if (astrcmpi(hevc_ctu, "64") == 0) {
-		obsqsv->params.nCTU = (mfxU16)64;
-	} else if (astrcmpi(hevc_ctu, "AUTO") == 0) {
-		obsqsv->params.nCTU = (mfxU16)0;
-	}
+	//if (astrcmpi(hevc_ctu, "16") == 0) {
+	//	obsqsv->params.nCTU = (mfxU16)16;
+	//} else if (astrcmpi(hevc_ctu, "32") == 0) {
+	//	obsqsv->params.nCTU = (mfxU16)32;
+	//} else if (astrcmpi(hevc_ctu, "64") == 0) {
+	//	obsqsv->params.nCTU = (mfxU16)64;
+	//} else if (astrcmpi(hevc_ctu, "AUTO") == 0) {
+	//	obsqsv->params.nCTU = (mfxU16)0;
+	//}
 
 	if (astrcmpi(hevc_sao, "DISABLE") == 0) {
-		obsqsv->params.SAO = (mfxU16)MFX_SAO_DISABLE;
+		obsqsv->params.nSAO = 0;
 	} else if (astrcmpi(hevc_sao, "LUMA") == 0) {
-		obsqsv->params.SAO = (mfxU16)MFX_SAO_ENABLE_LUMA;
+		obsqsv->params.nSAO = 1;
 	} else if (astrcmpi(hevc_sao, "CHROMA") == 0) {
-		obsqsv->params.SAO = (mfxU16)MFX_SAO_ENABLE_CHROMA;
+		obsqsv->params.nSAO = 2;
 	} else if (astrcmpi(hevc_sao, "ALL") == 0) {
-		obsqsv->params.SAO = (mfxU16)MFX_SAO_ENABLE_LUMA |
-				     MFX_SAO_ENABLE_CHROMA;
+		obsqsv->params.nSAO = 3;
 	} else if (astrcmpi(hevc_sao, "AUTO") == 0) {
-		obsqsv->params.SAO = (mfxU16)MFX_SAO_UNKNOWN;
+		obsqsv->params.nSAO = -1;
 	}
 
 	if (astrcmpi(hevc_gpb, "ON") == 0) {
@@ -1547,17 +1635,17 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.bLAExtBRC = 1;
 		obsqsv->params.RateControl = MFX_RATECONTROL_CBR;
 		obsqsv->params.bExtBRC = 1;
-		la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;
+		/*la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;*/
 	} else if (astrcmpi(rate_control, "LA_EXT_VBR") == 0) {
 		obsqsv->params.bLAExtBRC = 1;
 		obsqsv->params.RateControl = MFX_RATECONTROL_VBR;
 		obsqsv->params.bExtBRC = 1;
-		la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;
+		/*la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;*/
 	} else if (astrcmpi(rate_control, "LA_EXT_ICQ") == 0) {
 		obsqsv->params.bLAExtBRC = 1;
 		obsqsv->params.RateControl = MFX_RATECONTROL_ICQ;
 		obsqsv->params.bExtBRC = 1;
-		la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;
+		/*la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;*/
 	}
 
 	obsqsv->params.nAsyncDepth =
@@ -1597,6 +1685,9 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	obsqsv->params.nNumRefFrameLayers = (mfxU16)num_ref_frame_layers;
 	obsqsv->params.nWinBRCMaxAvgSize = (mfxU16)winbrc_max_avg_size;
 	obsqsv->params.nWinBRCSize = (mfxU16)winbrc_size;
+
+	obsqsv->params.nIntraRefCycleSize = intra_ref_cycle_size;
+	obsqsv->params.nIntraRefQPDelta = intra_ref_qp_delta;
 
 	info("settings:\n"
 	     "\tcodec:          %s\n"
