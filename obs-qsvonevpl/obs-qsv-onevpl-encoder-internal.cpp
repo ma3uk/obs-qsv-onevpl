@@ -51,7 +51,8 @@ QSV_VPL_Encoder_Internal::QSV_VPL_Encoder_Internal(mfxIMPL &impl,
 	  mfx_Ext_CO_SPSPPS(),
 	  mfx_Ext_ResetOption(),
 	  mfx_Platform(),
-	  mfx_HyperModeParam()
+	  mfx_HyperModeParam(),
+	  mfx_CO_DDI()
 {
 	blog(LOG_INFO, "\tSelected QuickSync oneVPL implementation\n");
 	mfxIMPL tempImpl = MFX_IMPL_VIA_D3D9;
@@ -750,11 +751,13 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 				    MFX_EXTBUFF_ENCTOOLS_CONFIG);
 
 		mfx_EncToolsConf.AdaptiveI = /*pParams->bAdaptiveI == 1
-						     ? */MFX_CODINGOPTION_ON
-						     /*: MFX_CODINGOPTION_UNKNOWN*/;
+						     ? */
+			MFX_CODINGOPTION_ON
+			/*: MFX_CODINGOPTION_UNKNOWN*/;
 		mfx_EncToolsConf.AdaptiveB = /*pParams->bAdaptiveB == 1
-						     ? */MFX_CODINGOPTION_ON
-		/*: MFX_CODINGOPTION_UNKNOWN*/;
+						     ? */
+			MFX_CODINGOPTION_ON
+			/*: MFX_CODINGOPTION_UNKNOWN*/;
 		mfx_EncToolsConf.SceneChange =
 			/*(pParams->bAdaptiveB == 1 || pParams->bAdaptiveI == 1)
 				? */
@@ -773,20 +776,20 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		mfx_EncToolsConf.AdaptiveMBQP = MFX_CODINGOPTION_ON;
 
 		mfx_EncToolsConf.AdaptiveLTR =
-			/*pParams->bAdaptiveLTR == 1 ? */MFX_CODINGOPTION_ON
-						   /*: MFX_CODINGOPTION_UNKNOWN*/;
+			/*pParams->bAdaptiveLTR == 1 ? */ MFX_CODINGOPTION_ON
+			/*: MFX_CODINGOPTION_UNKNOWN*/;
 		mfx_EncToolsConf.AdaptiveRefP =
-			/*pParams->bAdaptiveRef == 1 ? */MFX_CODINGOPTION_ON
-						   /*: MFX_CODINGOPTION_UNKNOWN*/;
+			/*pParams->bAdaptiveRef == 1 ? */ MFX_CODINGOPTION_ON
+			/*: MFX_CODINGOPTION_UNKNOWN*/;
 		mfx_EncToolsConf.AdaptiveRefB =
-			/*pParams->bAdaptiveRef == 1 ? */MFX_CODINGOPTION_ON
-						   /*: MFX_CODINGOPTION_UNKNOWN*/;
+			/*pParams->bAdaptiveRef == 1 ? */ MFX_CODINGOPTION_ON
+			/*: MFX_CODINGOPTION_UNKNOWN*/;
 		/*if (pParams->bCPUBufferHints == 1) {*/
 
-			mfx_EncToolsConf.BRCBufferHints = MFX_CODINGOPTION_ON;
+		mfx_EncToolsConf.BRCBufferHints = MFX_CODINGOPTION_ON;
 		/*}*/
 		/*if (pParams->bCPUBRCControl == 1) {*/
-			mfx_EncToolsConf.BRC = MFX_CODINGOPTION_ON;
+		mfx_EncToolsConf.BRC = MFX_CODINGOPTION_ON;
 		/*}*/
 		mfx_ENC_ExtendedBuffers.push_back(
 			(mfxExtBuffer *)&mfx_EncToolsConf);
@@ -1380,6 +1383,54 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		}
 
 		mfx_ENC_ExtendedBuffers.push_back((mfxExtBuffer *)&mfx_Ext_CO3);
+	}
+
+	if (codec != QSV_CODEC_AV1) {
+
+		INIT_MFX_EXT_BUFFER(mfx_CO_DDI, MFX_EXTBUFF_DDI);
+		/*mfx_CO_DDI.IBC = MFX_CODINGOPTION_ON;*/
+		mfx_CO_DDI.BRCPrecision = 3;
+		mfx_CO_DDI.BiDirSearch = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.DirectSpatialMvPredFlag = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.GlobalSearch = 2;
+		mfx_CO_DDI.IntraPredCostType = 8;
+		mfx_CO_DDI.MEFractionalSearchType = 16;
+		mfx_CO_DDI.MVPrediction = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.WeightedBiPredIdc = pParams->bWeightedBiPred == 1
+						       ? 2
+						       : 0;
+		mfx_CO_DDI.WeightedPrediction = pParams->bWeightedPred == 1
+							? MFX_CODINGOPTION_ON
+							: MFX_CODINGOPTION_OFF;
+		mfx_CO_DDI.FieldPrediction = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.CabacInitIdcPlus1 = 1;
+		mfx_CO_DDI.DirectCheck = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.FractionalQP = 1;
+		mfx_CO_DDI.Hme = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.LocalSearch = 5;
+		mfx_CO_DDI.MBAFF = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.MEInterpolationMethod = 8;
+		mfx_CO_DDI.DDI.InterPredBlockSize = 64;
+		mfx_CO_DDI.DDI.IntraPredBlockSize = 1;
+		mfx_CO_DDI.RefOppositeField = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.RefRaw = pParams->bRawRef == 1 ? MFX_CODINGOPTION_ON
+							  : MFX_CODINGOPTION_OFF;
+		mfx_CO_DDI.TMVP = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.LongStartCodes = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.NumActiveRefP =
+			pParams->nLADepth > 0 ? 2 : pParams->nNumRefFrame;
+		mfx_CO_DDI.DisablePSubMBPartition = MFX_CODINGOPTION_OFF;
+		mfx_CO_DDI.DisableBSubMBPartition = MFX_CODINGOPTION_OFF;
+		/*mfx_CO_DDI.WriteIVFHeaders = MFX_CODINGOPTION_OFF;*/
+		mfx_CO_DDI.QpAdjust = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.Transform8x8Mode = MFX_CODINGOPTION_UNKNOWN;
+		if (pParams->nLADepth > 39) {
+			/*mfx_CO_DDI.StrengthN = 1000;*/
+			mfx_CO_DDI.QpUpdateRange = 50;
+			/*mfx_CO_DDI.LookAheadDependency = 10;*/
+		}
+
+		mfx_ENC_ExtendedBuffers.push_back((mfxExtBuffer *)&mfx_CO_DDI);
 	}
 
 	INIT_MFX_EXT_BUFFER(mfx_HyperModeParam, MFX_EXTBUFF_HYPER_MODE_PARAM);

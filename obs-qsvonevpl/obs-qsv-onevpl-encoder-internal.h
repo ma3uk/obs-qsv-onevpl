@@ -75,6 +75,7 @@ private:
 	mfxExtCodingOption3 mfx_Ext_CO3;
 	mfxExtCodingOption2 mfx_Ext_CO2;
 	mfxExtCodingOption mfx_Ext_CO;
+	
 	mfxExtAVCRefListCtrl mfx_Ext_AVCRefListCtrl;
 	mfxExtAVCRefLists mfx_Ext_AVCRefLists;
 	mfxExtHEVCParam mfx_Ext_HEVCParam{};
@@ -99,4 +100,5 @@ private:
 		g_DX_Handle; // we only want one handle for all instances to use;
 	mfxPlatform mfx_Platform;
 	mfxExtHyperModeParam mfx_HyperModeParam;
+	mfxExtCodingOptionDDI mfx_CO_DDI;
 };

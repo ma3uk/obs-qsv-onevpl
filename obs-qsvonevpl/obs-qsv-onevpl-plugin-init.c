@@ -216,7 +216,7 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_string(settings, "lookahead_ds", "AUTO");
 	obs_data_set_default_string(settings, "directbias_adjustment", "AUTO");
 	obs_data_set_default_string(settings, "mv_overpic_boundaries", "AUTO");
-	obs_data_set_default_int(settings, "la_depth", 0);
+	obs_data_set_default_int(settings, "la_depth", 10);
 
 	obs_data_set_default_string(settings, "extbrc", "AUTO");
 	obs_data_set_default_string(settings, "b_pyramid", "AUTO");
@@ -844,7 +844,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(
 		prop, obs_module_text("LookaheadDS.ToolTip"));
 
-	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 0, 100,
+	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 40, 100,
 				      1);
 	if (codec == QSV_CODEC_AVC) {
 		prop = obs_properties_add_list(props, "denoise_mode",
@@ -2176,7 +2176,7 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 {
 	struct obs_qsv *obsqsv = data;
 
-	if (/*!frame || */ !packet || !received_packet) {
+	if (/*!frame ||*/  !packet || !received_packet) {
 		return false;
 	}
 	AcquireSRWLockExclusive(&g_QsvLock);

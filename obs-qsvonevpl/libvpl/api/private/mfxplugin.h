@@ -105,7 +105,7 @@ typedef struct mfxCoreInterface {
 
     mfxHDL reserved1[2];
     mfxFrameAllocator FrameAllocator;
-    mfxBufferAllocator reserved3;
+   /* mfxBufferAllocator reserved3;*/
 
     mfxStatus (MFX_CDECL *GetCoreParam)(mfxHDL pthis, mfxCoreParam *par);
     mfxStatus (MFX_CDECL *GetHandle) (mfxHDL pthis, mfxHandleType type, mfxHDL *handle);
