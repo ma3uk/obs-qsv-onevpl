@@ -1,7 +1,7 @@
 # obs-qsv-onevpl
-## obs-qsv11 plugin with oneVPL support
+## Intel QSV encoder plugin for OBS Studio based on oneVPL library
 
-### Implementation of the OBS QSV plugin with oneVPL support for Intel Tiger Lake processors and higher, as well as discrete Arc Alchemist video cards.
+### Implementation of the video encoder plugin for OBS Studio based on the Intel oneVPL library for Intel ARC Alchemist graphics cards and above, as well as integrated UHD graphics 7** and above.
 
 **Download:**
 
