@@ -1,7 +1,7 @@
 # obs-qsv-onevpl
 ## Intel QSV encoder plugin for OBS Studio based on oneVPL library
 
-### Implementation of the video encoder plugin for OBS Studio based on the Intel oneVPL library for Intel ARC Alchemist graphics cards and above, as well as integrated UHD graphics 7** and above.
+### Implementation of the QSV (Quick Sync Video) video encoder plugin for OBS Studio based on the Intel oneVPL library for Intel ARC Alchemist graphics cards and above, as well as integrated UHD graphics 7** and above.
 
 **Download:**
 
