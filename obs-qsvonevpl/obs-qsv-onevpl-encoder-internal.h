@@ -75,7 +75,7 @@ private:
 	mfxExtCodingOption3 mfx_Ext_CO3;
 	mfxExtCodingOption2 mfx_Ext_CO2;
 	mfxExtCodingOption mfx_Ext_CO;
-	
+	mfxFrameSurface1 *mfx_FrameSurface;
 	mfxExtAVCRefListCtrl mfx_Ext_AVCRefListCtrl;
 	mfxExtAVCRefLists mfx_Ext_AVCRefLists;
 	mfxExtHEVCParam mfx_Ext_HEVCParam{};

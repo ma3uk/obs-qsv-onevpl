@@ -216,7 +216,7 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_string(settings, "lookahead_ds", "AUTO");
 	obs_data_set_default_string(settings, "directbias_adjustment", "AUTO");
 	obs_data_set_default_string(settings, "mv_overpic_boundaries", "AUTO");
-	obs_data_set_default_int(settings, "la_depth", 10);
+	obs_data_set_default_int(settings, "la_depth", 40);
 
 	obs_data_set_default_string(settings, "extbrc", "AUTO");
 	obs_data_set_default_string(settings, "b_pyramid", "AUTO");
@@ -431,22 +431,23 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
 	if (bVisible) {
-		/*obs_data_set_string(settings, "extbrc", "ON");*/
-		obs_data_set_string(settings, "scenario", "LIVE STREAMING");
+		obs_data_set_string(settings, "extbrc", "ON");
+		/*obs_data_set_string(settings, "scenario", "LIVE STREAMING");*/
 	}
-	const char *cpu_enc_tools =
-		obs_data_get_string(settings, "cpu_enc_tools");
-	bVisible = astrcmpi(cpu_enc_tools, "ON") == 0;
-	p = obs_properties_get(ppts, "cpu_brc_control");
-	obs_property_set_visible(p, bVisible);
-	p = obs_properties_get(ppts, "cpu_buffer_hints");
-	obs_property_set_visible(p, bVisible);
+	//const char *cpu_enc_tools =
+	//	obs_data_get_string(settings, "cpu_enc_tools");
+	//bVisible = astrcmpi(cpu_enc_tools, "ON") == 0;
+	//p = obs_properties_get(ppts, "cpu_brc_control");
+	//obs_property_set_visible(p, bVisible);
+	//p = obs_properties_get(ppts, "cpu_buffer_hints");
+	//obs_property_set_visible(p, bVisible);
 
 	bVisible = astrcmpi(rate_control, "CBR") == 0 ||
 		   astrcmpi(rate_control, "VBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
+		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0 ||
+		   astrcmpi(rate_control, "LA_CBR") == 0;
 	p = obs_properties_get(ppts, "mbbrc");
 	obs_property_set_visible(p, bVisible);
 	if (!bVisible) {
@@ -686,7 +687,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(prop,
 					  obs_module_text("MBBRC.ToolTip"));
 
-	// Unsupported on dGPU
+	/*Intel broke this parameter, it is responsible for automatically detecting the scene change, but it gives a compatibility error*/
 	//if (codec == QSV_CODEC_AVC) {
 	//	prop = obs_properties_add_list(props, "repartitioncheck_enable",
 	//		TEXT_REPARTITION_CHECK_ENABLE,
@@ -774,7 +775,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 					  obs_module_text("BPyramid.ToolTip"));
 	add_strings(prop, qsv_params_condition_tristate);
 
-	// Unsupported on dGPU
+	/*Intel broke this parameter, turning it on should instruct the encoder to achieve quality, and turning it off for speed, but now it gives a compatibility error*/
 	//prop = obs_properties_add_list(props, "fade_detection",
 	//	TEXT_FADE_DETECTION, OBS_COMBO_TYPE_LIST,
 	//	OBS_COMBO_FORMAT_STRING);
@@ -844,7 +845,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(
 		prop, obs_module_text("LookaheadDS.ToolTip"));
 
-	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 40, 100,
+	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 40, 120,
 				      1);
 	if (codec == QSV_CODEC_AVC) {
 		prop = obs_properties_add_list(props, "denoise_mode",
@@ -904,22 +905,23 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	add_strings(prop, qsv_params_condition_tristate);
 	obs_property_set_modified_callback(prop, rate_control_modified);
 
-	prop = obs_properties_add_list(props, "cpu_brc_control",
-				       TEXT_CPU_BRC_CONTROL,
-				       OBS_COMBO_TYPE_LIST,
-				       OBS_COMBO_FORMAT_STRING);
-	obs_property_set_long_description(
-		prop, obs_module_text("CPUBRCControl.ToolTip"));
-	add_strings(prop, qsv_params_condition);
+	/*This is hidden for now, until Intel fixes CPUEncTools*/
+	//prop = obs_properties_add_list(props, "cpu_brc_control",
+	//			       TEXT_CPU_BRC_CONTROL,
+	//			       OBS_COMBO_TYPE_LIST,
+	//			       OBS_COMBO_FORMAT_STRING);
+	//obs_property_set_long_description(
+	//	prop, obs_module_text("CPUBRCControl.ToolTip"));
+	//add_strings(prop, qsv_params_condition);
 
-	prop = obs_properties_add_list(props, "cpu_buffer_hints",
-				       TEXT_CPU_BUFFER_HINTS,
-				       OBS_COMBO_TYPE_LIST,
-				       OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_params_condition);
-	obs_property_set_long_description(
-		prop, obs_module_text("CPUBufferHints.ToolTip"));
-	obs_property_set_modified_callback(prop, rate_control_modified);
+	//prop = obs_properties_add_list(props, "cpu_buffer_hints",
+	//			       TEXT_CPU_BUFFER_HINTS,
+	//			       OBS_COMBO_TYPE_LIST,
+	//			       OBS_COMBO_FORMAT_STRING);
+	//add_strings(prop, qsv_params_condition);
+	//obs_property_set_long_description(
+	//	prop, obs_module_text("CPUBufferHints.ToolTip"));
+	//obs_property_set_modified_callback(prop, rate_control_modified);
 
 	prop = obs_properties_add_list(props, "scenario", TEXT_SCENARIO,
 				       OBS_COMBO_TYPE_LIST,
@@ -936,6 +938,8 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 					  obs_module_text("HyperMode.ToolTip"));
 	add_strings(prop, qsv_params_condition_hyper_mode);
 
+	/*This is not a necessary parameter,
+		its inclusion greatly spoils the picture*/
 	//prop = obs_properties_add_list(props, "deblocking", TEXT_DEBLOCKING,
 	//			       OBS_COMBO_TYPE_LIST,
 	//			       OBS_COMBO_FORMAT_STRING);
@@ -945,13 +949,6 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	//obs_property_set_modified_callback(prop, rate_control_modified);
 
 	if (codec == QSV_CODEC_HEVC) {
-		//prop = obs_properties_add_list(props, "hevc_ctu", TEXT_HEVC_CTU,
-		//			       OBS_COMBO_TYPE_LIST,
-		//			       OBS_COMBO_FORMAT_STRING);
-		//add_strings(prop, qsv_params_condition_hevc_ctu);
-		//obs_property_set_long_description(
-		//	prop, obs_module_text("CTU.ToolTip"));
-
 		prop = obs_properties_add_list(props, "hevc_sao", TEXT_HEVC_SAO,
 					       OBS_COMBO_TYPE_LIST,
 					       OBS_COMBO_FORMAT_STRING);
@@ -1653,8 +1650,8 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 
 	obsqsv->params.nLADepth = (mfxU16)la_depth;
 
-	if (obsqsv->params.nLADepth > 100) {
-		obsqsv->params.nLADepth = (mfxU16)100;
+	if (obsqsv->params.nLADepth > 120) {
+		obsqsv->params.nLADepth = (mfxU16)120;
 	}
 
 	obsqsv->params.nAccuracy = (mfxU16)accuracy;
@@ -2176,7 +2173,7 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 {
 	struct obs_qsv *obsqsv = data;
 
-	if (/*!frame ||*/  !packet || !received_packet) {
+	if (/*!frame ||*/ !packet || !received_packet) {
 		return false;
 	}
 	AcquireSRWLockExclusive(&g_QsvLock);

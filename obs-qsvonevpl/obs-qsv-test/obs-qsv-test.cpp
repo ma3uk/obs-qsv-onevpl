@@ -188,8 +188,10 @@ static bool get_adapter_caps(IDXGIFactory *factory, uint32_t adapter_idx)
 	mfxIMPL impl = impls[adapter_idx];
 	
 	caps.is_intel = (desc.VendorId == 0x8086);
-	caps.is_dgpu = (desc.DedicatedVideoMemory > 512 * 1024 * 1024) || (caps.deviceID >= 0x5600);;
-	caps.supports_av1 = caps.is_intel && caps.is_dgpu;
+	caps.is_dgpu = (desc.DedicatedVideoMemory >
+			static_cast<unsigned long long>(512 * 1024 * 1024)) ||
+		       (caps.deviceID >= 0x5600);
+	caps.supports_av1 = (caps.is_intel && caps.is_dgpu) || (caps.is_intel && (qsv_get_cpu_platform() > QSV_CPU_PLATFORM_RPL));
 	caps.supports_hevc = ((qsv_get_cpu_platform() > QSV_CPU_PLATFORM_KBL) || caps.is_dgpu);
 
 	return true;
@@ -223,8 +225,9 @@ try {
 	HANDLE hThread;
 	hThread =
 		CreateThread(NULL, 0, TimeoutThread, hMainThread, 0, &threadId);
-	CloseHandle(hThread);
-
+	if (hThread != 0) {
+		CloseHandle(hThread);
+	}
 	/* --------------------------------------------------------- */
 	/* parse expected LUID order                                 */
 

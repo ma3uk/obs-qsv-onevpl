@@ -67,11 +67,11 @@ MFX_PACK_END()
 
 #define MFX_ENCTOOLS_CONFIG_VERSION MFX_STRUCT_VERSION(1, 0)
 
-//#define MFX_EXTBUFF_DDI MFX_MAKEFOURCC('D', 'D', 'I', 'P')
+#define MFX_EXTBUFF_DDI MFX_MAKEFOURCC('D', 'D', 'I', 'P')
 
-enum {
-	MFX_EXTBUFF_DDI = MFX_MAKEFOURCC('D', 'D', 'I', 'P'),
-};
+//enum {
+//	MFX_EXTBUFF_DDI = MFX_MAKEFOURCC('D', 'D', 'I', 'P'),
+//};
 MFX_PACK_BEGIN_USUAL_STRUCT()
 typedef struct {
     mfxExtBuffer Header;
