@@ -434,13 +434,13 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_data_set_string(settings, "extbrc", "ON");
 		/*obs_data_set_string(settings, "scenario", "LIVE STREAMING");*/
 	}
-	//const char *cpu_enc_tools =
-	//	obs_data_get_string(settings, "cpu_enc_tools");
-	//bVisible = astrcmpi(cpu_enc_tools, "ON") == 0;
-	//p = obs_properties_get(ppts, "cpu_brc_control");
-	//obs_property_set_visible(p, bVisible);
-	//p = obs_properties_get(ppts, "cpu_buffer_hints");
-	//obs_property_set_visible(p, bVisible);
+	const char *cpu_enc_tools =
+		obs_data_get_string(settings, "cpu_enc_tools");
+	bVisible = astrcmpi(cpu_enc_tools, "ON") == 0;
+	p = obs_properties_get(ppts, "cpu_brc_control");
+	obs_property_set_visible(p, bVisible);
+	p = obs_properties_get(ppts, "cpu_buffer_hints");
+	obs_property_set_visible(p, bVisible);
 
 	bVisible = astrcmpi(rate_control, "CBR") == 0 ||
 		   astrcmpi(rate_control, "VBR") == 0 ||
@@ -652,13 +652,11 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_int_set_suffix(prop, " s");
 
 	obs_properties_add_int_slider(props, "num_ref_frame",
-				      TEXT_NUM_REF_FRAME, 0, 15, 1);
+				      TEXT_NUM_REF_FRAME, 0, (codec == QSV_CODEC_AV1 ? 7 : 15), 1);
 
-	if (codec != QSV_CODEC_AV1) {
-		obs_properties_add_int_slider(props, "num_ref_frame_layers",
+	obs_properties_add_int_slider(props, "num_ref_frame_layers",
 					      TEXT_NUM_REF_FRAME_LAYERS, 1, 9,
 					      1);
-	}
 	if (codec == QSV_CODEC_HEVC) {
 		prop = obs_properties_add_list(props, "hevc_gpb", TEXT_HEVC_GPB,
 					       OBS_COMBO_TYPE_LIST,
@@ -905,23 +903,22 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	add_strings(prop, qsv_params_condition_tristate);
 	obs_property_set_modified_callback(prop, rate_control_modified);
 
-	/*This is hidden for now, until Intel fixes CPUEncTools*/
-	//prop = obs_properties_add_list(props, "cpu_brc_control",
-	//			       TEXT_CPU_BRC_CONTROL,
-	//			       OBS_COMBO_TYPE_LIST,
-	//			       OBS_COMBO_FORMAT_STRING);
-	//obs_property_set_long_description(
-	//	prop, obs_module_text("CPUBRCControl.ToolTip"));
-	//add_strings(prop, qsv_params_condition);
+	prop = obs_properties_add_list(props, "cpu_brc_control",
+				       TEXT_CPU_BRC_CONTROL,
+				       OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	obs_property_set_long_description(
+		prop, obs_module_text("CPUBRCControl.ToolTip"));
+	add_strings(prop, qsv_params_condition);
 
-	//prop = obs_properties_add_list(props, "cpu_buffer_hints",
-	//			       TEXT_CPU_BUFFER_HINTS,
-	//			       OBS_COMBO_TYPE_LIST,
-	//			       OBS_COMBO_FORMAT_STRING);
-	//add_strings(prop, qsv_params_condition);
-	//obs_property_set_long_description(
-	//	prop, obs_module_text("CPUBufferHints.ToolTip"));
-	//obs_property_set_modified_callback(prop, rate_control_modified);
+	prop = obs_properties_add_list(props, "cpu_buffer_hints",
+				       TEXT_CPU_BUFFER_HINTS,
+				       OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	add_strings(prop, qsv_params_condition);
+	obs_property_set_long_description(
+		prop, obs_module_text("CPUBufferHints.ToolTip"));
+	obs_property_set_modified_callback(prop, rate_control_modified);
 
 	prop = obs_properties_add_list(props, "scenario", TEXT_SCENARIO,
 				       OBS_COMBO_TYPE_LIST,

@@ -323,9 +323,11 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCCtrlParams(qsv_param_t *pParams,
 mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 						  enum qsv_codec codec)
 {
+	/*It's only for debug*/
 	int mfx_Ext_CO_enable = 1;
 	int mfx_Ext_CO2_enable = 1;
 	int mfx_Ext_CO3_enable = 1;
+	int mfx_Ext_CO_DDI_enable = 1;
 	mfx_ENC_Params.mfx.NumThread = 64;
 	mfx_ENC_Params.mfx.RestartInterval = 1;
 
@@ -429,11 +431,11 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		break;
 	}
 
-	if (b_isDGPU == false /* || (pParams->nGOPRefDist == 1)*/) {
-		mfx_ENC_Params.mfx.LowPower = MFX_CODINGOPTION_ON;
-		blog(LOG_INFO,
-		     "\tThe Lowpower mode parameter was automatically changed to: ON");
-	}
+	//if (b_isDGPU == false /* || (pParams->nGOPRefDist == 1)*/) {
+	//	mfx_ENC_Params.mfx.LowPower = MFX_CODINGOPTION_ON;
+	//	blog(LOG_INFO,
+	//	     "\tThe Lowpower mode parameter was automatically changed to: ON");
+	//}
 
 	if (mfx_ENC_Params.mfx.LowPower == MFX_CODINGOPTION_ON) {
 		if (pParams->RateControl == MFX_RATECONTROL_LA_ICQ ||
@@ -978,33 +980,24 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			or it may not work,
 			it seems to depend on the IDE and
 				compiler. If you get frame drops, delete it.*/
-		if (codec == QSV_CODEC_AVC &&
-		    (b_isDGPU == true ||
-		     mfx_ENC_Params.mfx.LowPower == MFX_CODINGOPTION_ON)) {
 
-			if (pParams->nNumRefFrame > 0 &&
-			    codec != QSV_CODEC_AV1) {
-				blog(LOG_INFO, "\tNumRefFrameLayers set: %d",
-				     pParams->nNumRefFrameLayers);
-				if (pParams->nNumRefFrameLayers > 0 &&
-				    pParams->nNumRefFrame > 0) {
-					for (int i = 0;
-					     i < pParams->nNumRefFrameLayers;
-					     i++) {
+		if (pParams->nNumRefFrame > 0) {
+			blog(LOG_INFO, "\tNumRefFrameLayers set: %d",
+			     pParams->nNumRefFrameLayers);
+			if (pParams->nNumRefFrameLayers > 0 &&
+			    pParams->nNumRefFrame > 0) {
+				for (int i = 0; i < pParams->nNumRefFrameLayers;
+				     i++) {
 
-						mfx_Ext_CO3.NumRefActiveP[i] =
-							(mfxU16)pParams
-								->nNumRefFrame;
-						mfx_Ext_CO3.NumRefActiveBL0[i] =
-							(mfxU16)pParams
-								->nNumRefFrame;
-						mfx_Ext_CO3.NumRefActiveBL1[i] =
-							(mfxU16)pParams
-								->nNumRefFrame;
-						blog(LOG_INFO,
-						     "\tNumRefFrameLayer %d set: %d",
-						     i, pParams->nNumRefFrame);
-					}
+					mfx_Ext_CO3.NumRefActiveP[i] =
+						(mfxU16)pParams->nNumRefFrame;
+					mfx_Ext_CO3.NumRefActiveBL0[i] =
+						(mfxU16)pParams->nNumRefFrame;
+					mfx_Ext_CO3.NumRefActiveBL1[i] =
+						(mfxU16)pParams->nNumRefFrame;
+					blog(LOG_INFO,
+					     "\tNumRefFrameLayer %d set: %d", i,
+					     pParams->nNumRefFrame);
 				}
 			}
 		}
@@ -1303,17 +1296,21 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		mfx_EncToolsConf.AdaptiveLTR = MFX_CODINGOPTION_ON;
 		mfx_EncToolsConf.AdaptiveRefP = MFX_CODINGOPTION_ON;
 		mfx_EncToolsConf.AdaptiveRefB = MFX_CODINGOPTION_ON;
-		if (codec != QSV_CODEC_AV1) {
-			mfx_EncToolsConf.BRCBufferHints = MFX_CODINGOPTION_ON;
-			mfx_EncToolsConf.BRC = MFX_CODINGOPTION_ON;
-		}
+		
+		mfx_EncToolsConf.BRCBufferHints = pParams->bCPUBufferHints == 1
+							  ? MFX_CODINGOPTION_ON
+							  : MFX_CODINGOPTION_UNKNOWN;
+		mfx_EncToolsConf.BRC = pParams->bCPUBRCControl == 1
+					       ? MFX_CODINGOPTION_ON
+					       : MFX_CODINGOPTION_UNKNOWN;
+		
 
 		mfx_ENC_ExtendedBuffers.push_back(
 			(mfxExtBuffer *)&mfx_EncToolsConf);
 	}
 
 	/*Don't touch it! Magic beyond the control of mere mortals takes place here*/
-	if (codec != QSV_CODEC_AV1) {
+	if (mfx_Ext_CO_DDI_enable == 1 && codec != QSV_CODEC_AV1) {
 
 		INIT_MFX_EXT_BUFFER(mfx_CO_DDI, MFX_EXTBUFF_DDI);
 		/*mfx_CO_DDI.IBC = MFX_CODINGOPTION_ON;*/
@@ -1344,7 +1341,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 					    ? MFX_CODINGOPTION_ON
 					    : MFX_CODINGOPTION_OFF;
 		mfx_CO_DDI.TMVP = MFX_CODINGOPTION_ON;
-		mfx_CO_DDI.LongStartCodes = MFX_CODINGOPTION_ON;
+		mfx_CO_DDI.NumActiveRefP = pParams->nNumRefFrame;
+		mfx_CO_DDI.NumActiveRefBL1 = pParams->nNumRefFrame;
 		mfx_CO_DDI.NumActiveRefP =
 			pParams->nLADepth > 0 ? 2 : pParams->nNumRefFrame;
 		mfx_CO_DDI.DisablePSubMBPartition = MFX_CODINGOPTION_OFF;
