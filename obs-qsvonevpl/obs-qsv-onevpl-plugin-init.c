@@ -186,7 +186,7 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_string(settings, "denoise_mode", "OFF");
 	obs_data_set_default_int(settings, "denoise_strength", 50);
 
-	obs_data_set_default_string(settings, "tune_quality", "AUTO");
+	obs_data_set_default_string(settings, "tune_quality", "OFF");
 	obs_data_set_default_string(settings, "scenario", "LIVE STREAMING");
 	//obs_data_set_default_string(settings, "repartitioncheck_enable", "AUTO");
 	obs_data_set_default_string(settings, "adaptive_i", "AUTO");
@@ -401,8 +401,8 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 	p = obs_properties_get(ppts, "lookahead_ds");
 	obs_property_set_visible(p, bVisible);
 	if (!bVisible) {
-		obs_data_erase(settings, "la_depth");
-		obs_data_erase(settings, "lookahead_ds");
+		obs_data_set_int(settings, "la_depth", 0);
+		obs_data_set_string(settings, "lookahead_ds", "AUTO");
 	}
 
 	bVisible = astrcmpi(rate_control, "LA_VBR") == 0 ||
@@ -413,6 +413,7 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "winbrc_size");
 	obs_property_set_visible(p, bVisible);
+
 	if (!bVisible) {
 		obs_data_erase(settings, "winbrc_max_avg_size");
 		obs_data_erase(settings, "winbrc_size");
@@ -427,21 +428,26 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 	//	obs_data_set_string(settings, "extbrc", "OFF");
 	//}
 
-	bVisible = astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
-	if (bVisible) {
-		obs_data_set_string(settings, "extbrc", "ON");
-		/*obs_data_set_string(settings, "scenario", "LIVE STREAMING");*/
-	}
+	//bVisible = astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
+	//	   astrcmpi(rate_control, "LA_EXT_VBR") == 0 ||
+	//	   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
+	//if (bVisible) {
+	//	/*obs_data_set_string(settings, "extbrc", "ON");*/
+	//	/*obs_data_set_string(settings, "scenario", "LIVE STREAMING");*/
+	//}
 	const char *cpu_enc_tools =
 		obs_data_get_string(settings, "cpu_enc_tools");
-	bVisible = astrcmpi(cpu_enc_tools, "ON") == 0;
+	bVisible = astrcmpi(cpu_enc_tools, "ON") == 0 &&
+		   (astrcmpi(rate_control, "CBR") == 0 ||
+		    astrcmpi(rate_control, "VBR") == 0);
 	p = obs_properties_get(ppts, "cpu_brc_control");
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "cpu_buffer_hints");
 	obs_property_set_visible(p, bVisible);
-
+	if (!bVisible) {
+		obs_data_set_string(settings, "cpu_brc_control", "OFF");
+		obs_data_set_string(settings, "cpu_buffer_hints", "OFF");
+	}
 	bVisible = astrcmpi(rate_control, "CBR") == 0 ||
 		   astrcmpi(rate_control, "VBR") == 0 ||
 		   astrcmpi(rate_control, "LA_EXT_CBR") == 0 ||
@@ -652,11 +658,11 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_int_set_suffix(prop, " s");
 
 	obs_properties_add_int_slider(props, "num_ref_frame",
-				      TEXT_NUM_REF_FRAME, 0, (codec == QSV_CODEC_AV1 ? 7 : 15), 1);
+				      TEXT_NUM_REF_FRAME, 0,
+				      (codec == QSV_CODEC_AV1 ? 7 : 15), 1);
 
 	obs_properties_add_int_slider(props, "num_ref_frame_layers",
-					      TEXT_NUM_REF_FRAME_LAYERS, 1, 9,
-					      1);
+				      TEXT_NUM_REF_FRAME_LAYERS, 1, 9, 1);
 	if (codec == QSV_CODEC_HEVC) {
 		prop = obs_properties_add_list(props, "hevc_gpb", TEXT_HEVC_GPB,
 					       OBS_COMBO_TYPE_LIST,
@@ -828,14 +834,14 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	add_strings(prop, qsv_params_condition_tristate);
 	obs_property_set_long_description(
 		prop, obs_module_text("MVOverpicBoundaries.ToolTip"));
-
-	prop = obs_properties_add_list(props, "trellis", TEXT_TRELLIS,
-				       OBS_COMBO_TYPE_LIST,
-				       OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_params_condition_trellis);
-	obs_property_set_long_description(prop,
-					  obs_module_text("Trellis.ToolTip"));
-
+	if (codec != QSV_CODEC_AV1) {
+		prop = obs_properties_add_list(props, "trellis", TEXT_TRELLIS,
+					       OBS_COMBO_TYPE_LIST,
+					       OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_params_condition_trellis);
+		obs_property_set_long_description(
+			prop, obs_module_text("Trellis.ToolTip"));
+	}
 	prop = obs_properties_add_list(props, "lookahead_ds", TEXT_LOOKAHEAD_DS,
 				       OBS_COMBO_TYPE_LIST,
 				       OBS_COMBO_FORMAT_STRING);
@@ -843,7 +849,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(
 		prop, obs_module_text("LookaheadDS.ToolTip"));
 
-	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 40, 120,
+	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 1, 100,
 				      1);
 	if (codec == QSV_CODEC_AVC) {
 		prop = obs_properties_add_list(props, "denoise_mode",
@@ -865,33 +871,34 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_modified_callback(prop, rate_control_modified);
 	obs_property_set_long_description(prop,
 					  obs_module_text("LowPower.ToolTip"));
+	if (codec != QSV_CODEC_AV1) {
+		prop = obs_properties_add_list(props, "intra_ref_encoding",
+					       TEXT_INTRA_REF_ENCODING,
+					       OBS_COMBO_TYPE_LIST,
+					       OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_params_condition);
+		obs_property_set_modified_callback(prop, visible_modified);
+		obs_property_set_long_description(
+			prop, obs_module_text("IntraRefEncoding.ToolTip"));
 
-	prop = obs_properties_add_list(props, "intra_ref_encoding",
-				       TEXT_INTRA_REF_ENCODING,
-				       OBS_COMBO_TYPE_LIST,
-				       OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_params_condition);
-	obs_property_set_modified_callback(prop, visible_modified);
-	obs_property_set_long_description(
-		prop, obs_module_text("IntraRefEncoding.ToolTip"));
+		prop = obs_properties_add_list(props, "intra_ref_type",
+					       TEXT_INTRA_REF_TYPE,
+					       OBS_COMBO_TYPE_LIST,
+					       OBS_COMBO_FORMAT_STRING);
+		add_strings(prop, qsv_params_condition_intra_ref_encoding);
+		obs_property_set_long_description(
+			prop, obs_module_text("IntraRefType.ToolTip"));
 
-	prop = obs_properties_add_list(props, "intra_ref_type",
-				       TEXT_INTRA_REF_TYPE, OBS_COMBO_TYPE_LIST,
-				       OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_params_condition_intra_ref_encoding);
-	obs_property_set_long_description(
-		prop, obs_module_text("IntraRefType.ToolTip"));
+		obs_properties_add_int(props, "intra_ref_cycle_size",
+				       TEXT_INTRA_REF_CYCLE_SIZE, 2, 1000, 1);
+		obs_property_set_long_description(
+			prop, obs_module_text("IntraRefCycleSize.ToolTip"));
 
-	obs_properties_add_int(props, "intra_ref_cycle_size",
-			       TEXT_INTRA_REF_CYCLE_SIZE, 2, 1000, 1);
-	obs_property_set_long_description(
-		prop, obs_module_text("IntraRefCycleSize.ToolTip"));
-
-	obs_properties_add_int(props, "intra_ref_qp_delta",
-			       TEXT_INTRA_REF_QP_DELTA, -51, 51, 1);
-	obs_property_set_long_description(
-		prop, obs_module_text("IntraRefQPDelta.ToolTip"));
-
+		obs_properties_add_int(props, "intra_ref_qp_delta",
+				       TEXT_INTRA_REF_QP_DELTA, -51, 51, 1);
+		obs_property_set_long_description(
+			prop, obs_module_text("IntraRefQPDelta.ToolTip"));
+	}
 	obs_properties_add_int(props, "device_num", "Select GPU:", -1, 5, 1);
 	obs_property_set_long_description(prop,
 					  obs_module_text("DeviceNum.ToolTip"));
@@ -1145,6 +1152,8 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	} else if (astrcmpi(tune_quality, "PERCEPTUAL") == 0) {
 		obsqsv->params.nTuneQualityMode = 5;
 	} else if (astrcmpi(tune_quality, "DEFAULT") == 0) {
+		obsqsv->params.nTuneQualityMode = 6;
+	} else if (astrcmpi(tune_quality, "OFF") == 0) {
 		obsqsv->params.nTuneQualityMode = 0;
 	}
 
@@ -1647,8 +1656,8 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 
 	obsqsv->params.nLADepth = (mfxU16)la_depth;
 
-	if (obsqsv->params.nLADepth > 120) {
-		obsqsv->params.nLADepth = (mfxU16)120;
+	if (obsqsv->params.nLADepth > 100) {
+		obsqsv->params.nLADepth = (mfxU16)100;
 	}
 
 	obsqsv->params.nAccuracy = (mfxU16)accuracy;
@@ -1663,10 +1672,10 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	obsqsv->params.nQPB = (mfxU16)actual_cqp;
 
 	obsqsv->params.nDeviceNum = (int)device_num;
-	obsqsv->params.nTargetBitRate = (mfxU16)target_bitrate;
+	obsqsv->params.nTargetBitRate = (mfxU16)(target_bitrate / 100);
 	obsqsv->params.bCustomBufferSize = (bool)custom_buffer_size;
-	obsqsv->params.nBufferSize = (mfxU16)buffer_size;
-	obsqsv->params.nMaxBitRate = (mfxU16)max_bitrate;
+	obsqsv->params.nBufferSize = (mfxU16)(buffer_size / 100);
+	obsqsv->params.nMaxBitRate = (mfxU16)(max_bitrate / 100);
 	obsqsv->params.nWidth = (mfxU16)width;
 	obsqsv->params.nHeight = (mfxU16)height;
 	obsqsv->params.nFpsNum = (mfxU16)voi->fps_num;
@@ -1692,12 +1701,12 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	    obsqsv->params.RateControl != MFX_RATECONTROL_ICQ &&
 	    obsqsv->params.RateControl != MFX_RATECONTROL_CQP)
 		blog(LOG_INFO, "\ttarget_bitrate: %d",
-		     (int)obsqsv->params.nTargetBitRate);
+		     (int)obsqsv->params.nTargetBitRate * 100);
 
 	if (obsqsv->params.RateControl == MFX_RATECONTROL_VBR ||
 	    obsqsv->params.RateControl == MFX_RATECONTROL_VCM)
 		blog(LOG_INFO, "\tmax_bitrate:    %d",
-		     (int)obsqsv->params.nMaxBitRate);
+		     (int)obsqsv->params.nMaxBitRate * 100);
 
 	if (obsqsv->params.RateControl == MFX_RATECONTROL_LA_ICQ ||
 	    obsqsv->params.RateControl == MFX_RATECONTROL_ICQ)
@@ -1943,17 +1952,6 @@ static inline void cap_resolution(struct obs_qsv *obsqsv,
 
 	info->height = height;
 	info->width = width;
-
-	if (qsv_platform <= QSV_CPU_PLATFORM_IVB &&
-	    qsv_platform != QSV_CPU_PLATFORM_UNKNOWN) {
-		if (width > 1920) {
-			info->width = 1920;
-		}
-
-		if (height > 1200) {
-			info->height = 1200;
-		}
-	}
 }
 
 static void obs_qsv_video_info(void *data, struct video_scale_info *info)
@@ -2093,17 +2091,21 @@ static void parse_packet_av1(struct obs_qsv *obsqsv,
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
 	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S);
+			   (pBS->FrameType & MFX_FRAMETYPE_xIDR);
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
 
-	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI)) {
+	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
+	    (pBS->FrameType & MFX_FRAMETYPE_xS) ||
+	    (pBS->FrameType & MFX_FRAMETYPE_S)) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
 	} else if ((frameType & MFX_FRAMETYPE_P) ||
-		   (frameType & MFX_FRAMETYPE_REF)) {
+		   (frameType & MFX_FRAMETYPE_xP) ||
+		   (frameType & MFX_FRAMETYPE_xREF) ||
+		   (frameType & MFX_FRAMETYPE_REF) ||
+		   (frameType & MFX_FRAMETYPE_B) ||
+		   (frameType & MFX_FRAMETYPE_xB)) {
 		priority = OBS_NAL_PRIORITY_HIGH;
 	} else {
 		priority = OBS_NAL_PRIORITY_DISPOSABLE;

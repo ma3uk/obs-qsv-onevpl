@@ -10,7 +10,7 @@
 
 #include "mfx_dxva2_device.h"
 #include "mfx_load_dll.h"
-
+#include "mfx.h"
 using namespace MFX;
 
 // convert LUID to mfxU64

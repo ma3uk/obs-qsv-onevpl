@@ -5,7 +5,7 @@
   ############################################################################*/
 
 #include "mfx_dispatcher.h"
-
+#include "mfx.h"
 //
 // implement a table with functions names
 //

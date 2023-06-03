@@ -18,6 +18,7 @@
 #include "mfx_dxva2_device.h"
 #include "mfx_vector.h"
 #include "mfxvideo++.h"
+#include "mfx.h"
 
 #if _MSC_VER
     #pragma warning(disable : 4355)

@@ -3,9 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define MFX_DEPRECATED_OFF
 #define ONEVPL_EXPERIMENTAL
-
 #include <windows.h>
 
 #include <stringapiset.h>
@@ -20,6 +18,7 @@
 #include "mfx_load_dll.h"
 
 #include "mfx_vector.h"
+#include "mfx.h"
 
 #if defined(MEDIASDK_UWP_DISPATCHER)
     #include "mfx_driver_store_loader.h"

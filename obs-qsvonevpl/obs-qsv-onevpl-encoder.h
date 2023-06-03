@@ -120,7 +120,7 @@ static const char *const qsv_params_condition_hevc_sao[] = {
 static const char *const qsv_params_condition_hevc_ctu[] = {"AUTO", "16", "32",
 							    "64", 0};
 static const char *const qsv_params_condition_tune_quality[] = {
-	"DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", "AUTO", 0};
+	"DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", "OFF", 0};
 static const char *const qsv_params_condition_denoise_mode[] = {
 	"DEFAULT",
 	"AUTO | BDRATE | PRE ENCODE",

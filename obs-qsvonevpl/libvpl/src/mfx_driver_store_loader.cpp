@@ -10,6 +10,7 @@
 #include "mfx_driver_store_loader.h"
 #include "mfx_load_dll.h"
 #include "mfx_vector.h"
+#include "mfx.h"
 
 namespace MFX {
 

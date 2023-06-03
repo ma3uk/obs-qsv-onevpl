@@ -7,7 +7,7 @@
 #ifndef __MFXCOMMON_H__
 #define __MFXCOMMON_H__
 #include "mfxdefs.h"
-
+#define ONEVPL_EXPERIMENTAL
 #if !defined (__GNUC__)
 #pragma warning(disable: 4201)
 #endif
