@@ -30,6 +30,7 @@
 #include "mfx_library_iterator.h"
 #include "mfx_load_dll.h"
 #include "mfx_dispatcher_defs.h"
+#include "mfx_dispatcher_vpl.h"
 #include "mfximplcaps.h"
 #include "mfxsession.h"
 #include "mfxvideo.h"
@@ -42,10 +43,6 @@
 #include "mfxsurfacepool.h"
 #include "mfxenctools.h"
 #include "mfxav1.h"
-
-//#include "ts_ext_buffers_decl.h"
-//#include "ts_struct_decl.h"
-//#include "ts_typedef.h"
 
 //#ifdef ONEVPL_EXPERIMENTAL
 //#include "mfxencodestats.h"

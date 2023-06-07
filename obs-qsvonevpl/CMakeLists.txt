@@ -26,12 +26,9 @@ target_sources(
 			libvpl/dispatcher/mfx_load_dll.h
 			libvpl/dispatcher/mfx_vector.h
 			libvpl/dispatcher/mfx_win_reg_key.h
-      			libvpl/dispatcher/mfx_dispatcher_vpl.h
+      libvpl/dispatcher/mfx_dispatcher_vpl.h
 			libvpl/dispatcher/mfx_dispatcher_vpl_log.h
 			libvpl/dispatcher/mfx_dispatcher_vpl_win.h
-			libvpl/api/structures/ts_ext_buffers_decl.h
-			libvpl/api/structures/ts_struct_decl.h
-			libvpl/api/structures/ts_typedef.h
 			libvpl/api/mfx.h
 			libvpl/api/mfxadapter.h
 			libvpl/api/mfxbrc.h
@@ -56,7 +53,7 @@ target_sources(
 			libvpl/api/private/mfxplugin.h
 			libvpl/api/private/mfxpxp.h
 			libvpl/api/legacy/mfxvideo++.h
-			libvpl/src/main.cpp
+      libvpl/src/main.cpp
 			libvpl/src/mfx_critical_section.cpp
 			libvpl/src/mfx_dispatcher.cpp
 			libvpl/src/mfx_dispatcher_log.cpp
@@ -72,16 +69,15 @@ target_sources(
 			libvpl/src/mfx_dispatcher_vpl_log.cpp
 			libvpl/src/mfx_dispatcher_vpl_lowlatency.cpp
 			libvpl/src/mfx_dispatcher_vpl_msdk.cpp
-
 )
 
 target_include_directories(
   libvpl INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/
                    ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/dispatcher/
-					   ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/structures/
+					         ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/structures/
 				           ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/legacy/
 				           ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/private/
-				           ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/src/
+                   ${CMAKE_CURRENT_SOURCE_DIR}/libvpl/api/src/
 )
 
 target_sources(

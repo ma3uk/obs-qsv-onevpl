@@ -77,10 +77,11 @@ static const char *const qsv_ratecontrols_av1[] = {"CBR",        "VBR",
 						   "LA_EXT_VBR", "LA_EXT_CBR",
 						   "LA_EXT_ICQ", 0};
 
-static const char *const qsv_profile_names_avc[] = {
-	"high", "main", "baseline", "high10", "high422", 0};
-static const char *const qsv_profile_names_av1[] = {"main", "high", 0};
-static const char *const qsv_profile_names_hevc[] = {"main", "main10", 0};
+static const char *const qsv_profile_names_avc[] = {"high", "main", "baseline",
+						    "extended", 0};
+static const char *const qsv_profile_names_av1[] = {"main", 0};
+static const char *const qsv_profile_names_hevc[] = {"main", "main10", /*"mainsp",*/
+						     "rext", /*"scc",*/    0};
 static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
 static const char *const qsv_usage_names[] = {"quality",  "balanced", "speed",
 					      "veryslow", "slower",   "slow",
@@ -94,8 +95,8 @@ static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
 static const char *const qsv_params_condition_gop[] = {"CLOSED", "OPEN", 0};
 static const char *const qsv_params_condition_intra_ref_encoding[] = {
 	"VERTICAL", "HORIZONTAL", 0};
-static const char *const qsv_params_condition_hyper_mode[] = {"OFF",
-							      "ADAPTIVE", 0};
+static const char *const qsv_params_condition_hyper_mode[] = {"OFF", "ADAPTIVE",
+							      0};
 //static const char *const qsv_params_condition_weighted_pred[] = {
 //	"AUTO", "DEFAULT", "IMPLICIT", "EXPLICIT", 0};
 static const char *const qsv_params_condition_p_ref_type[] = {
@@ -189,7 +190,6 @@ typedef struct {
 	mfxU16 MaxContentLightLevel;
 	mfxU16 MaxPicAverageLightLevel;
 	mfxU16 nIntraRefCycleSize;
-
 	mfxU16 nCTU;
 	mfxU16 nWinBRCMaxAvgSize;
 	mfxU16 nWinBRCSize;
@@ -200,7 +200,6 @@ typedef struct {
 
 	int bQualityEnchance;
 	int bMBBRC;
-	int bExtBRC;
 	int bAdaptiveI;
 	int bAdaptiveB;
 	int bAdaptiveRef;
@@ -208,8 +207,6 @@ typedef struct {
 	int bAdaptiveLTR;
 	int bAdaptiveMaxFrameSize;
 	int bRDO;
-	int bVuiNalHrd;
-	int bNalHrdConformance;
 	int bLowPower;
 	int bRawRef;
 	int bGPB;
@@ -221,9 +218,7 @@ typedef struct {
 	int bLAExtBRC;
 	int bCPUBRCControl;
 	int bCPUBufferHints;
-	int bBPyramid;
 	int bCPUEncTools;
-	int bDeblockingIdc;
 	int bIntraRefEncoding;
 
 	//bool bFadeDetection;
@@ -235,18 +230,13 @@ typedef struct {
 
 	int nDeviceNum;
 	int nTrellis;
-	int nPRefType;
 	int nDenoiseMode;
 	int nMVCostScalingFactor;
 	int nLookAheadDS;
-	int nMaxFrameSizeType;
-	int nScenario;
 	//int nRepartitionCheckEnable;
 	int nMotionVectorsOverPicBoundaries;
 	int nTuneQualityMode;
 	int nNumRefFrameLayers;
-	int nMaxFrameSizeIMultiplier;
-	int nMaxFrameSizePMultiplier;
 	int nSAO;
 	int nHyperMode;
 

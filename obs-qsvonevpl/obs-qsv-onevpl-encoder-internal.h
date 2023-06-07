@@ -28,7 +28,7 @@ public:
 	bool IsDGPU() const { return b_isDGPU; }
 
 protected:
-	/*mfxStatus InitVPPParams(qsv_param_t *pParams, qsv_codec codec);*/
+	mfxStatus InitVPPParams(qsv_param_t *pParams, qsv_codec codec);
 	mfxStatus InitENCParams(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus InitENCCtrlParams(qsv_param_t *pParams, enum qsv_codec codec);
 	/*mfxStatus AllocateSurfaces();*/
@@ -44,19 +44,112 @@ protected:
 	mfxStatus Drain();
 	int GetFreeTaskIndex(Task *pTaskPool, mfxU16 nPoolSize);
 
+	mfxU16 AVCGetMaxNumRefActivePL0(mfxU16 targetUsage, mfxU16 isLowPower,
+					const mfxFrameInfo &info)
+	{
+
+		constexpr mfxU16 DEFAULT_BY_TU[][8] = {
+			{0, 8, 6, 3, 3, 3, 1,
+			 1}, // VME progressive < 4k or interlaced
+			{0, 4, 4, 3, 3, 3, 1, 1}, // VME progressive >= 4k
+			{0, 3, 3, 2, 2, 2, 1, 1}  // VDEnc
+		};
+
+		if (isLowPower == MFX_CODINGOPTION_OFF) {
+			if ((info.Width < 3840 && info.Height < 2160) ||
+			    (info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE)) {
+				return DEFAULT_BY_TU[0][targetUsage];
+			} else //progressive >= 4K
+			{
+				return DEFAULT_BY_TU[1][targetUsage];
+			}
+		} else {
+			return DEFAULT_BY_TU[2][targetUsage];
+		}
+	}
+
+	mfxU16 AVCGetMaxNumRefActiveBL0(mfxU16 targetUsage, mfxU16 isLowPower)
+	{
+		if (isLowPower == MFX_CODINGOPTION_OFF) {
+			constexpr mfxU16 DEFAULT_BY_TU[][8] = {
+				{0, 4, 4, 2, 2, 2, 1, 1}};
+			return DEFAULT_BY_TU[0][targetUsage];
+		} else {
+			return 1;
+		}
+	}
+
+	mfxU16 AVCGetMaxNumRefActiveBL1(mfxU16 targetUsage, mfxU16 isLowPower,
+					const mfxFrameInfo &info)
+	{
+		if (info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE &&
+		    isLowPower == MFX_CODINGOPTION_OFF) {
+			constexpr mfxU16 DEFAULT_BY_TU[] = {0, 2, 2, 2,
+							    2, 2, 1, 1};
+			return DEFAULT_BY_TU[targetUsage];
+		} else {
+			return 1;
+		}
+	}
+
+	mfxU16 HEVCGetMaxNumRefActivePL0(mfxU16 targetUsage, mfxU16 isLowPower,
+					 const mfxFrameInfo &info)
+	{
+
+		constexpr mfxU16 DEFAULT_BY_TU[][8] = {
+			{0, 4, 4, 3, 3, 1, 1, 1}, // VME progressive < 4k or interlaced
+			{0, 4, 4, 3, 3, 1, 1, 1}, // VME progressive >= 4k
+			{0, 3, 3, 3, 3, 3, 3, 3}  // VDEnc
+		};
+
+		if (isLowPower == MFX_CODINGOPTION_OFF) {
+			if ((info.Width < 3840 && info.Height < 2160) ||
+			    (info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE)) {
+				return DEFAULT_BY_TU[0][targetUsage];
+			} else //progressive >= 4K
+			{
+				return DEFAULT_BY_TU[1][targetUsage];
+			}
+		} else {
+			return DEFAULT_BY_TU[2][targetUsage];
+		}
+	}
+
+	mfxU16 HEVCGetMaxNumRefActiveBL0(mfxU16 targetUsage, mfxU16 isLowPower)
+	{
+		if (isLowPower == MFX_CODINGOPTION_OFF) {
+			constexpr mfxU16 DEFAULT_BY_TU[][8] = {
+				{0, 4, 4, 3, 3, 3, 1, 1}};
+			return DEFAULT_BY_TU[0][targetUsage];
+		} else {
+			return 2;
+		}
+	}
+
+	mfxU16 HEVCGetMaxNumRefActiveBL1(mfxU16 targetUsage, mfxU16 isLowPower,
+					 const mfxFrameInfo &info)
+	{
+		if (info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE &&
+		    isLowPower == MFX_CODINGOPTION_OFF) {
+			constexpr mfxU16 DEFAULT_BY_TU[] = {0, 2, 2, 1,
+							    1, 1, 1, 1};
+			return DEFAULT_BY_TU[targetUsage];
+		} else {
+			return 1;
+		}
+	}
+
 private:
 	mfxIMPL mfx_Impl;
 	mfxVersion mfx_Version;
 	mfxSession mfx_Session;
 	mfxLoader mfx_Loader;
 	mfxExtTuneEncodeQuality mfx_Ext_TuneQuality;
-	/*mfxBRCFrameCtrl mfx_BRCFrameCtrl;*/
 	mfxVideoParam mfx_ENC_Params;
-	/*mfxVideoParam mfx_VPP_Params;*/
-	/*mfxInitializationParam mfx_InitParams;*/
+	mfxVideoParam mfx_ResetENC_Params;
+	mfxVideoParam mfx_PPSSPSVPS_Params;
 	MFXVideoENCODE *mfx_VideoENC;
 	mfxEncodeCtrl mfx_ENCCtrl_Params;
-	/*MFXVideoVPP *mfx_VideoVPP;*/
 	mfxExtEncToolsConfig mfx_EncToolsConf;
 	mfxExtAV1BitstreamParam mfx_Ext_AV1BitstreamParam;
 	mfxExtAV1ResolutionParam mfx_Ext_AV1ResolutionParam;
@@ -74,21 +167,20 @@ private:
 	/*mfxExtMVOverPicBoundaries mfx_Ext_MVOverPicBoundaries;*/
 	std::vector<mfxExtBuffer *> mfx_ENC_ExtendedBuffers;
 	std::vector<mfxExtBuffer *> mfx_ENCCtrl_ExtendedBuffers;
-	std::vector<mfxExtBuffer *> mfx_VPP_ExtendedBuffers;
 	mfxExtCodingOption3 mfx_Ext_CO3;
 	mfxExtCodingOption2 mfx_Ext_CO2;
 	mfxExtCodingOption mfx_Ext_CO;
 	mfxFrameSurface1 *mfx_FrameSurface;
+	mfxExtAllocationHints mfx_Ext_AllocationsHints;
 	/*mfxExtAVCRefListCtrl mfx_Ext_AVCRefListCtrl;*/
 	/*mfxExtAVCRefLists mfx_Ext_AVCRefLists;*/
 	mfxExtHEVCParam mfx_Ext_HEVCParam{};
 	mfxExtVideoSignalInfo mfx_Ext_VideoSignalInfo{};
 	mfxExtChromaLocInfo mfx_Ext_ChromaLocInfo{};
-	mfxExtMasteringDisplayColourVolume mfx_Ext_MasteringDisplayColourVolume{};
+	mfxExtMasteringDisplayColourVolume
+		mfx_Ext_MasteringDisplayColourVolume{};
 	mfxExtContentLightLevelInfo mfx_Ext_ContentLightLevelInfo{};
-	/*mfxExtVPPDoUse mfx_Ext_VPPDoUse;*/
 	mfxExtVPPDenoise2 mfx_Ext_VPPDenoise;
-	/*mfxExtVPPScaling mfx_Ext_VPPScaling;*/
 	mfxExtAVCRoundingOffset mfx_Ext_AVCRoundingOffset;
 	mfxU16 mfx_TaskPool;
 	Task *t_TaskPool;
@@ -96,7 +188,7 @@ private:
 	int n_FirstSyncTask;
 	mfxBitstream mfx_Bitstream;
 	bool b_isDGPU;
-	/*mfxPayload mfx_PayLoad;*/
+	mfxPayload mfx_Payload;
 	mfxExtEncoderResetOption mfx_Ext_ResetOption;
 	int g_numEncodersOpen;
 	static mfxHDL
