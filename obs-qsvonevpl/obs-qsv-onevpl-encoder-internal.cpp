@@ -110,55 +110,69 @@ mfxStatus QSV_VPL_Encoder_Internal::Initialize(mfxIMPL impl, mfxVersion ver,
 	mfx_Loader = MFXLoad();
 	mfx_cfg[0] = MFXCreateConfig(mfx_Loader);
 	mfx_variant[0].Type = MFX_VARIANT_TYPE_U32;
-	mfx_variant[0].Data.U32 = MFX_IMPL_TYPE_HARDWARE;
-	MFXSetConfigFilterProperty(
-		mfx_cfg[0], (mfxU8 *)"mfxImplDescription.Impl.mfxImplType",
-		mfx_variant[0]);
+	mfx_variant[0].Data.U32 = mfxU32(0x8086);
+	MFXSetConfigFilterProperty(mfx_cfg[0],
+				   (mfxU8 *)"mfxImplDescription.VendorID",
+				   mfx_variant[0]);
 
 	mfx_cfg[1] = MFXCreateConfig(mfx_Loader);
-	mfx_variant[1].Type = MFX_VARIANT_TYPE_U32;
-	mfx_variant[1].Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
-	MFXSetConfigFilterProperty(
-		mfx_cfg[1],
-		(mfxU8 *)"mfxImplDescription.mfxAccelerationModeDescription.Mode",
-		mfx_variant[1]);
+	mfx_variant[1].Type = MFX_VARIANT_TYPE_PTR;
+	mfx_variant[1].Data.Ptr = mfxHDL("mfx-gen");
+	MFXSetConfigFilterProperty(mfx_cfg[1],
+				   (mfxU8 *)"mfxImplDescription.ImplName",
+				   mfx_variant[1]);
 
 	mfx_cfg[2] = MFXCreateConfig(mfx_Loader);
-	mfx_variant[2].Type = MFX_VARIANT_TYPE_U16;
-	mfx_variant[2].Data.U16 = MFX_GPUCOPY_ON;
-	MFXSetConfigFilterProperty(mfx_cfg[2],
-				   (mfxU8 *)"mfxInitializationParam.DeviceCopy",
-				   mfx_variant[2]);
+	mfx_variant[2].Type = MFX_VARIANT_TYPE_U32;
+	mfx_variant[2].Data.U32 = MFX_IMPL_TYPE_HARDWARE;
+	MFXSetConfigFilterProperty(
+		mfx_cfg[2], (mfxU8 *)"mfxImplDescription.Impl.mfxImplType",
+		mfx_variant[2]);
 
 	mfx_cfg[3] = MFXCreateConfig(mfx_Loader);
-	mfx_variant[3].Type = MFX_VARIANT_TYPE_U16;
-	mfx_variant[3].Data.U16 = MFX_GPUCOPY_ON;
-	MFXSetConfigFilterProperty(mfx_cfg[3],
-				   (mfxU8 *)"mfxInitializationParam.DeviceCopy",
-				   mfx_variant[3]);
+	mfx_variant[3].Type = MFX_VARIANT_TYPE_U32;
+	mfx_variant[3].Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
+	MFXSetConfigFilterProperty(
+		mfx_cfg[3],
+		(mfxU8 *)"mfxImplDescription.mfxAccelerationModeDescription.Mode",
+		mfx_variant[3]);
 
 	mfx_cfg[4] = MFXCreateConfig(mfx_Loader);
-	mfx_variant[4].Type = MFX_VARIANT_TYPE_U32;
-	mfx_variant[4].Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
-	MFXSetConfigFilterProperty(
-		mfx_cfg[4], (mfxU8 *)"mfxInitializationParam.AccelerationMode",
-		mfx_variant[4]);
+	mfx_variant[4].Type = MFX_VARIANT_TYPE_U16;
+	mfx_variant[4].Data.U16 = MFX_GPUCOPY_ON;
+	MFXSetConfigFilterProperty(mfx_cfg[4],
+				   (mfxU8 *)"mfxInitializationParam.DeviceCopy",
+				   mfx_variant[4]);
 
 	mfx_cfg[5] = MFXCreateConfig(mfx_Loader);
 	mfx_variant[5].Type = MFX_VARIANT_TYPE_U16;
-	mfx_variant[5].Data.U16 = (mfxU16)32;
-	MFXSetConfigFilterProperty(
-		mfx_cfg[5],
-		(mfxU8 *)"mfxInitializationParam.mfxExtThreadsParam.NumThread",
-		mfx_variant[5]);
+	mfx_variant[5].Data.U16 = MFX_GPUCOPY_ON;
+	MFXSetConfigFilterProperty(mfx_cfg[5],
+				   (mfxU8 *)"mfxInitializationParam.DeviceCopy",
+				   mfx_variant[5]);
 
 	mfx_cfg[6] = MFXCreateConfig(mfx_Loader);
 	mfx_variant[6].Type = MFX_VARIANT_TYPE_U32;
-	mfx_variant[6].Data.U32 = MFX_PRIORITY_NORMAL;
+	mfx_variant[6].Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
 	MFXSetConfigFilterProperty(
-		mfx_cfg[6],
-		(mfxU8 *)"mfxInitializationParam.mfxExtThreadsParam.Priority",
+		mfx_cfg[6], (mfxU8 *)"mfxInitializationParam.AccelerationMode",
 		mfx_variant[6]);
+
+	mfx_cfg[7] = MFXCreateConfig(mfx_Loader);
+	mfx_variant[7].Type = MFX_VARIANT_TYPE_U16;
+	mfx_variant[7].Data.U16 = (mfxU16)32;
+	MFXSetConfigFilterProperty(
+		mfx_cfg[7],
+		(mfxU8 *)"mfxInitializationParam.mfxExtThreadsParam.NumThread",
+		mfx_variant[7]);
+
+	mfx_cfg[8] = MFXCreateConfig(mfx_Loader);
+	mfx_variant[8].Type = MFX_VARIANT_TYPE_U32;
+	mfx_variant[8].Data.U32 = MFX_PRIORITY_NORMAL;
+	MFXSetConfigFilterProperty(
+		mfx_cfg[8],
+		(mfxU8 *)"mfxInitializationParam.mfxExtThreadsParam.Priority",
+		mfx_variant[8]);
 
 	sts = MFXCreateSession(mfx_Loader, (deviceNum >= 0) ? deviceNum : 0,
 			       &mfx_Session);
@@ -216,7 +230,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 	} else {
 		blog(LOG_INFO, "\tOpen encoder: [ERROR]");
 		mfx_VideoENC->Close();
-		/*mfx_VideoVPP->Close();*/
 		MFXClose(mfx_Session);
 		MFXUnload(mfx_Loader);
 	}
@@ -235,7 +248,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 {
 	/*It's only for debug*/
 	int mfx_Ext_CO_enable = 1;
-	int mfx_Ext_CO2_enable = 0;
+	int mfx_Ext_CO2_enable = 1;
 	int mfx_Ext_CO3_enable = 1;
 	int mfx_Ext_CO_DDI_enable = 1;
 
@@ -249,7 +262,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		break;
 	case QSV_CODEC_HEVC:
 		mfx_ENC_Params.mfx.CodecId = MFX_CODEC_HEVC;
-		/*mfx_ENC_Params.mfx.CodecLevel = 61;*/
+		mfx_ENC_Params.mfx.CodecLevel = 61;
 		break;
 	case QSV_CODEC_AVC:
 	default:
@@ -374,23 +387,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		}
 	}
 
-	//if (pParams->RateControl == MFX_RATECONTROL_CBR &&
-	//    pParams->bExtBRC < 1 && pParams->bLAExtBRC == 1 &&
-	//    pParams->nLADepth > 0) {
-	//	blog(LOG_INFO,
-	//	     "\tRatecontrol LA_EXT_CBR work only with enabled ExtBRC or Scenario <LIVE STREAMING>");
-	//} else if (pParams->RateControl == MFX_RATECONTROL_VBR &&
-	//	   pParams->bExtBRC < 1 && pParams->bLAExtBRC == 1 &&
-	//	   pParams->nLADepth > 0) {
-	//	blog(LOG_INFO,
-	//	     "\tRatecontrol LA_EXT_VBR work only with enabled ExtBRC  or Scenario <LIVE STREAMING>");
-	//} else if (pParams->RateControl == MFX_RATECONTROL_ICQ &&
-	//	   pParams->bExtBRC < 1 && pParams->bLAExtBRC == 1 &&
-	//	   pParams->nLADepth > 0) {
-	//	blog(LOG_INFO,
-	//	     "\tRatecontrol LA_EXT_ICQ work only with enabled ExtBRC or Scenario <LIVE STREAMING>");
-	//}
-
 	mfx_ENC_Params.mfx.RateControlMethod = (mfxU16)pParams->RateControl;
 
 	/*This is a multiplier to bypass the limitation of the 16 bit value of
@@ -405,14 +401,15 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		mfx_ENC_Params.mfx.TargetKbps = (mfxU16)pParams->nTargetBitRate;
 		mfx_ENC_Params.mfx.MaxKbps = (mfxU16)pParams->nTargetBitRate;
 		mfx_ENC_Params.mfx.BufferSizeInKB = (mfxU16)LABuffer;
-		mfx_ENC_Params.mfx.InitialDelayInKB =
-			(mfxU16)(mfx_ENC_Params.mfx.BufferSizeInKB / 8);
+
 		if (pParams->bCustomBufferSize == true &&
 		    pParams->nBufferSize > 0) {
 			mfx_ENC_Params.mfx.BufferSizeInKB =
 				(mfxU16)pParams->nBufferSize;
 			blog(LOG_INFO, "\tCustomBufferSize set: ON");
 		}
+		mfx_ENC_Params.mfx.InitialDelayInKB =
+			(mfxU16)(mfx_ENC_Params.mfx.BufferSizeInKB / 8);
 		blog(LOG_INFO, "\tBufferSize set to: %d",
 		     mfx_ENC_Params.mfx.BufferSizeInKB * 100);
 		break;
@@ -475,6 +472,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 				(mfxU16)pParams->nBufferSize;
 			blog(LOG_INFO, "\tCustomBufferSize set: ON");
 		}
+		mfx_ENC_Params.mfx.InitialDelayInKB =
+			(mfxU16)(mfx_ENC_Params.mfx.BufferSizeInKB / 8);
 		blog(LOG_INFO, "\tBufferSize set to: %d",
 		     mfx_ENC_Params.mfx.BufferSizeInKB * 100);
 		break;
@@ -484,9 +483,9 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 
 	if (pParams->nKeyIntSec == 0) {
 		mfx_ENC_Params.mfx.GopPicSize =
-			(mfxU16)((pParams->nFpsNum + pParams->nFpsDen - 1) /
+			(mfxU16)(((pParams->nFpsNum + pParams->nFpsDen - 1) /
 				 pParams->nFpsDen) *
-			10;
+			10);
 	} else {
 		mfx_ENC_Params.mfx.GopPicSize =
 			(mfxU16)(pParams->nKeyIntSec * pParams->nFpsNum /
@@ -495,41 +494,65 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 	blog(LOG_INFO, "\tGopPicSize set to: %d",
 	     mfx_ENC_Params.mfx.GopPicSize);
 
-	if (pParams->bGopOptFlag == 1) {
+	switch (pParams->bGopOptFlag) {
+	case 1:
 		mfx_ENC_Params.mfx.GopOptFlag = 0x00;
 		blog(LOG_INFO, "\tGopOptFlag set: OPEN");
-		if (mfx_ENC_Params.mfx.CodecId == MFX_CODEC_HEVC) {
+		switch (codec) {
+		case QSV_CODEC_HEVC:
 			mfx_ENC_Params.mfx.IdrInterval =
 				1 + ((pParams->nFpsNum + pParams->nFpsDen - 1) /
 				     pParams->nFpsDen) *
 					    600 / mfx_ENC_Params.mfx.GopPicSize;
 			mfx_ENC_Params.mfx.NumSlice = 0;
-		} else if (mfx_ENC_Params.mfx.CodecId == MFX_CODEC_AVC) {
+			break;
+		case QSV_CODEC_AVC:
 			mfx_ENC_Params.mfx.IdrInterval =
 				((pParams->nFpsNum + pParams->nFpsDen - 1) /
 				 pParams->nFpsDen) *
 				600 / mfx_ENC_Params.mfx.GopPicSize;
 			mfx_ENC_Params.mfx.NumSlice = 1;
-		} else {
+			break;
+		default:
 			mfx_ENC_Params.mfx.IdrInterval = 0;
 			mfx_ENC_Params.mfx.NumSlice = 1;
+			break;
 		}
-	} else if (pParams->bGopOptFlag == 0) {
-		mfx_ENC_Params.mfx.GopOptFlag = MFX_GOP_CLOSED;
+		break;
+
+	case 2:
+		mfx_ENC_Params.mfx.GopOptFlag = MFX_GOP_STRICT;
 		blog(LOG_INFO, "\tGopOptFlag set: CLOSED");
-		if (mfx_ENC_Params.mfx.CodecId == MFX_CODEC_HEVC) {
+		switch (codec) {
+		case QSV_CODEC_HEVC:
 			mfx_ENC_Params.mfx.IdrInterval = 1;
 			mfx_ENC_Params.mfx.NumSlice = 0;
-		} else if (mfx_ENC_Params.mfx.CodecId == MFX_CODEC_AVC) {
+			break;
+		default:
 			mfx_ENC_Params.mfx.IdrInterval = 0;
 			mfx_ENC_Params.mfx.NumSlice = 1;
-		} else {
-			mfx_ENC_Params.mfx.IdrInterval = 0;
-			mfx_ENC_Params.mfx.NumSlice = 1;
+			break;
 		}
+		break;
+
+	default:
+		mfx_ENC_Params.mfx.GopOptFlag = MFX_GOP_CLOSED;
+		blog(LOG_INFO, "\tGopOptFlag set: CLOSED");
+		switch (codec) {
+		case QSV_CODEC_HEVC:
+			mfx_ENC_Params.mfx.IdrInterval = 1;
+			mfx_ENC_Params.mfx.NumSlice = 0;
+			break;
+		default:
+			mfx_ENC_Params.mfx.IdrInterval = 0;
+			mfx_ENC_Params.mfx.NumSlice = 1;
+			break;
+		}
+		break;
 	}
 
-	if (codec == QSV_CODEC_AV1) {
+	switch (codec) {
+	case QSV_CODEC_AV1:
 		mfx_ENC_Params.mfx.GopRefDist = pParams->nGOPRefDist;
 		if (mfx_ENC_Params.mfx.GopRefDist > 33) {
 			mfx_ENC_Params.mfx.GopRefDist = 33;
@@ -540,37 +563,27 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			blog(LOG_INFO,
 			     "\tExtBRC and CPUEncTools does not support GOPRefDist greater than 16.");
 		}
-		if ((pParams->bLAExtBRC == 1 || pParams->bCPUEncTools != 0) &&
-		    (mfx_ENC_Params.mfx.GopRefDist != 1 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 2 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 4 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 8 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 16)) {
-			mfx_ENC_Params.mfx.GopRefDist = 4;
-			blog(LOG_INFO,
-			     "\tExtBRC and CPUEncTools only works with GOPRefDist equal to 1, 2, 4, 8, 16. GOPRefDist is set to 4.");
-		} else {
-			blog(LOG_INFO, "\tGOPRefDist set to:     %d",
-			     pParams->nGOPRefDist);
-		}
-	} else {
+		break;
+	default:
 		mfx_ENC_Params.mfx.GopRefDist = pParams->nGOPRefDist;
 		if (mfx_ENC_Params.mfx.GopRefDist > 16) {
 			mfx_ENC_Params.mfx.GopRefDist = 16;
 		}
-		if ((pParams->bLAExtBRC == 1 || pParams->bCPUEncTools != 0) &&
-		    (mfx_ENC_Params.mfx.GopRefDist != 1 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 2 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 4 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 8 &&
-		     mfx_ENC_Params.mfx.GopRefDist != 16)) {
-			mfx_ENC_Params.mfx.GopRefDist = 4;
-			blog(LOG_INFO,
-			     "\tExtBRC and CPUEncTools only works with GOPRefDist equal to 1, 2, 4, 8, 16. GOPRefDist is set to 4.");
-		}
-		blog(LOG_INFO, "\tGOPRefDist set to:     %d",
-		     (int)mfx_ENC_Params.mfx.GopRefDist);
+		break;
 	}
+
+	if ((pParams->bLAExtBRC == 1 || pParams->bCPUEncTools != 0) &&
+	    (mfx_ENC_Params.mfx.GopRefDist != 1 &&
+	     mfx_ENC_Params.mfx.GopRefDist != 2 &&
+	     mfx_ENC_Params.mfx.GopRefDist != 4 &&
+	     mfx_ENC_Params.mfx.GopRefDist != 8 &&
+	     mfx_ENC_Params.mfx.GopRefDist != 16)) {
+		mfx_ENC_Params.mfx.GopRefDist = 4;
+		blog(LOG_INFO,
+		     "\tExtBRC and CPUEncTools only works with GOPRefDist equal to 1, 2, 4, 8, 16. GOPRefDist is set to 4.");
+	}
+	blog(LOG_INFO, "\tGOPRefDist set to:     %d",
+	     (int)mfx_ENC_Params.mfx.GopRefDist);
 
 	if (mfx_Ext_CO_enable == 1) {
 		INIT_MFX_EXT_BUFFER(mfx_Ext_CO, MFX_EXTBUFF_CODING_OPTION);
@@ -888,28 +901,34 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			if (pParams->bCPUEncTools == 1 &&
 			    pParams->nLADepth >= 1) {
 			} else {
-				for (int i = 0; i < 8; i++) {
+				if (pParams->nTargetUsage ==
+					    MFX_TARGETUSAGE_1 &&
+				    pParams->nGOPRefDist > 4) {
+					for (int i = 0; i < 8; i++) {
 
-					mfx_Ext_CO3.NumRefActiveP[0] = (mfxU16)
-						AVCGetMaxNumRefActivePL0(
+						mfx_Ext_CO3.NumRefActiveP
+							[0] = (mfxU16)AVCGetMaxNumRefActivePL0(
 							pParams->nTargetUsage,
 							mfx_ENC_Params.mfx
 								.LowPower,
 							mfx_ENC_Params.mfx
 								.FrameInfo);
 
-					mfx_Ext_CO3.NumRefActiveBL0[0] =
-						(mfxU16)AVCGetMaxNumRefActiveBL0(
-							pParams->nTargetUsage,
-							mfx_ENC_Params.mfx
-								.LowPower);
-					mfx_Ext_CO3.NumRefActiveBL1[0] =
-						(mfxU16)AVCGetMaxNumRefActiveBL1(
+						mfx_Ext_CO3.NumRefActiveBL0
+							[0] = (mfxU16)
+							AVCGetMaxNumRefActiveBL0(
+								pParams->nTargetUsage,
+								mfx_ENC_Params
+									.mfx
+									.LowPower);
+						mfx_Ext_CO3.NumRefActiveBL1
+							[0] = (mfxU16)AVCGetMaxNumRefActiveBL1(
 							pParams->nTargetUsage,
 							mfx_ENC_Params.mfx
 								.LowPower,
 							mfx_ENC_Params.mfx
 								.FrameInfo);
+					}
 				}
 			}
 		} else if (codec == QSV_CODEC_HEVC) {
@@ -947,12 +966,12 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 				for (int i = 0; i < pParams->nNumRefFrameLayers;
 				     i++) {
 
-					mfx_Ext_CO3.NumRefActiveP[0] = (mfxU16)
-						pParams->nNumRefFrame;
-					mfx_Ext_CO3.NumRefActiveBL0[0] = (mfxU16)
-						pParams->nNumRefFrame;
-					mfx_Ext_CO3.NumRefActiveBL1[0] = (mfxU16)
-						pParams->nNumRefFrame;
+					mfx_Ext_CO3.NumRefActiveP[0] =
+						(mfxU16)pParams->nNumRefFrame;
+					mfx_Ext_CO3.NumRefActiveBL0[0] =
+						(mfxU16)pParams->nNumRefFrame;
+					mfx_Ext_CO3.NumRefActiveBL1[0] =
+						(mfxU16)pParams->nNumRefFrame;
 					blog(LOG_INFO,
 					     "\tNumRefFrameLayer %d set: %d", i,
 					     pParams->nNumRefFrame);
@@ -979,6 +998,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		if ((int)pParams->nGOPRefDist == 1) {
 			mfx_Ext_CO3.PRefType = MFX_P_REF_PYRAMID;
 			blog(LOG_INFO, "\tPRef set: PYRAMID");
+		} else {
+			mfx_Ext_CO3.PRefType = MFX_P_REF_DEFAULT;
 		}
 
 		switch ((int)pParams->bAdaptiveCQM) {
@@ -1164,32 +1185,32 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		INIT_MFX_EXT_BUFFER(mfx_EncToolsConf,
 				    MFX_EXTBUFF_ENCTOOLS_CONFIG);
 
-		mfx_EncToolsConf.AdaptiveRefP = MFX_CODINGOPTION_UNKNOWN;
-		mfx_EncToolsConf.AdaptiveRefB = MFX_CODINGOPTION_UNKNOWN;
-		mfx_EncToolsConf.SaliencyMapHint = MFX_CODINGOPTION_UNKNOWN;
-		mfx_EncToolsConf.BRC = pParams->bCPUBRCControl == 1
-					       ? MFX_CODINGOPTION_ON
-					       : MFX_CODINGOPTION_OFF;
-		//if (codec != QSV_CODEC_AV1) {
-			mfx_EncToolsConf.SceneChange = MFX_CODINGOPTION_UNKNOWN;
-			mfx_EncToolsConf.AdaptiveLTR = MFX_CODINGOPTION_UNKNOWN;
-			mfx_EncToolsConf.AdaptiveMBQP =
-				MFX_CODINGOPTION_UNKNOWN;
-			mfx_EncToolsConf.BRCBufferHints =
-				pParams->bCPUBufferHints == 1
-					? MFX_CODINGOPTION_ON
-					: MFX_CODINGOPTION_OFF;
-			//if (codec != QSV_CODEC_HEVC) {
-				mfx_EncToolsConf.AdaptiveI =
-					MFX_CODINGOPTION_UNKNOWN;
-				mfx_EncToolsConf.AdaptiveB =
-					MFX_CODINGOPTION_UNKNOWN;
-				mfx_EncToolsConf.AdaptivePyramidQuantP =
-					MFX_CODINGOPTION_UNKNOWN;
-				mfx_EncToolsConf.AdaptivePyramidQuantB =
-					MFX_CODINGOPTION_UNKNOWN;
-				mfx_EncToolsConf.AdaptiveQuantMatrices =
-					MFX_CODINGOPTION_UNKNOWN;
+		//mfx_EncToolsConf.AdaptiveRefP = MFX_CODINGOPTION_UNKNOWN;
+		//mfx_EncToolsConf.AdaptiveRefB = MFX_CODINGOPTION_UNKNOWN;
+		//mfx_EncToolsConf.SaliencyMapHint = MFX_CODINGOPTION_UNKNOWN;
+		//mfx_EncToolsConf.BRC = pParams->bCPUBRCControl == 1
+		//			       ? MFX_CODINGOPTION_ON
+		//			       : MFX_CODINGOPTION_OFF;
+		////if (codec != QSV_CODEC_AV1) {
+		//	mfx_EncToolsConf.SceneChange = MFX_CODINGOPTION_UNKNOWN;
+		//	mfx_EncToolsConf.AdaptiveLTR = MFX_CODINGOPTION_UNKNOWN;
+		//	mfx_EncToolsConf.AdaptiveMBQP =
+		//		MFX_CODINGOPTION_UNKNOWN;
+		//	mfx_EncToolsConf.BRCBufferHints =
+		//		pParams->bCPUBufferHints == 1
+		//			? MFX_CODINGOPTION_ON
+		//			: MFX_CODINGOPTION_OFF;
+		//	//if (codec != QSV_CODEC_HEVC) {
+		//		mfx_EncToolsConf.AdaptiveI =
+		//			MFX_CODINGOPTION_UNKNOWN;
+		//		mfx_EncToolsConf.AdaptiveB =
+		//			MFX_CODINGOPTION_UNKNOWN;
+		//		mfx_EncToolsConf.AdaptivePyramidQuantP =
+		//			MFX_CODINGOPTION_UNKNOWN;
+		//		mfx_EncToolsConf.AdaptivePyramidQuantB =
+		//			MFX_CODINGOPTION_UNKNOWN;
+		//		mfx_EncToolsConf.AdaptiveQuantMatrices =
+		//			MFX_CODINGOPTION_UNKNOWN;
 		//	}
 		//}
 
@@ -1247,20 +1268,28 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			    pParams->nLADepth >= 1) {
 				/*Encoder default value*/
 			} else {
-				mfx_CO_DDI.NumActiveRefP =
-					(mfxU16)AVCGetMaxNumRefActivePL0(
-						pParams->nTargetUsage,
-						mfx_ENC_Params.mfx.LowPower,
-						mfx_ENC_Params.mfx.FrameInfo);
-				mfx_CO_DDI.NumActiveRefBL0 =
-					(mfxU16)AVCGetMaxNumRefActiveBL0(
-						pParams->nTargetUsage,
-						mfx_ENC_Params.mfx.LowPower);
-				mfx_CO_DDI.NumActiveRefBL1 =
-					(mfxU16)AVCGetMaxNumRefActiveBL1(
-						pParams->nTargetUsage,
-						mfx_ENC_Params.mfx.LowPower,
-						mfx_ENC_Params.mfx.FrameInfo);
+				if (pParams->nTargetUsage ==
+					    MFX_TARGETUSAGE_1 && pParams->nGOPRefDist > 4) {
+					mfx_CO_DDI.NumActiveRefP = (mfxU16)
+						AVCGetMaxNumRefActivePL0(
+							pParams->nTargetUsage,
+							mfx_ENC_Params.mfx
+								.LowPower,
+							mfx_ENC_Params.mfx
+								.FrameInfo);
+					mfx_CO_DDI.NumActiveRefBL0 = (mfxU16)
+						AVCGetMaxNumRefActiveBL0(
+							pParams->nTargetUsage,
+							mfx_ENC_Params.mfx
+								.LowPower);
+					mfx_CO_DDI.NumActiveRefBL1 = (mfxU16)
+						AVCGetMaxNumRefActiveBL1(
+							pParams->nTargetUsage,
+							mfx_ENC_Params.mfx
+								.LowPower,
+							mfx_ENC_Params.mfx
+								.FrameInfo);
+				}
 			}
 		} else if (codec == QSV_CODEC_HEVC) {
 			mfx_CO_DDI.NumActiveRefP =
@@ -1647,7 +1676,7 @@ mfxStatus QSV_VPL_Encoder_Internal::ReconfigureEncoder()
 	//std::vector<mfxExtBuffer *> extendedBuffers;
 	//extendedBuffers.reserve(1);
 
-	mfx_VideoENC->GetVideoParam(&mfx_ResetENC_Params);
+	//mfx_VideoENC->GetVideoParam(&mfx_ResetENC_Params);
 
 	//INIT_MFX_EXT_BUFFER(mfx_Ext_ResetOption,
 	//		    MFX_EXTBUFF_ENCODER_RESET_OPTION);
@@ -1659,13 +1688,13 @@ mfxStatus QSV_VPL_Encoder_Internal::ReconfigureEncoder()
 	//mfx_ResetENC_Params.NumExtParam =
 	//	(mfxU16)mfx_ENC_ExtendedBuffers.size();
 
-	mfxStatus sts =
-		mfx_VideoENC->Query(&mfx_ResetENC_Params, &mfx_ResetENC_Params);
+	//mfxStatus sts =
+	//	mfx_VideoENC->Query(&mfx_ResetENC_Params, &mfx_ResetENC_Params);
 
 	//if (sts >= MFX_ERR_NONE) {
 	//	mfxStatus  sts = mfx_VideoENC->Reset(&mfx_ResetENC_Params);
 	//}
-	blog(LOG_INFO, "\tReset status:     %d", sts);
+	//blog(LOG_INFO, "\tReset status:     %d", sts);
 	return MFX_ERR_NONE;
 }
 
@@ -1846,9 +1875,9 @@ mfxStatus QSV_VPL_Encoder_Internal::LoadNV12(mfxFrameSurface1 *pSurface,
 	}
 
 	pitch = pData->Pitch;
-	/*blog(LOG_INFO, "Pitch: %d", pitch);*/
+
 	ptr = pData->Y + pInfo->CropX + pInfo->CropY * pData->Pitch;
-	/*blog(LOG_INFO, "Y PTR: %d", ptr);*/
+
 	// load Y plane
 	for (i = 0; i < h; i++) {
 		memcpy(ptr + i * pitch, pDataY + i * strideY, w);
@@ -1882,6 +1911,9 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 {
 	mfxStatus sts = MFX_ERR_NONE;
 
+	MFXVideoCORE_SyncOperation(mfx_Session,
+				   t_TaskPool[n_FirstSyncTask].syncp, 60000);
+
 	*pBS = nullptr;
 	int nTaskIdx = GetFreeTaskIndex(t_TaskPool, mfx_TaskPool);
 	while (nTaskIdx == -1) {
@@ -1905,7 +1937,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 	sts = mfx_VideoENC->GetSurface(&mfx_FrameSurface);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	mfx_FrameSurface->FrameInterface->AddRef(mfx_FrameSurface);
 	sts = mfx_FrameSurface->FrameInterface->Map(mfx_FrameSurface,
 						    MFX_MAP_WRITE);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -1924,21 +1955,16 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 	for (;;) {
-		MFXVideoCORE_SyncOperation(
-			mfx_Session, t_TaskPool[n_FirstSyncTask].syncp, 60000);
-		mfx_FrameSurface->FrameInterface->AddRef(mfx_FrameSurface);
-
-		mfx_FrameSurface->FrameInterface->Synchronize(mfx_FrameSurface,
-							      60000);
 		// Encode a frame asynchronously (returns immediately)
 		sts = mfx_VideoENC->EncodeFrameAsync(
 			NULL, mfx_FrameSurface, &t_TaskPool[nTaskIdx].mfxBS,
 			&t_TaskPool[nTaskIdx].syncp);
+
+		MFXVideoCORE_SyncOperation(mfx_Session,
+					   t_TaskPool[nTaskIdx].syncp, 60000);
+
 		mfx_FrameSurface->FrameInterface->Release(mfx_FrameSurface);
-		mfx_FrameSurface->FrameInterface->Release(mfx_FrameSurface);
-		mfx_FrameSurface->FrameInterface->Release(mfx_FrameSurface);
-		MFXVideoCORE_SyncOperation(
-			mfx_Session, t_TaskPool[n_FirstSyncTask].syncp, 60000);
+
 		if (MFX_ERR_NONE < sts && !t_TaskPool[nTaskIdx].syncp) {
 			// Repeat the call if warning and no output
 			if (MFX_WRN_DEVICE_BUSY == sts) {
@@ -1971,6 +1997,9 @@ mfxStatus QSV_VPL_Encoder_Internal::Drain()
 	while (t_TaskPool && t_TaskPool[n_FirstSyncTask].syncp) {
 		sts = MFXVideoCORE_SyncOperation(
 			mfx_Session, t_TaskPool[n_FirstSyncTask].syncp, 60000);
+		mfx_VideoENC->EncodeFrameAsync(
+			NULL, NULL, &t_TaskPool[n_FirstSyncTask].mfxBS,
+			&t_TaskPool[n_FirstSyncTask].syncp);
 		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 		t_TaskPool[n_FirstSyncTask].syncp = NULL;
 		n_FirstSyncTask = (n_FirstSyncTask + 1) % mfx_TaskPool;
@@ -1982,14 +2011,18 @@ mfxStatus QSV_VPL_Encoder_Internal::Drain()
 mfxStatus QSV_VPL_Encoder_Internal::ClearData()
 {
 	mfxStatus sts = MFX_ERR_NONE;
-	sts = Drain();
+
 	if (mfx_FrameSurface) {
-		for (int i = 0; i < mfx_TaskPool; i++)
+		for (int i = 0; i <= mfx_TaskPool; i++) {
+			sts = MFXVideoCORE_SyncOperation(
+				mfx_Session, t_TaskPool[i].syncp, 60000);
 			mfx_VideoENC->EncodeFrameAsync(NULL, NULL,
 						       &t_TaskPool[i].mfxBS,
 						       &t_TaskPool[i].syncp);
+		}
+		mfx_FrameSurface = nullptr;
 	}
-
+	sts = Drain();
 	if (mfx_VideoENC) {
 		sts = mfx_VideoENC->Close();
 		delete mfx_VideoENC;

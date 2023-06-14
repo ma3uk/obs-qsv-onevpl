@@ -80,8 +80,8 @@ static const char *const qsv_ratecontrols_av1[] = {"CBR",        "VBR",
 static const char *const qsv_profile_names_avc[] = {"high", "main", "baseline",
 						    "extended", 0};
 static const char *const qsv_profile_names_av1[] = {"main", 0};
-static const char *const qsv_profile_names_hevc[] = {"main", "main10", /*"mainsp",*/
-						     "rext", /*"scc",*/    0};
+static const char *const qsv_profile_names_hevc[] = {"main", "main10",
+						     "rext",    0};
 static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
 static const char *const qsv_usage_names[] = {"quality",  "balanced", "speed",
 					      "veryslow", "slower",   "slow",
@@ -97,8 +97,6 @@ static const char *const qsv_params_condition_intra_ref_encoding[] = {
 	"VERTICAL", "HORIZONTAL", 0};
 static const char *const qsv_params_condition_hyper_mode[] = {"OFF", "ADAPTIVE",
 							      0};
-//static const char *const qsv_params_condition_weighted_pred[] = {
-//	"AUTO", "DEFAULT", "IMPLICIT", "EXPLICIT", 0};
 static const char *const qsv_params_condition_p_ref_type[] = {
 	"SIMPLE", "PYRAMID", "DEFAULT", 0};
 static const char *const qsv_params_condition_max_frame_size_type[] = {

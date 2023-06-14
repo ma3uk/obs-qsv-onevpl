@@ -24,14 +24,12 @@ public:
 	mfxStatus Reset(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus ReconfigureEncoder();
 	bool UpdateParams(qsv_param_t *pParams);
-
 	bool IsDGPU() const { return b_isDGPU; }
 
 protected:
-	mfxStatus InitVPPParams(qsv_param_t *pParams, qsv_codec codec);
 	mfxStatus InitENCParams(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus InitENCCtrlParams(qsv_param_t *pParams, enum qsv_codec codec);
-	/*mfxStatus AllocateSurfaces();*/
+	//mfxStatus AllocateSurfaces();
 	mfxStatus GetVideoParam(enum qsv_codec codec);
 	mfxStatus InitBitstream();
 	mfxStatus LoadNV12(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
@@ -40,7 +38,6 @@ protected:
 	mfxStatus LoadP010(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
 			   uint8_t *pDataUV, uint32_t strideY,
 			   uint32_t strideUV);
-	/*mfxStatus LoadBGRA(mfxFrameSurface1 *pSurface);*/
 	mfxStatus Drain();
 	int GetFreeTaskIndex(Task *pTaskPool, mfxU16 nPoolSize);
 
@@ -171,6 +168,7 @@ private:
 	mfxExtCodingOption2 mfx_Ext_CO2;
 	mfxExtCodingOption mfx_Ext_CO;
 	mfxFrameSurface1 *mfx_FrameSurface;
+	/*mfxSurfacePoolInterface mfx_SurfacePool;*/
 	mfxExtAllocationHints mfx_Ext_AllocationsHints;
 	/*mfxExtAVCRefListCtrl mfx_Ext_AVCRefListCtrl;*/
 	/*mfxExtAVCRefLists mfx_Ext_AVCRefLists;*/

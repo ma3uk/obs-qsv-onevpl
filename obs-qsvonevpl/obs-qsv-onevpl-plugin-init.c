@@ -1048,11 +1048,11 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 
 		} else if (astrcmpi(profile, "main10") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAIN10;
-		//} else if (astrcmpi(profile, "mainsp") == 0) {
-		//	obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAINSP;
+			//} else if (astrcmpi(profile, "mainsp") == 0) {
+			//	obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAINSP;
 		} else if (astrcmpi(profile, "rext") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_REXT;
-		}/* else if (astrcmpi(profile, "scc") == 0) {
+		} /* else if (astrcmpi(profile, "scc") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_SCC;
 		}*/
 
@@ -1661,16 +1661,29 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 	     "\tmajor:          %d\n"
 	     "\tminor:          %d",
 	     g_verMajor, g_verMinor);
+	int64_t interval = obsqsv->params.nGOPRefDist;
+	int64_t GopPicSize = 0;
+	if (obsqsv->params.nKeyIntSec == 0) {
+		int64_t GopPicSize =
+			(int64_t)(((obsqsv->params.nFpsNum +
+				    (float)obsqsv->params.nFpsDen - 1) /
+				   (float)obsqsv->params.nFpsDen) *
+				  10);
+	} else {
+		int64_t GopPicSize = (int64_t)(obsqsv->params.nKeyIntSec *
+					       obsqsv->params.nFpsNum /
+					       (float)obsqsv->params.nFpsDen);
+	}
 
-	g_pts2dtsShift = -1;
+	/*g_pts2dtsShift = GopPicSize - (GopPicSize / interval) * interval;*/
+	//g_pts2dtsShift = -1;
 
 	if (!obsqsv->context) {
 		bfree(obsqsv);
 		return NULL;
 	}
 
-	obsqsv->performance_token =
-		os_request_high_performance("qsv oneVPL encoding");
+	obsqsv->performance_token = os_request_high_performance("qsv encoding");
 
 	g_bFirst = true;
 
@@ -1784,9 +1797,9 @@ static int64_t ts_mfx_to_obs(mfxI64 ts, const struct video_output_info *voi)
 	int64_t div = 90000 * (int64_t)voi->fps_den;
 	/* Round to the nearest integer multiple of `voi->fps_den`. */
 	if (ts < 0)
-		return (ts * voi->fps_num - div / 2) / div * voi->fps_den;
+		return ((ts * voi->fps_num - div / 2) / div * voi->fps_den);
 	else
-		return (ts * voi->fps_num + div / 2) / div * voi->fps_den;
+		return ((ts * voi->fps_num + div / 2) / div * voi->fps_den);
 }
 
 static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
@@ -1809,29 +1822,20 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 	packet->size = obsqsv->packet_data.num;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
-	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S);
+	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR);
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
 
-	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_xS) || (frameType & MFX_FRAMETYPE_S)) {
+	if (frameType & MFX_FRAMETYPE_I) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
 	} else if ((frameType & MFX_FRAMETYPE_P) ||
-		   (frameType & MFX_FRAMETYPE_xP) ||
-		   (frameType & MFX_FRAMETYPE_REF) ||
-		   (frameType & MFX_FRAMETYPE_xREF)) {
+		   (frameType & MFX_FRAMETYPE_REF)) {
 		priority = OBS_NAL_PRIORITY_HIGH;
 	} else {
-		priority = OBS_NAL_PRIORITY_DISPOSABLE;
+		priority = 0;
 	}
+
 	packet->priority = priority;
 
 	start = obsqsv->packet_data.array;
@@ -1858,18 +1862,6 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 
 	packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
 
-	//bool pFrame = pBS->FrameType & MFX_FRAMETYPE_P;
-	//bool iFrame = pBS->FrameType & MFX_FRAMETYPE_I;
-	//bool bFrame = pBS->FrameType & MFX_FRAMETYPE_B;
-
-	//int iType = iFrame ? 0 : (bFrame ? 1 : (pFrame ? 2 : -1));
-
-	//info("parse packet:\n"
-	//     "\tFrameType: %d\n"
-	//     "\tpts:       %d\n"
-	//     "\tdts:       %d",
-	//     iType, packet->pts, packet->dts);
-
 	*received_packet = true;
 	pBS->DataLength = 0;
 
@@ -1894,28 +1886,18 @@ static void parse_packet_av1(struct obs_qsv *obsqsv,
 	packet->size = obsqsv->packet_data.num;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
-	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S);
+	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR);
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
 
-	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_xS) || (frameType & MFX_FRAMETYPE_S)) {
+	if (frameType & MFX_FRAMETYPE_I) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
 	} else if ((frameType & MFX_FRAMETYPE_P) ||
-		   (frameType & MFX_FRAMETYPE_xP) ||
-		   (frameType & MFX_FRAMETYPE_REF) ||
-		   (frameType & MFX_FRAMETYPE_xREF)) {
+		   (frameType & MFX_FRAMETYPE_REF)) {
 		priority = OBS_NAL_PRIORITY_HIGH;
 	} else {
-		priority = OBS_NAL_PRIORITY_DISPOSABLE;
+		priority = 0;
 	}
 
 	packet->priority = priority;
@@ -1948,28 +1930,18 @@ static void parse_packet_hevc(struct obs_qsv *obsqsv,
 	packet->size = obsqsv->packet_data.num;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
-	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S);
+	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR);
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
 
-	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_xS) || (frameType & MFX_FRAMETYPE_S)) {
+	if (frameType & MFX_FRAMETYPE_I) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
 	} else if ((frameType & MFX_FRAMETYPE_P) ||
-		   (frameType & MFX_FRAMETYPE_xP) ||
-		   (frameType & MFX_FRAMETYPE_REF) ||
-		   (frameType & MFX_FRAMETYPE_xREF)) {
+		   (frameType & MFX_FRAMETYPE_REF)) {
 		priority = OBS_NAL_PRIORITY_HIGH;
 	} else {
-		priority = OBS_NAL_PRIORITY_DISPOSABLE;
+		priority = 0;
 	}
 
 	packet->priority = priority;
@@ -2027,6 +1999,7 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 	} else if (obsqsv->codec == QSV_CODEC_HEVC) {
 		parse_packet_hevc(obsqsv, packet, pBS, voi, received_packet);
 	}
+
 	ReleaseSRWLockExclusive(&g_QsvLock);
 
 	return true;
