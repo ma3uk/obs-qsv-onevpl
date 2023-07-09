@@ -65,23 +65,24 @@ extern "C" {
 #endif
 
 static const char *const qsv_ratecontrols_avc[] = {
-	"CBR",    "VBR",    "VCM",        "CQP",    "AVBR",       "ICQ",
-	"LA_ICQ", "LA_CBR", "LA_EXT_CBR", "LA_VBR", "LA_EXT_VBR", 0};
+	"CBR",    "VBR",    "VCM",    "CQP",        "AVBR", "ICQ",
+	"LA_ICQ", "LA_CBR", "LA_VBR", "LA_EXT_ICQ", 0};
 
-static const char *const qsv_ratecontrols_hevc[] = {
-	"CBR", "VBR",        "VCM",        "CQP", "AVBR",
-	"ICQ", "LA_EXT_VBR", "LA_EXT_CBR", 0};
+static const char *const qsv_ratecontrols_vp9[] = {
+	"CBR",    "VBR",    "VCM",        "CQP",    "AVBR", "ICQ",
+	"LA_ICQ", "LA_CBR", "LA_EXT_ICQ", "LA_VBR", 0};
 
-static const char *const qsv_ratecontrols_av1[] = {"CBR",        "VBR",
-						   "CQP",        "ICQ",
-						   "LA_EXT_VBR", "LA_EXT_CBR",
-						   "LA_EXT_ICQ", 0};
+static const char *const qsv_ratecontrols_hevc[] = {"CBR",  "VBR", "VCM", "CQP",
+						    "AVBR", "ICQ", 0};
+
+static const char *const qsv_ratecontrols_av1[] = {"CBR", "VBR",        "CQP",
+						   "ICQ", "LA_EXT_ICQ", 0};
 
 static const char *const qsv_profile_names_avc[] = {"high", "main", "baseline",
 						    "extended", 0};
 static const char *const qsv_profile_names_av1[] = {"main", 0};
-static const char *const qsv_profile_names_hevc[] = {"main", "main10",
-						     "rext",    0};
+static const char *const qsv_profile_names_hevc[] = {"main", "main10", "rext",
+						     0};
 static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
 static const char *const qsv_usage_names[] = {"quality",  "balanced", "speed",
 					      "veryslow", "slower",   "slow",
@@ -137,13 +138,10 @@ struct adapter_info {
 	bool is_dgpu;
 	bool supports_av1;
 	bool supports_hevc;
+	bool supports_vp9;
 };
 
-enum qsv_codec {
-	QSV_CODEC_AVC,
-	QSV_CODEC_AV1,
-	QSV_CODEC_HEVC,
-};
+enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
 
 #define MAX_ADAPTERS 10
 extern struct adapter_info adapters[MAX_ADAPTERS];
@@ -238,6 +236,8 @@ typedef struct {
 	int nSAO;
 	int nHyperMode;
 
+	mfxU32 nFourCC;
+	mfxU16 nChromaFormat;
 } qsv_param_t;
 
 enum qsv_cpu_platform {
@@ -273,9 +273,12 @@ qsv_t *qsv_encoder_open(qsv_param_t *, enum qsv_codec codec);
 bool qsv_encoder_is_dgpu(qsv_t *);
 int qsv_encoder_encode(qsv_t *, uint64_t, uint8_t *, uint8_t *, uint32_t,
 		       uint32_t, mfxBitstream **pBS);
+int qsv_encoder_encode_tex(qsv_t *, uint64_t, uint32_t, uint64_t, uint64_t *,
+			   mfxBitstream **pBS);
 int qsv_encoder_headers(qsv_t *, uint8_t **pSPS, uint8_t **pPPS,
 			uint16_t *pnSPS, uint16_t *pnPPS);
 enum qsv_cpu_platform qsv_get_cpu_platform();
+enum video_format qsv_encoder_get_video_format(qsv_t *);
 bool prefer_igpu_enc(int *iGPUIndex);
 
 int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **vVPS, uint8_t **pSPS,

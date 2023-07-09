@@ -68,12 +68,17 @@ MODULE_EXPORT const char *obs_module_description(void)
 	return "Intel Quick Sync Video support for Windows (oneVPL)";
 }
 
-extern struct obs_encoder_info obs_qsv_encoder_v2;
-//extern struct obs_encoder_info obs_qsv_encoder_tex_v2;
-//extern struct obs_encoder_info obs_qsv_av1_encoder_tex;
+extern struct obs_encoder_info obs_qsv_h264_encoder_tex;
+extern struct obs_encoder_info obs_qsv_h264_encoder;
+
+extern struct obs_encoder_info obs_qsv_av1_encoder_tex;
 extern struct obs_encoder_info obs_qsv_av1_encoder;
-//extern struct obs_encoder_info obs_qsv_hevc_encoder_tex;
+
+extern struct obs_encoder_info obs_qsv_hevc_encoder_tex;
 extern struct obs_encoder_info obs_qsv_hevc_encoder;
+
+extern struct obs_encoder_info obs_qsv_vp9_encoder_tex;
+extern struct obs_encoder_info obs_qsv_vp9_encoder;
 
 extern bool av1_supported(mfxIMPL impl);
 
@@ -107,8 +112,8 @@ bool obs_module_load(void)
 
 	for (;;) {
 		char data[2048];
-		size_t len =
-			os_process_pipe_read(pp_vpl, (uint8_t *)data, sizeof(data));
+		size_t len = os_process_pipe_read(pp_vpl, (uint8_t *)data,
+						  sizeof(data));
 		if (!len)
 			break;
 
@@ -137,6 +142,7 @@ bool obs_module_load(void)
 	bool avc_supported = false;
 	bool av1_supported = false;
 	bool hevc_supported = false;
+	bool vp9_supported = false;
 
 	if (adapter_count > MAX_ADAPTERS)
 		adapter_count = MAX_ADAPTERS;
@@ -149,7 +155,6 @@ bool obs_module_load(void)
 
 		adapter->is_intel =
 			config_get_bool(config, section, "is_intel");
-
 		adapter->is_dgpu = config_get_bool(config, section, "is_dgpu");
 
 		adapter->supports_av1 =
@@ -158,20 +163,35 @@ bool obs_module_load(void)
 		adapter->supports_hevc =
 			config_get_bool(config, section, "supports_hevc");
 
+		adapter->supports_vp9 =
+			config_get_bool(config, section, "supports_vp9");
+
 		avc_supported |= adapter->is_intel;
 		av1_supported |= adapter->supports_av1;
 		hevc_supported |= adapter->supports_hevc;
+		vp9_supported |= adapter->supports_vp9;
 	}
 
 	if (avc_supported) {
-		obs_register_encoder(&obs_qsv_encoder_v2);
+		obs_register_encoder(&obs_qsv_h264_encoder_tex);
+		obs_register_encoder(&obs_qsv_h264_encoder);
+		blog(LOG_INFO, "QSV AVC support");
 	}
 	if (av1_supported) {
+		obs_register_encoder(&obs_qsv_av1_encoder_tex);
 		obs_register_encoder(&obs_qsv_av1_encoder);
+		blog(LOG_INFO, "QSV AV1 support");
+	}
+	if (vp9_supported) {
+		obs_register_encoder(&obs_qsv_vp9_encoder_tex);
+		obs_register_encoder(&obs_qsv_vp9_encoder);
+		blog(LOG_INFO, "QSV VP9 support");
 	}
 #if ENABLE_HEVC
 	if (hevc_supported) {
+		obs_register_encoder(&obs_qsv_hevc_encoder_tex);
 		obs_register_encoder(&obs_qsv_hevc_encoder);
+		blog(LOG_INFO, "QSV HEVC support");
 	}
 #endif
 

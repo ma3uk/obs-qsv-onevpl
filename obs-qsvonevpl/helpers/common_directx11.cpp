@@ -65,22 +65,20 @@ IDXGIAdapter *GetIntelDeviceAdapterHandle(mfxSession session)
 mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle)
 {
 	//Note: not using bCreateSharedHandles for DX11 -- for API consistency only
-	//hWnd; // Window handle not required by DX11 since we do not showcase rendering.
-	//bCreateSharedHandles; // For rendering, not used here. Just for consistencies sake.
+	/*hWnd; */ // Window handle not required by DX11 since we do not showcase rendering.
+	/*bCreateSharedHandles; */ // For rendering, not used here. Just for consistencies sake.
 
 	HRESULT hres = S_OK;
 
 	static D3D_FEATURE_LEVEL FeatureLevels[] = {D3D_FEATURE_LEVEL_11_1,
-						    D3D_FEATURE_LEVEL_11_0,
-						    D3D_FEATURE_LEVEL_10_1,
-						    D3D_FEATURE_LEVEL_10_0};
+						    D3D_FEATURE_LEVEL_11_0};
 	D3D_FEATURE_LEVEL pFeatureLevelsOut;
 
 	g_pAdapter = GetIntelDeviceAdapterHandle(session);
 	if (NULL == g_pAdapter)
 		return MFX_ERR_DEVICE_FAILED;
 
-	UINT dxFlags = 0;
+	UINT dxFlags = D3D11_CREATE_DEVICE_DISABLE_GPU_TIMEOUT;
 	//UINT dxFlags = D3D11_CREATE_DEVICE_DEBUG;
 
 	hres = D3D11CreateDevice(
@@ -89,16 +87,17 @@ mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle)
 		(sizeof(FeatureLevels) / sizeof(FeatureLevels[0])),
 		D3D11_SDK_VERSION, &g_pD3D11Device, &pFeatureLevelsOut,
 		&g_pD3D11Ctx);
+
 	if (FAILED(hres))
-		return MFX_ERR_DEVICE_FAILED;
+		return MFX_ERR_DEVICE_LOST;
 
 	// turn on multithreading for the DX11 context
 	CComQIPtr<ID3D10Multithread> p_mt(g_pD3D11Ctx);
-	if (p_mt)
+	if (p_mt) {
 		p_mt->SetMultithreadProtected(true);
-	else
-		return MFX_ERR_DEVICE_FAILED;
-
+	} else {
+		return MFX_WRN_DEVICE_BUSY;
+	}
 	*deviceHandle = (mfxHDL)g_pD3D11Device;
 
 	return MFX_ERR_NONE;
@@ -164,23 +163,28 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
 
 	// Determine surface format
 	DXGI_FORMAT format;
-	if (MFX_FOURCC_NV12 == request->Info.FourCC)
+	if (MFX_FOURCC_NV12 == request->Info.FourCC) {
 		format = DXGI_FORMAT_NV12;
-	else if (MFX_FOURCC_RGB4 == request->Info.FourCC)
+	} else if (MFX_FOURCC_RGB4 == request->Info.FourCC) {
 		format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	else if (MFX_FOURCC_YUY2 == request->Info.FourCC)
+	} else if (MFX_FOURCC_BGR4 == request->Info.FourCC) {
+		format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	} else if (MFX_FOURCC_YUY2 == request->Info.FourCC) {
 		format = DXGI_FORMAT_YUY2;
-	else if (MFX_FOURCC_P8 ==
-		 request->Info
-			 .FourCC) //|| MFX_FOURCC_P8_TEXTURE == request->Info.FourCC
+	} else if (MFX_FOURCC_P8 ==
+		   request->Info
+			   .FourCC) //|| MFX_FOURCC_P8_TEXTURE == request->Info.FourCC
+	{
 		format = DXGI_FORMAT_P8;
-	else if (MFX_FOURCC_P010 == request->Info.FourCC)
+	} else if (MFX_FOURCC_P010 == request->Info.FourCC) {
 		format = DXGI_FORMAT_P010;
-	else
+	} else {
 		format = DXGI_FORMAT_UNKNOWN;
+	}
 
-	if (DXGI_FORMAT_UNKNOWN == format)
+	if (DXGI_FORMAT_UNKNOWN == format) {
 		return MFX_ERR_UNSUPPORTED;
+	}
 
 	// Allocate custom container to keep texture and stage buffers for each surface
 	// Container also stores the intended read and/or write operation.
@@ -236,7 +240,8 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
 		//desc.MiscFlags            = D3D11_RESOURCE_MISC_SHARED;
 
 		if ((MFX_MEMTYPE_FROM_VPPIN & request->Type) &&
-		    (DXGI_FORMAT_B8G8R8A8_UNORM == desc.Format)) {
+		    ((DXGI_FORMAT_B8G8R8A8_UNORM == desc.Format) ||
+		     (DXGI_FORMAT_R8G8B8A8_UNORM == desc.Format))) {
 			desc.BindFlags = D3D11_BIND_RENDER_TARGET;
 			if (desc.ArraySize > 2)
 				return MFX_ERR_MEMORY_ALLOC;
@@ -383,6 +388,13 @@ mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr)
 		ptr->G = ptr->B + 1;
 		ptr->R = ptr->B + 2;
 		ptr->A = ptr->B + 3;
+		break;
+	case DXGI_FORMAT_R8G8B8A8_UNORM:
+		ptr->Pitch = (mfxU16)lockedRect.RowPitch;
+		ptr->R = (mfxU8 *)lockedRect.pData;
+		ptr->G = ptr->R + 1;
+		ptr->B = ptr->R + 2;
+		ptr->A = ptr->R + 3;
 		break;
 	case DXGI_FORMAT_YUY2:
 		ptr->Pitch = (mfxU16)lockedRect.RowPitch;

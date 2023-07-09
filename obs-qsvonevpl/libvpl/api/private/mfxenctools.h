@@ -30,8 +30,8 @@ File Name: mfxenctools.h
 #ifndef __MFXENCTOOLS_H__
 #define __MFXENCTOOLS_H__
 
-#include "mfxvideo++.h"
-#include "mfxbrc.h"
+#include "mfxvideo.h"
+//#include "mfxbrc.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -40,7 +40,7 @@ extern "C"
 
 /* Extended Buffer Ids */
 enum {
-    MFX_EXTBUFF_ENCTOOLS_CONFIG = MFX_MAKEFOURCC('E', 'T', 'C', 'F'), 
+    MFX_EXTBUFF_ENCTOOLS_CONFIG = MFX_MAKEFOURCC('E', 'T', 'C', 'F') 
 };
 
 MFX_PACK_BEGIN_USUAL_STRUCT()
@@ -67,11 +67,11 @@ MFX_PACK_END()
 
 #define MFX_ENCTOOLS_CONFIG_VERSION MFX_STRUCT_VERSION(1, 0)
 
-#define MFX_EXTBUFF_DDI MFX_MAKEFOURCC('D', 'D', 'I', 'P')
+//#define MFX_EXTBUFF_DDI MFX_MAKEFOURCC('D', 'D', 'I', 'P')
 
-//enum {
-//	MFX_EXTBUFF_DDI = MFX_MAKEFOURCC('D', 'D', 'I', 'P'),
-//};
+enum {
+	MFX_EXTBUFF_DDI = MFX_MAKEFOURCC('D', 'D', 'I', 'P')
+};
 MFX_PACK_BEGIN_USUAL_STRUCT()
 typedef struct {
     mfxExtBuffer Header;

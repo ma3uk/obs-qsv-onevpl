@@ -3,6 +3,7 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
+#pragma warning(disable : 4996)
 #define ONEVPL_EXPERIMENTAL
 #include <windows.h>
 

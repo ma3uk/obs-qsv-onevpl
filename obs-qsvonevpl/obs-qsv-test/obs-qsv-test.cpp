@@ -141,6 +141,7 @@ struct adapter_caps {
 	bool is_dgpu = false;
 	bool supports_av1 = false;
 	bool supports_hevc = false;
+	bool supports_vp9 = false;
 	int video_memory;
 	unsigned int deviceID;
 	unsigned int deviceIDl;
@@ -191,8 +192,14 @@ static bool get_adapter_caps(IDXGIFactory *factory, uint32_t adapter_idx)
 	caps.is_dgpu = (desc.DedicatedVideoMemory >
 			static_cast<unsigned long long>(512 * 1024 * 1024)) ||
 		       (caps.deviceID >= 0x5600);
-	caps.supports_av1 = (caps.is_intel && caps.is_dgpu) || (caps.is_intel && (qsv_get_cpu_platform() > QSV_CPU_PLATFORM_RPL));
-	caps.supports_hevc = ((qsv_get_cpu_platform() > QSV_CPU_PLATFORM_KBL) || caps.is_dgpu);
+	enum qsv_cpu_platform qsv_platform = qsv_get_cpu_platform();
+	caps.supports_av1 =
+		(caps.is_intel && caps.is_dgpu) ||
+		(caps.is_intel && (qsv_platform > QSV_CPU_PLATFORM_RPL));
+	caps.supports_hevc =
+		((qsv_platform > QSV_CPU_PLATFORM_KBL) || caps.is_dgpu);
+	caps.supports_vp9 =
+		((qsv_platform > QSV_CPU_PLATFORM_KBL) || caps.is_dgpu);
 
 	return true;
 }
@@ -244,8 +251,7 @@ try {
 
 	uint32_t idx = 0;
 
-	while (get_adapter_caps(factory, idx++) && idx < 4)
-		;
+	while (get_adapter_caps(factory, idx++) && idx < 4);
 	
 	for (auto& [idx, caps] : adapter_info) {
 		printf("[%u]\n", idx);
@@ -253,6 +259,8 @@ try {
 		printf("is_dgpu=%s\n", caps.is_dgpu ? "true" : "false");
 		printf("supports_av1=%s\n", caps.supports_av1 ? "true" : "false");
 		printf("supports_hevc=%s\n", caps.supports_hevc ? "true" : "false");
+		printf("supports_vp9=%s\n",
+		       caps.supports_vp9 ? "true" : "false");
 	}
 
 	return 0;

@@ -85,45 +85,6 @@ void PrintErrString(int err, const char *filestr, int line)
 	}
 }
 
-//int GetFreeTaskIndex(Task *pTaskPool, mfxU16 nPoolSize)
-//{
-//	if (pTaskPool)
-//		for (int i = 0; i < nPoolSize; i++)
-//			if (!pTaskPool[i].syncp)
-//				return i;
-//	return MFX_ERR_NOT_FOUND;
-//}
-
-void ClearYUVSurfaceSysMem(mfxFrameSurface1 *pSfc, mfxU16 width, mfxU16 height)
-{
-	// In case simulating direct access to frames we initialize the allocated surfaces with default pattern
-	memset(pSfc->Data.Y, 100, width * height);      // Y plane
-	memset(pSfc->Data.U, 50, (width * height) / 2); // UV plane
-}
-
-char mfxFrameTypeString(mfxU16 FrameType)
-{
-	mfxU8 FrameTmp = FrameType & 0xF;
-	char FrameTypeOut;
-	switch (FrameTmp) {
-	case MFX_FRAMETYPE_xI:
-	case MFX_FRAMETYPE_I:
-		FrameTypeOut = 'I';
-		break;
-	case MFX_FRAMETYPE_xP:
-	case MFX_FRAMETYPE_P:
-		FrameTypeOut = 'P';
-		break;
-	case MFX_FRAMETYPE_xB:
-	case MFX_FRAMETYPE_B:
-		FrameTypeOut = 'B';
-		break;
-	default:
-		FrameTypeOut = '*';
-	}
-	return FrameTypeOut;
-}
-
 enum qsv_cpu_platform qsv_get_cpu_platform()
 {
 	using std::string;

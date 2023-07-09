@@ -82,9 +82,6 @@ void qsv_encoder_version(unsigned short *major, unsigned short *minor)
 
 qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 {
-	mfxIMPL impl_list[4] = {MFX_IMPL_HARDWARE, MFX_IMPL_HARDWARE2,
-				MFX_IMPL_HARDWARE3, MFX_IMPL_HARDWARE4};
-
 	obs_video_info ovi;
 	obs_get_video_info(&ovi);
 	size_t adapter_idx = ovi.adapter;
@@ -107,12 +104,18 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 	}
 	blog(LOG_INFO, "Selected adapter: %d", adapter_idx);
 	isDGPU = adapters[adapter_idx].is_dgpu;
-	impl = impl_list[adapter_idx];
 	mfxStatus sts;
 	QSV_VPL_Encoder_Internal *pEncoder =
-		new QSV_VPL_Encoder_Internal(impl, ver, isDGPU);
+		new QSV_VPL_Encoder_Internal( ver, isDGPU);
 
 	sts = pEncoder->Open(pParams, codec);
+
+	// Fall back to NV12 from ARGB, if needed
+	if (sts == MFX_ERR_UNSUPPORTED && pParams->nFourCC == MFX_FOURCC_BGR4) {
+		pParams->nFourCC = MFX_FOURCC_NV12;
+		pParams->nChromaFormat = MFX_CHROMAFORMAT_YUV420;
+		sts = pEncoder->Reset(pParams, codec);
+	}
 
 	if (sts != MFX_ERR_NONE) {
 
@@ -227,9 +230,29 @@ int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
 
 	mfxStatus sts = MFX_ERR_NONE;
 
-	if (pDataY != NULL && pDataUV != NULL)
+	if (pDataY != NULL)
 		sts = pEncoder->Encode(ts, pDataY, pDataUV, strideY, strideUV,
 				       pBS);
+
+	if (sts == MFX_ERR_NONE) {
+		return 0;
+	} else if (sts == MFX_ERR_MORE_DATA) {
+		return 1;
+	} else {
+		return -1;
+	}
+}
+
+int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
+			   uint64_t lock_key, uint64_t *next_key,
+			   mfxBitstream **pBS)
+{
+	QSV_VPL_Encoder_Internal *pEncoder =
+		(QSV_VPL_Encoder_Internal *)pContext;
+
+	mfxStatus sts = MFX_ERR_NONE;
+
+	sts = pEncoder->Encode_tex(ts, tex_handle, lock_key, next_key, pBS);
 
 	if (sts == MFX_ERR_NONE) {
 		return 0;
@@ -277,4 +300,23 @@ int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
 	pEncoder->GetVPSSPSPPS(pVPS, pSPS, pPPS, pnVPS, pnSPS, pnPPS);
 
 	return 0;
+}
+
+enum video_format qsv_encoder_get_video_format(qsv_t *pContext)
+{
+	QSV_VPL_Encoder_Internal *pEncoder = (QSV_VPL_Encoder_Internal *)pContext;
+
+	mfxU32 fourCC;
+	mfxStatus sts = pEncoder->GetCurrentFourCC(fourCC);
+	if (sts != MFX_ERR_NONE)
+		return VIDEO_FORMAT_NONE;
+
+	switch (fourCC) {
+	case MFX_FOURCC_NV12:
+		return VIDEO_FORMAT_NV12;
+	case MFX_FOURCC_BGR4:
+		return VIDEO_FORMAT_RGBA;
+	}
+
+	return VIDEO_FORMAT_NONE;
 }

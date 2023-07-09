@@ -4,6 +4,7 @@
 
 #include "mfxvideo++.h"
 
+
 // =================================================================
 // OS-specific definitions of types, macro, etc...
 // The following should be defined:
@@ -94,58 +95,16 @@ mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse *response);
 mfxStatus simple_copytex(mfxHDL pthis, mfxMemId mid, mfxU32 tex_handle,
 			 mfxU64 lock_key, mfxU64 *next_key);
 
-// =================================================================
-// Utility functions, not directly tied to Media SDK functionality
-//
 
-mfxStatus ReadRawFrame(mfxFrameSurface1 *surface);
 
 void PrintErrString(int err, const char *filestr, int line);
 
-// LoadRawFrame: Reads raw frame from YUV file (YV12) into NV12 surface
-// - YV12 is a more common format for YUV files than NV12 (therefore the conversion during read and write)
-// - For the simulation case (fSource = NULL), the surface is filled with default image data
-// LoadRawRGBFrame: Reads raw RGB32 frames from file into RGB32 surface
-// - For the simulation case (fSource = NULL), the surface is filled with default image data
-
-mfxStatus LoadRawFrame(mfxFrameSurface1 *pSurface, FILE *fSource);
-mfxStatus LoadRawRGBFrame(mfxFrameSurface1 *pSurface, FILE *fSource);
-
-// Write raw YUV (NV12) surface to YUV (YV12) file
-mfxStatus WriteRawFrame(mfxFrameSurface1 *pSurface, FILE *fSink);
-
-// Write bit stream data for frame to file
-mfxStatus WriteBitStreamFrame(mfxBitstream *pMfxBitstream, FILE *fSink);
-// Read bit stream data from file. Stream is read as large chunks (= many frames)
-mfxStatus ReadBitStreamData(mfxBitstream *pBS, FILE *fSource);
-
-void ClearYUVSurfaceSysMem(mfxFrameSurface1 *pSfc, mfxU16 width, mfxU16 height);
-void ClearYUVSurfaceVMem(mfxMemId memId);
-void ClearRGBSurfaceVMem(mfxMemId memId);
-
-// Get free raw frame surface
-int GetFreeSurfaceIndex(mfxFrameSurface1 **pSurfacesPool, mfxU16 nPoolSize);
-
-// For use with asynchronous task management
 typedef struct {
 	mfxBitstream mfxBS;
 	mfxSyncPoint syncp;
 } Task;
 
-// Get free task
-int GetFreeTaskIndex(Task *pTaskPool, mfxU16 nPoolSize);
-
-// Initialize Intel Media SDK Session, device/display and memory manager
-//mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession *pSession,
-//		     mfxFrameAllocator *pmfxAllocator,
-//		     mfxHDL *deviceHandle = NULL,
-//		     bool bCreateSharedHandles = false, bool dx9hack = false);
-
-// Release resources (device/display)
 void Release();
-
-// Convert frame type to string
-char mfxFrameTypeString(mfxU16 FrameType);
 
 void mfxGetTime(mfxTime *timestamp);
 
