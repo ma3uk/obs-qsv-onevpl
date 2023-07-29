@@ -1,14 +1,15 @@
-#pragma once
 #include "obs-qsv-onevpl-encoder.h"
 #include "helpers/common_utils.h"
+#include "helpers/ext_buf_manager.h"
+#ifndef __MFX_H__
 #include "mfx.h"
+#endif
 
 #include <vector>
 
 class QSV_VPL_Encoder_Internal {
 public:
-	QSV_VPL_Encoder_Internal(mfxVersion &version,
-				 bool isDGPU);
+	QSV_VPL_Encoder_Internal(mfxVersion &version, bool isDGPU);
 	~QSV_VPL_Encoder_Internal();
 
 	mfxStatus Open(qsv_param_t *pParams, enum qsv_codec codec);
@@ -23,9 +24,8 @@ public:
 			     uint64_t lock_key, uint64_t *next_key,
 			     mfxBitstream **pBS);
 	mfxStatus ClearData();
-	mfxStatus Initialize(mfxVersion ver, mfxSession *pSession,
-			     mfxFrameAllocator *mfx_FrameAllocator,
-			     mfxHDL *deviceHandle, int deviceNum);
+	mfxStatus Initialize(mfxFrameAllocator *FrameAllocator,
+			     mfxU32 deviceNum);
 	mfxStatus Reset(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus GetCurrentFourCC(mfxU32 &fourCC);
 	mfxStatus ReconfigureEncoder();
@@ -34,8 +34,13 @@ public:
 	bool IsDGPU() const { return b_isDGPU; }
 
 protected:
+
+	typedef struct {
+		mfxBitstream mfxBS;
+		mfxSyncPoint syncp;
+	} Task;
+
 	mfxStatus InitENCParams(qsv_param_t *pParams, enum qsv_codec codec);
-	mfxStatus InitEncCtrlParams(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus AllocateSurfaces();
 	mfxStatus GetVideoParam(enum qsv_codec codec);
 	mfxStatus InitBitstream();
@@ -46,8 +51,7 @@ protected:
 			   uint8_t *pDataUV, uint32_t strideY,
 			   uint32_t strideUV);
 	mfxStatus LoadBGRA(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
-			   uint8_t *pDataUV, uint32_t strideY,
-			   uint32_t strideUV);
+			   uint32_t strideY);
 	mfxStatus Drain();
 	int GetFreeTaskIndex(Task *pTaskPool, mfxU16 nPoolSize);
 	int GetFreeSurfaceIndex(mfxFrameSurface1 **pSurfacesPool,
@@ -61,7 +65,7 @@ protected:
 			{0, 8, 6, 3, 3, 3, 1,
 			 1}, // VME progressive < 4k or interlaced
 			{0, 4, 4, 3, 3, 3, 1, 1}, // VME progressive >= 4k
-			{0, 3, 3, 2, 2, 2, 1, 1}  // VDEnc
+			{0, 2, 2, 2, 2, 2, 1, 1}  // VDEnc
 		};
 
 		if (isLowPower == MFX_CODINGOPTION_OFF) {
@@ -149,6 +153,7 @@ protected:
 		}
 	}
 
+
 private:
 	mfxIMPL mfx_Impl;
 	mfxPlatform mfx_Platform;
@@ -157,52 +162,24 @@ private:
 	mfxConfig mfx_LoaderConfig[10];
 	mfxVariant mfx_LoaderVariant[10];
 	mfxSession mfx_Session;
-	//mfxExtTuneEncodeQuality mfx_Ext_TuneQuality;
-	mfxEncodeCtrl mfx_EncControl;
 	mfxFrameAllocator mfx_FrameAllocator;
 	mfxFrameAllocRequest mfx_FrameAllocRequest;
-	mfxVideoParam mfx_ENC_Params;
-	mfxVideoParam mfx_PPSSPSVPS_Params;
-	mfxInitializationParam mfx_InitParams;
+	//mfxVideoParam mfx_ENC_Params;
 	mfxFrameAllocResponse mfx_FrameAllocResponse;
-	mfxFrameSurface1 **mfx_FrameSurf;
-	mfxU16 mfx_SurfNum;
+	mfxFrameSurface1 **mfx_SurfacePool;
+	mfxU16 n_SurfaceNum;
 	MFXVideoENCODE *mfx_VideoENC;
-	//mfxExtEncToolsConfig mfx_EncToolsConf;
-	mfxExtVP9Param mfx_Ext_VP9Param;
-	//mfxExtVP9Segmentation mfx_Ext_VP9Segmentation;
-	mfxExtAV1BitstreamParam mfx_Ext_AV1BitstreamParam;
-	mfxExtAV1ResolutionParam mfx_Ext_AV1ResolutionParam;
-	mfxExtAV1TileParam mfx_Ext_AV1TileParam;
-	mfxExtAV1AuxData mfx_Ext_AV1AuxData;
-	mfxExtCodingOptionVPS mfx_Ext_CO_VPS;
-	mfxExtCodingOptionSPSPPS mfx_Ext_CO_SPSPPS;
-	mfxU8 VPS_Buffer[1024];
-	mfxU8 SPS_Buffer[1024];
-	mfxU8 PPS_Buffer[1024];
-	mfxU16 VPS_BufSize;
-	mfxU16 SPS_BufSize;
-	mfxU16 PPS_BufSize;
-	mfxVideoParam mfx_VideoParams;
-	std::vector<mfxExtBuffer *> mfx_ENC_ExtendedBuffers;
-	std::vector<mfxExtBuffer *> mfx_CtrlExtendedBuffers;
-	mfxExtCodingOption3 mfx_Ext_CO3;
-	mfxExtCodingOption2 mfx_Ext_CO2;
-	mfxExtCodingOption mfx_Ext_CO;
-	mfxExtHEVCParam mfx_Ext_HEVCParam{};
-	mfxExtVideoSignalInfo mfx_Ext_VideoSignalInfo{};
-	mfxExtChromaLocInfo mfx_Ext_ChromaLocInfo{};
-	mfxExtMasteringDisplayColourVolume
-		mfx_Ext_MasteringDisplayColourVolume{};
-	mfxExtContentLightLevelInfo mfx_Ext_ContentLightLevelInfo{};
-	mfxExtVPPDenoise2 mfx_VPPDenoise;
-	mfxU16 mfx_TaskPool;
+	mfxU8 VPS_Buffer[128];
+	mfxU8 SPS_Buffer[128];
+	mfxU8 PPS_Buffer[128];
+	mfxU16 VPS_BufferSize;
+	mfxU16 SPS_BufferSize;
+	mfxU16 PPS_BufferSize;
+	mfxU16 n_TaskNum;
 	Task *t_TaskPool;
-	int n_TaskIdx;
+	//int n_TaskIdx;
 	int n_FirstSyncTask;
 	mfxBitstream mfx_Bitstream;
 	bool b_isDGPU;
-	
-	mfxExtCodingOptionDDI mfx_Ext_CO_DDI;
-	mfxExtHyperModeParam mfx_HyperModeParam;
+	mfx_VideoParam m_mfxEncParams;
 };

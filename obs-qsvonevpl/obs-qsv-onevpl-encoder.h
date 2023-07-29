@@ -60,67 +60,53 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mfxadapter.h"
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
-static const char *const qsv_ratecontrols_avc[] = {
-	"CBR",    "VBR",    "VCM",    "CQP",        "AVBR", "ICQ",
-	"LA_ICQ", "LA_CBR", "LA_VBR", "LA_EXT_ICQ", 0};
+static const char *const qsv_ratecontrols_h264[] = {"CBR", "VBR", "CQP", "ICQ",
+						    0};
 
-static const char *const qsv_ratecontrols_vp9[] = {
-	"CBR",    "VBR",    "VCM",        "CQP",    "AVBR", "ICQ",
-	"LA_ICQ", "LA_CBR", "LA_EXT_ICQ", "LA_VBR", 0};
+static const char *const qsv_ratecontrols_vp9[] = {"CBR", "VBR",        "CQP",
+						   "ICQ", "LA_EXT_ICQ", 0};
 
-static const char *const qsv_ratecontrols_hevc[] = {"CBR",  "VBR", "VCM", "CQP",
-						    "AVBR", "ICQ", 0};
+static const char *const qsv_ratecontrols_hevc[] = {"CBR", "VBR", "CQP", "ICQ",
+						    0};
 
 static const char *const qsv_ratecontrols_av1[] = {"CBR", "VBR",        "CQP",
 						   "ICQ", "LA_EXT_ICQ", 0};
 
-static const char *const qsv_profile_names_avc[] = {"high", "main", "baseline",
-						    "extended", 0};
+static const char *const qsv_profile_names_h264[] = {
+	"high", "main", "baseline", "extended", "high10", "high422", "progressive high", 0};
 static const char *const qsv_profile_names_av1[] = {"main", 0};
 static const char *const qsv_profile_names_hevc[] = {"main", "main10", "rext",
 						     0};
 static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
-static const char *const qsv_usage_names[] = {"quality",  "balanced", "speed",
-					      "veryslow", "slower",   "slow",
-					      "medium",   "fast",     "faster",
-					      "veryfast", 0};
+static const char *const qsv_usage_names[] = {
+	"TU1 (Veryslow)", "TU2 (Slower)", "TU3 (Slow)",     "TU4 (Balanced)",
+	"TU5 (Fast)",     "TU6 (Faster)", "TU7 (Veryfast)", 0};
 static const char *const qsv_latency_names[] = {"ultra-low", "low", "normal",
 						0};
 static const char *const qsv_params_condition[] = {"ON", "OFF", 0};
 static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
 							    0};
-static const char *const qsv_params_condition_gop[] = {"CLOSED", "OPEN", 0};
+//static const char *const qsv_params_condition_gop[] = {"CLOSED", "OPEN", 0};
 static const char *const qsv_params_condition_intra_ref_encoding[] = {
 	"VERTICAL", "HORIZONTAL", 0};
-static const char *const qsv_params_condition_hyper_mode[] = {"OFF", "ADAPTIVE",
-							      0};
-static const char *const qsv_params_condition_p_ref_type[] = {
-	"SIMPLE", "PYRAMID", "DEFAULT", 0};
-static const char *const qsv_params_condition_max_frame_size_type[] = {
-	"AUTO", "MANUAL", "MANUAL | ADAPTIVE", 0};
 static const char *const qsv_params_condition_mv_cost_scaling[] = {
 	"DEFAULT", "1/2", "1/4", "1/8", 0};
+static const char *const qsv_params_condition_lookahead_latency[] = {
+	"NORMAL", "HIGH", "LOW", "VERYLOW", 0};
 static const char *const qsv_params_condition_lookahead_ds[] = {
 	"SLOW", "MEDIUM", "FAST", "AUTO", 0};
 static const char *const qsv_params_condition_trellis[] = {
 	"OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0};
-static const char *const qsv_params_condition_scenario[] = {
-	"OFF",  "ARCHIVE", "LIVE STREAMING", "GAME STREAMING", "REMOTE GAMING",
-	"AUTO", 0};
-static const char *const qsv_params_condition_scenario_la[] = {
-	"OFF", "ARCHIVE", "LIVE STREAMING", "REMOTE GAMING", "AUTO", 0};
-static const char *const qsv_trellis_names[] = {"off", "i",  "ip", "all",  "ib",
-						"p",   "pb", "b",  "auto", 0};
 static const char *const qsv_params_condition_hevc_sao[] = {
 	"AUTO", "DISABLE", "LUMA", "CHROMA", "ALL", 0};
-static const char *const qsv_params_condition_hevc_ctu[] = {"AUTO", "16", "32",
-							    "64", 0};
-static const char *const qsv_params_condition_tune_quality[] = {
-	"DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", "OFF", 0};
+//static const char *const qsv_params_condition_hevc_ctu[] = {"AUTO", "16", "32",
+//							    "64", 0};
+//static const char *const qsv_params_condition_tune_quality[] = {
+//	"DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", "OFF", 0};
 static const char *const qsv_params_condition_denoise_mode[] = {
 	"DEFAULT",
 	"AUTO | BDRATE | PRE ENCODE",
@@ -161,8 +147,6 @@ typedef struct {
 	mfxU16 CodecProfile;
 	mfxU16 HEVCTier;
 	mfxU16 RateControl;
-	mfxU16 nAccuracy;
-	mfxU16 nConvergence;
 	mfxU16 nQPI;
 	mfxU16 nQPP;
 	mfxU16 nQPB;
@@ -212,15 +196,14 @@ typedef struct {
 	int bWeightedBiPred;
 	int bGlobalMotionBiasAdjustment;
 	int bLAExtBRC;
-	int bCPUBRCControl;
-	int bCPUBufferHints;
-	int bCPUEncTools;
+	int bExtBRC;
 	int bIntraRefEncoding;
 
 	//bool bFadeDetection;
 	bool video_fmt_10bit;
 	bool bResetAllowed;
 	bool bCustomBufferSize;
+	bool bLookahead;
 
 	int nIntraRefType;
 
@@ -278,13 +261,13 @@ int qsv_encoder_encode_tex(qsv_t *, uint64_t, uint32_t, uint64_t, uint64_t *,
 int qsv_encoder_headers(qsv_t *, uint8_t **pSPS, uint8_t **pPPS,
 			uint16_t *pnSPS, uint16_t *pnPPS);
 enum qsv_cpu_platform qsv_get_cpu_platform();
-enum video_format qsv_encoder_get_video_format(qsv_t *);
+//enum video_format qsv_encoder_get_video_format(qsv_t *);
 bool prefer_igpu_enc(int *iGPUIndex);
 
 int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **vVPS, uint8_t **pSPS,
 			     uint8_t **pPPS, uint16_t *pnVPS, uint16_t *pnSPS,
 			     uint16_t *pnPPS);
 
-#ifdef __cplusplus
-}
-#endif
+//#ifdef __cplusplus
+//}
+//#endif

@@ -79,30 +79,11 @@
 		(x).Header.BufferSz = sizeof(x); \
 	}
 
-// Usage of the following two macros are only required for certain Windows DirectX11 use cases
-constexpr auto WILL_READ = 0x1000;
-constexpr auto WILL_WRITE = 0x2000;
-
-// =================================================================
-// Intel Media SDK memory allocator entrypoints....
-// Implementation of this functions is OS/Memory type specific.
-mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest *request,
-		       mfxFrameAllocResponse *response);
-mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr);
-mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr);
-mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL *handle);
-mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse *response);
-mfxStatus simple_copytex(mfxHDL pthis, mfxMemId mid, mfxU32 tex_handle,
-			 mfxU64 lock_key, mfxU64 *next_key);
-
 
 
 void PrintErrString(int err, const char *filestr, int line);
 
-typedef struct {
-	mfxBitstream mfxBS;
-	mfxSyncPoint syncp;
-} Task;
+
 
 void Release();
 

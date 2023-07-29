@@ -55,13 +55,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <util/dstr.h>
 #include <util/darray.h>
 #include <util/platform.h>
+#include <obs.h>
 #include <obs-module.h>
 #include <obs-hevc.h>
 #include <obs-avc.h>
-#include <Windows.h>
+#include <util/threading.h>
 #include "obs-qsv-onevpl-encoder.h"
 
 #ifndef _STDINT_H_INCLUDED
@@ -77,6 +79,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
 #define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
 
+#ifndef GS_INVALID_HANDLE
+#define GS_INVALID_HANDLE (uint32_t) - 1
+#endif
 /* ------------------------------------------------------------------------- */
 
 struct obs_qsv {
@@ -100,14 +105,12 @@ struct obs_qsv {
 
 /* ------------------------------------------------------------------------- */
 
-static SRWLOCK g_QsvLock = SRWLOCK_INIT;
+static pthread_mutex_t g_QsvLock = PTHREAD_MUTEX_INITIALIZER;
 static unsigned short g_verMajor;
 static unsigned short g_verMinor;
-static int64_t g_pts2dtsShift;
-static int64_t g_prevDts;
 static bool g_bFirst;
 
-static const char *obs_qsv_getname(void *type_data)
+static const char *obs_qsv_getname_h264(void *type_data)
 {
 	UNUSED_PARAMETER(type_data);
 	return "QuickSync oneVPL H.264";
@@ -136,10 +139,10 @@ static void obs_qsv_stop(void *data);
 static void clear_data(struct obs_qsv *obsqsv)
 {
 	if (obsqsv->context) {
-		AcquireSRWLockExclusive(&g_QsvLock);
+		pthread_mutex_lock(&g_QsvLock);
 		qsv_encoder_close(obsqsv->context);
 		obsqsv->context = NULL;
-		ReleaseSRWLockExclusive(&g_QsvLock);
+		pthread_mutex_unlock(&g_QsvLock);
 
 		bfree(obsqsv->sei);
 		bfree(obsqsv->extra_data);
@@ -151,7 +154,7 @@ static void clear_data(struct obs_qsv *obsqsv)
 
 static void obs_qsv_destroy(void *data)
 {
-	struct obs_qsv *obsqsv = (struct obs_qsv *)data;
+	struct obs_qsv *obsqsv = static_cast<struct obs_qsv *>(data);
 
 	if (obsqsv) {
 		os_end_high_performance(obsqsv->performance_token);
@@ -166,7 +169,7 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 			     enum qsv_codec codec)
 {
 	obs_data_set_default_int(settings, "device_num", -1);
-	obs_data_set_default_string(settings, "target_usage", "balanced");
+	obs_data_set_default_string(settings, "target_usage", "TU4 (Balanced)");
 	obs_data_set_default_int(settings, "bitrate", 6000);
 	obs_data_set_default_int(settings, "max_bitrate", 6000);
 	obs_data_set_default_bool(settings, "custom_buffer_size", false);
@@ -178,15 +181,13 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 
 	obs_data_set_default_int(settings, "__ver", ver);
 
-	obs_data_set_default_int(settings, "accuracy", 1000);
-	obs_data_set_default_int(settings, "convergence", 1);
 	obs_data_set_default_int(settings, "cqp", 23);
 	obs_data_set_default_int(settings, "qpi", 23);
 	obs_data_set_default_int(settings, "qpp", 23);
 	obs_data_set_default_int(settings, "qpb", 23);
 	obs_data_set_default_int(settings, "icq_quality", 23);
 
-	obs_data_set_default_int(settings, "keyint_sec", 3);
+	obs_data_set_default_int(settings, "keyint_sec", 4);
 	obs_data_set_default_int(settings, "gop_ref_dist", 4);
 	obs_data_set_default_int(settings, "async_depth", 4);
 	obs_data_set_default_string(settings, "denoise_mode", "OFF");
@@ -197,9 +198,9 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_string(settings, "adaptive_i", "AUTO");
 	obs_data_set_default_string(settings, "adaptive_b", "AUTO");
 	obs_data_set_default_string(settings, "adaptive_ref", "AUTO");
-	obs_data_set_default_string(settings, "adaptive_cqm", "AUTO");
+	obs_data_set_default_string(settings, "adaptive_cqm", "ON");
 	obs_data_set_default_string(settings, "adaptive_ltr", "AUTO");
-	obs_data_set_default_string(settings, "gop_opt_flag", "CLOSED");
+	//obs_data_set_default_string(settings, "gop_opt_flag", "CLOSED");
 	obs_data_set_default_string(settings, "use_raw_ref", "AUTO");
 	obs_data_set_default_string(settings, "rdo", "AUTO");
 	obs_data_set_default_string(settings, "mbbrc", "AUTO");
@@ -212,15 +213,16 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
 	obs_data_set_default_string(settings, "mv_costscaling_factor",
 				    "DEFAULT");
 	//obs_data_set_default_string(settings, "fade_detection", "OFF");
-	/*obs_data_set_default_string(settings, "lookahead_ds", "AUTO");*/
+
 	obs_data_set_default_string(settings, "directbias_adjustment", "AUTO");
 	obs_data_set_default_string(settings, "mv_overpic_boundaries", "AUTO");
 	obs_data_set_default_int(settings, "la_depth", 0);
 
-	obs_data_set_default_string(settings, "cpu_brc_control", "OFF");
-	obs_data_set_default_string(settings, "cpu_buffer_hints", "OFF");
-	obs_data_set_default_string(settings, "low_power", "AUTO");
-	obs_data_set_default_string(settings, "cpu_enc_tools", "AUTO");
+	obs_data_set_default_string(settings, "lookahead", "OFF");
+	obs_data_set_default_string(settings, "lookahead_latency", "NORMAL");
+	obs_data_set_default_string(settings, "lookahead_ds", "MEDIUM");
+	obs_data_set_default_string(settings, "low_power", "ON");
+	obs_data_set_default_string(settings, "extbrc", "OFF");
 	obs_data_set_default_string(settings, "hevc_sao", "AUTO");
 	obs_data_set_default_string(settings, "hevc_gpb", "AUTO");
 
@@ -266,16 +268,14 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_PROFILE obs_module_text("Profile")
 #define TEXT_HEVC_TIER obs_module_text("Tier")
 #define TEXT_RATE_CONTROL obs_module_text("RateControl")
-#define TEXT_ACCURACY obs_module_text("Accuracy")
-#define TEXT_CONVERGENCE obs_module_text("Convergence")
 #define TEXT_ICQ_QUALITY obs_module_text("ICQQuality")
 #define TEXT_KEYINT_SEC obs_module_text("KeyframeIntervalSec")
 #define TEXT_GOP_REF_DIST obs_module_text("GOPRefDist")
 #define TEXT_MBBRC obs_module_text("MBBRC")
 #define TEXT_NUM_REF_FRAME obs_module_text("NumRefFrame")
 #define TEXT_NUM_REF_FRAME_LAYERS obs_module_text("NumRefFrameLayers")
-#define TEXT_GOP_OPT_FLAG obs_module_text("GOPOptFlag")
-#define TEXT_LOOKAHEAD_DS obs_module_text("LookaheadDownSampling")
+//#define TEXT_GOP_OPT_FLAG obs_module_text("GOPOptFlag")
+#define TEXT_LA_DS obs_module_text("LookaheadDownSampling")
 #define TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT \
 	obs_module_text("GlobalMotionBiasAdjustment")
 #define TEXT_DIRECT_BIAS_ADJUSTMENT obs_module_text("DirectBiasAdjusment")
@@ -285,7 +285,9 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_ADAPTIVE_CQM obs_module_text("AdaptiveCQM")
 //#define TEXT_FADE_DETECTION obs_module_text("FadeDetection")
 #define TEXT_TRELLIS obs_module_text("Trellis")
+#define TEXT_LA obs_module_text("Lookahead")
 #define TEXT_LA_DEPTH obs_module_text("LookaheadDepth")
+#define TEXT_LA_LATENCY obs_module_text("Lookahead latency")
 #define TEXT_MV_OVER_PIC_BOUNDARIES \
 	obs_module_text("MotionVectorsOverpicBoundaries")
 //#define TEXT_REPARTITION_CHECK_ENABLE obs_module_text("PreferredMode")
@@ -295,8 +297,6 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_MV_COST_SCALING_FACTOR obs_module_text("MVCostScalingFactor")
 #define TEXT_RDO obs_module_text("RDO")
 #define TEXT_ASYNC_DEPTH obs_module_text("AsyncDepth")
-#define TEXT_CPU_BRC_CONTROL obs_module_text("CPUBitrateControl")
-#define TEXT_CPU_BUFFER_HINTS obs_module_text("CPUBufferHints")
 #define TEXT_WINBRC_MAX_AVG_SIZE obs_module_text("WinBRCMaxAvgSize")
 #define TEXT_WINBRC_SIZE obs_module_text("WinBRCSize")
 #define TEXT_ADAPTIVE_LTR obs_module_text("AdaptiveLTR")
@@ -304,7 +304,7 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_HEVC_SAO obs_module_text("SampleAdaptiveOffset")
 #define TEXT_HEVC_GPB obs_module_text("GPB")
 #define TEXT_TUNE_QUALITY_MODE obs_module_text("TuneQualityMode")
-#define TEXT_CPU_ENC_TOOLS obs_module_text("EncTools")
+#define TEXT_EXT_BRC obs_module_text("ExtBRC")
 #define TEXT_DEVICE_NUM obs_module_text("Select GPU")
 #define TEXT_DENOISE_STRENGTH obs_module_text("Denoise strength")
 #define TEXT_DENOISE_MODE obs_module_text("Denoise mode")
@@ -314,39 +314,19 @@ static inline void add_strings(obs_property_t *list, const char *const *strings)
 #define TEXT_INTRA_REF_CYCLE_SIZE obs_module_text("IntraRefCycleSize")
 #define TEXT_INTRA_REF_QP_DELTA obs_module_text("IntraRefQPDelta")
 
-bool rate_control_check = false;
-static bool update_latency(obs_data_t *settings)
-{
-	return true;
-}
-
-static bool update_enhancements(obs_data_t *settings)
-{
-	return true;
-}
-
 static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 				  obs_data_t *settings)
 {
 	const char *rate_control =
 		obs_data_get_string(settings, "rate_control");
-	bool bVisible = astrcmpi(rate_control, "VCM") == 0 ||
-			astrcmpi(rate_control, "VBR") == 0;
+	bool bVisible = astrcmpi(rate_control, "VBR") == 0;
 	p = obs_properties_get(ppts, "max_bitrate");
 	obs_property_set_visible(p, bVisible);
 
 	bVisible = astrcmpi(rate_control, "CQP") == 0 ||
-		   astrcmpi(rate_control, "LA_ICQ") == 0 ||
-		   astrcmpi(rate_control, "ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
+		   astrcmpi(rate_control, "ICQ") == 0;
 	p = obs_properties_get(ppts, "bitrate");
 	obs_property_set_visible(p, !bVisible);
-
-	bVisible = astrcmpi(rate_control, "AVBR") == 0;
-	p = obs_properties_get(ppts, "accuracy");
-	obs_property_set_visible(p, bVisible);
-	p = obs_properties_get(ppts, "convergence");
-	obs_property_set_visible(p, bVisible);
 
 	bVisible = astrcmpi(rate_control, "CQP") == 0;
 	p = obs_properties_get(ppts, "qpi");
@@ -362,33 +342,29 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 	if (p)
 		obs_property_set_visible(p, bVisible);
 
-	bVisible = astrcmpi(rate_control, "ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0;
+	bVisible = astrcmpi(rate_control, "ICQ") == 0;
 	p = obs_properties_get(ppts, "icq_quality");
 	obs_property_set_visible(p, bVisible);
 
-	bVisible = astrcmpi(rate_control, "LA_ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_CBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0 ||
-		   astrcmpi(rate_control, "CBR") == 0 ||
-		   astrcmpi(rate_control, "VBR") == 0;
-	rate_control_check = bVisible;
-	p = obs_properties_get(ppts, "la_depth");
+	const char *lookahead = obs_data_get_string(settings, "lookahead");
+
+	bVisible = (astrcmpi(rate_control, "ICQ") == 0 ||
+		    astrcmpi(rate_control, "CBR") == 0 ||
+		    astrcmpi(rate_control, "VBR") == 0) &&
+		   astrcmpi(lookahead, "ON") == 0;
+
+	p = obs_properties_get(ppts, "lookahead_latency");
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "lookahead_ds");
 	obs_property_set_visible(p, bVisible);
 	//p = obs_properties_get(ppts, "cpu_enc_tools");
 	//obs_property_set_visible(p, !bVisible);
 	if (!bVisible) {
-		obs_data_erase(settings, "la_depth");
+		obs_data_erase(settings, "lookahead_latency");
 		obs_data_erase(settings, "lookahead_ds");
 	}
 
-	bVisible = astrcmpi(rate_control, "LA_VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_CBR") == 0 ||
-		   astrcmpi(rate_control, "VBR") == 0;
+	bVisible = astrcmpi(rate_control, "VBR") == 0;
 	p = obs_properties_get(ppts, "winbrc_max_avg_size");
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "winbrc_size");
@@ -399,23 +375,9 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_data_erase(settings, "winbrc_size");
 	}
 
-	const char *cpu_enc_tools =
-		obs_data_get_string(settings, "cpu_enc_tools");
-	bVisible = astrcmpi(cpu_enc_tools, "ON") == 0 &&
-		   (astrcmpi(rate_control, "CBR") == 0 ||
-		    astrcmpi(rate_control, "VBR") == 0);
-	p = obs_properties_get(ppts, "cpu_brc_control");
-	obs_property_set_visible(p, bVisible);
-	p = obs_properties_get(ppts, "cpu_buffer_hints");
-	obs_property_set_visible(p, bVisible);
-	if (!bVisible) {
-		obs_data_set_string(settings, "cpu_brc_control", "OFF");
-		obs_data_set_string(settings, "cpu_buffer_hints", "OFF");
-	}
 	bVisible = astrcmpi(rate_control, "CBR") == 0 ||
 		   astrcmpi(rate_control, "VBR") == 0 ||
-		   astrcmpi(rate_control, "LA_EXT_ICQ") == 0 ||
-		   astrcmpi(rate_control, "LA_CBR") == 0;
+		   astrcmpi(rate_control, "ICQ") == 0;
 	p = obs_properties_get(ppts, "mbbrc");
 	obs_property_set_visible(p, bVisible);
 	if (!bVisible) {
@@ -426,12 +388,6 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 	p = obs_properties_get(ppts, "buffer_size");
 	obs_property_set_visible(p, use_bufsize);
 
-	return true;
-}
-
-static bool profile_modified(obs_properties_t *ppts, obs_property_t *p,
-			     obs_data_t *settings)
-{
 	return true;
 }
 
@@ -469,16 +425,10 @@ static bool visible_modified(obs_properties_t *ppts, obs_property_t *p,
 	return true;
 }
 
-static inline bool is_skl_or_greater_platform()
-{
-	enum qsv_cpu_platform plat = qsv_get_cpu_platform();
-	return (plat >= QSV_CPU_PLATFORM_SKL ||
-		plat == QSV_CPU_PLATFORM_UNKNOWN);
-}
-
 static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 				       int ver)
 {
+	ver;
 	UNUSED_PARAMETER(unused);
 
 	obs_properties_t *props = obs_properties_create();
@@ -489,7 +439,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 				       OBS_COMBO_FORMAT_STRING);
 
 	if (codec == QSV_CODEC_AVC) {
-		add_strings(prop, qsv_ratecontrols_avc);
+		add_strings(prop, qsv_ratecontrols_h264);
 	} else if (codec == QSV_CODEC_HEVC) {
 		add_strings(prop, qsv_ratecontrols_hevc);
 	} else if (codec == QSV_CODEC_AV1) {
@@ -511,7 +461,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 					       OBS_COMBO_FORMAT_STRING);
 
 		if (codec == QSV_CODEC_AVC) {
-			add_strings(prop, qsv_profile_names_avc);
+			add_strings(prop, qsv_profile_names_h264);
 		} else if (codec == QSV_CODEC_AV1) {
 			add_strings(prop, qsv_profile_names_av1);
 		} else if (codec == QSV_CODEC_HEVC) {
@@ -526,6 +476,14 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 			add_strings(prop, qsv_profile_tiers_hevc);
 		}
 	}
+
+	prop = obs_properties_add_list(props, "extbrc", TEXT_EXT_BRC,
+				       OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	obs_property_set_long_description(prop,
+					  obs_module_text("ExtBRC.ToolTip"));
+	add_strings(prop, qsv_params_condition);
+	obs_property_set_modified_callback(prop, rate_control_modified);
 
 	//prop = obs_properties_add_list(props, "tune_quality",
 	//			       TEXT_TUNE_QUALITY_MODE,
@@ -546,7 +504,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_modified_callback(prop, rate_control_modified);
 	prop = obs_properties_add_int(props, "buffer_size", TEXT_BUFFER_SIZE, 0,
 				      10000000, 10);
-	obs_property_int_set_suffix(prop, " Kb");
+	obs_property_int_set_suffix(prop, " KB");
 	obs_property_set_long_description(
 		prop, obs_module_text("BufferSize.ToolTip"));
 
@@ -566,22 +524,18 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 				      50, 10000000, 50);
 	obs_property_int_set_suffix(prop, " Kbps");
 
-	obs_properties_add_int(props, "accuracy", TEXT_ACCURACY, 0, 10000, 1);
-	obs_properties_add_int(props, "convergence", TEXT_CONVERGENCE, 0, 10,
-			       1);
-
 	obs_properties_add_int(props, "cqp", "CQP", 1,
 			       codec == QSV_CODEC_AV1 ? 63 : 51, 1);
 
 	obs_properties_add_int(props, "icq_quality", TEXT_ICQ_QUALITY, 1, 51,
 			       1);
 
-	prop = obs_properties_add_list(props, "gop_opt_flag", TEXT_GOP_OPT_FLAG,
-				       OBS_COMBO_TYPE_LIST,
-				       OBS_COMBO_FORMAT_STRING);
-	add_strings(prop, qsv_params_condition_gop);
-	obs_property_set_long_description(
-		prop, obs_module_text("GOPOptFlag.ToolTip"));
+	//prop = obs_properties_add_list(props, "gop_opt_flag", TEXT_GOP_OPT_FLAG,
+	//			       OBS_COMBO_TYPE_LIST,
+	//			       OBS_COMBO_FORMAT_STRING);
+	//add_strings(prop, qsv_params_condition_gop);
+	//obs_property_set_long_description(
+	//	prop, obs_module_text("GOPOptFlag.ToolTip"));
 
 	prop = obs_properties_add_int(props, "keyint_sec", TEXT_KEYINT_SEC, 0,
 				      20, 1);
@@ -747,15 +701,30 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(prop,
 					  obs_module_text("Trellis.ToolTip"));
 
-	prop = obs_properties_add_list(props, "lookahead_ds", TEXT_LOOKAHEAD_DS,
+	prop = obs_properties_add_list(props, "lookahead", TEXT_LA,
+				       OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	add_strings(prop, qsv_params_condition);
+	obs_property_set_modified_callback(prop, rate_control_modified);
+	obs_property_set_long_description(
+		prop, obs_module_text("LookaheadDS.ToolTip"));
+
+	prop = obs_properties_add_list(props, "lookahead_ds", TEXT_LA_DS,
 				       OBS_COMBO_TYPE_LIST,
 				       OBS_COMBO_FORMAT_STRING);
 	add_strings(prop, qsv_params_condition_lookahead_ds);
 	obs_property_set_long_description(
 		prop, obs_module_text("LookaheadDS.ToolTip"));
 
-	obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 0, 100,
-				      1);
+	prop = obs_properties_add_list(props, "lookahead_latency",
+				       TEXT_LA_LATENCY, OBS_COMBO_TYPE_LIST,
+				       OBS_COMBO_FORMAT_STRING);
+	add_strings(prop, qsv_params_condition_lookahead_latency);
+	obs_property_set_long_description(
+		prop, obs_module_text("LookaheadLatency.ToolTip"));
+
+	//obs_properties_add_int_slider(props, "la_depth", TEXT_LA_DEPTH, 0, 200,
+	//			      1);
 	if (codec == QSV_CODEC_AVC) {
 		prop = obs_properties_add_list(props, "denoise_mode",
 					       TEXT_DENOISE_MODE,
@@ -809,16 +778,6 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec, void *unused,
 	obs_property_set_long_description(prop,
 					  obs_module_text("DeviceNum.ToolTip"));
 
-	if (codec != QSV_CODEC_VP9) {
-		prop = obs_properties_add_list(props, "cpu_enc_tools",
-					       TEXT_CPU_ENC_TOOLS,
-					       OBS_COMBO_TYPE_LIST,
-					       OBS_COMBO_FORMAT_STRING);
-		obs_property_set_long_description(
-			prop, obs_module_text("CPUEncTools.ToolTip"));
-		add_strings(prop, qsv_params_condition_tristate);
-		obs_property_set_modified_callback(prop, rate_control_modified);
-	}
 	/*This is not a necessary parameter,
 		its inclusion greatly spoils the picture*/
 	//prop = obs_properties_add_list(props, "deblocking", TEXT_DEBLOCKING,
@@ -869,33 +828,33 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 {
 	video_t *video = obs_encoder_video(obsqsv->encoder);
 	const struct video_output_info *voi = video_output_get_info(video);
-	int device_num = (int)obs_data_get_int(settings, "device_num");
+	int device_num =
+		static_cast<int>(obs_data_get_int(settings, "device_num"));
 	const char *target_usage =
 		obs_data_get_string(settings, "target_usage");
 	const char *profile = obs_data_get_string(settings, "profile");
 	const char *hevc_tier = obs_data_get_string(settings, "hevc_tier");
 	const char *rate_control =
 		obs_data_get_string(settings, "rate_control");
-	int target_bitrate = (int)obs_data_get_int(settings, "bitrate");
+	int target_bitrate =
+		static_cast<int>(obs_data_get_int(settings, "bitrate"));
 	bool custom_buffer_size =
 		obs_data_get_bool(settings, "custom_buffer_size");
-	int buffer_size = (int)obs_data_get_int(settings, "buffer_size");
-	int max_bitrate = (int)obs_data_get_int(settings, "max_bitrate");
-	int accuracy = (int)obs_data_get_int(settings, "accuracy");
-	int convergence = (int)obs_data_get_int(settings, "convergence");
-	int qpi = (int)obs_data_get_int(settings, "qpi");
-	int qpp = (int)obs_data_get_int(settings, "qpp");
-	int qpb = (int)obs_data_get_int(settings, "qpb");
-	int cqp = (int)obs_data_get_int(settings, "cqp");
-	int ver = (int)obs_data_get_int(settings, "__ver");
-	int icq_quality = (int)obs_data_get_int(settings, "icq_quality");
-	int keyint_sec = (int)obs_data_get_int(settings, "keyint_sec");
+	int buffer_size =
+		static_cast<int>(obs_data_get_int(settings, "buffer_size"));
+	int max_bitrate =
+		static_cast<int>(obs_data_get_int(settings, "max_bitrate"));
+	int cqp = static_cast<int>(obs_data_get_int(settings, "cqp"));
+	//int ver = (int)obs_data_get_int(settings, "__ver");
+	int icq_quality =
+		static_cast<int>(obs_data_get_int(settings, "icq_quality"));
+	int keyint_sec =
+		static_cast<int>(obs_data_get_int(settings, "keyint_sec"));
 	bool cbr_override = obs_data_get_bool(settings, "cbr");
-	int gop_ref_dist = (int)obs_data_get_int(settings, "gop_ref_dist");
+	int gop_ref_dist =
+		static_cast<int>(obs_data_get_int(settings, "gop_ref_dist"));
 	const char *mbbrc = obs_data_get_string(settings, "mbbrc");
-	const char *codec;
-	//const char* repartitioncheck_enable =
-	//	obs_data_get_string(settings, "repartitioncheck_enable");
+	const char *codec = "";
 	const char *adaptive_i = obs_data_get_string(settings, "adaptive_i");
 	const char *adaptive_b = obs_data_get_string(settings, "adaptive_b");
 	const char *adaptive_ref =
@@ -905,16 +864,15 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	const char *low_power = obs_data_get_string(settings, "low_power");
 	const char *adaptive_ltr =
 		obs_data_get_string(settings, "adaptive_ltr");
-	const char *max_frame_size_type =
-		obs_data_get_string(settings, "max_frame_size_type");
-	const char *gop_opt_flag =
-		obs_data_get_string(settings, "gop_opt_flag");
+	//const char *gop_opt_flag =
+	//	obs_data_get_string(settings, "gop_opt_flag");
 	const char *use_raw_ref = obs_data_get_string(settings, "use_raw_ref");
-	int winbrc_max_avg_size =
-		(int)obs_data_get_int(settings, "winbrc_max_avg_size");
-	int winbrc_size = (int)obs_data_get_int(settings, "winbrc_size");
-	int denoise_strength =
-		(int)obs_data_get_int(settings, "denoise_strength");
+	int winbrc_max_avg_size = static_cast<int>(
+		obs_data_get_int(settings, "winbrc_max_avg_size"));
+	int winbrc_size =
+		static_cast<int>(obs_data_get_int(settings, "winbrc_size"));
+	int denoise_strength = static_cast<int>(
+		obs_data_get_int(settings, "denoise_strength"));
 	const char *denoise_mode =
 		obs_data_get_string(settings, "denoise_mode");
 	const char *rdo = obs_data_get_string(settings, "rdo");
@@ -923,17 +881,19 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	const char *weighted_bi_pred =
 		obs_data_get_string(settings, "weighted_bi_pred");
 	const char *trellis = obs_data_get_string(settings, "trellis");
-	int num_ref_frame = (int)obs_data_get_int(settings, "num_ref_frame");
-	int num_ref_frame_layers =
-		(int)obs_data_get_int(settings, "num_ref_frame_layers");
+	int num_ref_frame =
+		static_cast<int>(obs_data_get_int(settings, "num_ref_frame"));
+	int num_ref_frame_layers = static_cast<int>(
+		obs_data_get_int(settings, "num_ref_frame_layers"));
 	const char *globalmotionbias_adjustment =
 		obs_data_get_string(settings, "globalmotionbias_adjustment");
 	const char *mv_costscaling_factor =
 		obs_data_get_string(settings, "mv_costscaling_factor");
-	//const char* fade_detection =
-	//	obs_data_get_string(settings, "fade_detection");
+	const char *lookahead = obs_data_get_string(settings, "lookahead");
 	const char *lookahead_ds =
 		obs_data_get_string(settings, "lookahead_ds");
+	const char *lookahead_latency =
+		obs_data_get_string(settings, "lookahead_latency");
 	const char *directbias_adjustment =
 		obs_data_get_string(settings, "directbias_adjustment");
 	const char *mv_overpic_boundaries =
@@ -944,59 +904,40 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	const char *tune_quality =
 		obs_data_get_string(settings, "tune_quality");
 	//const char *deblocking = obs_data_get_string(settings, "deblocking");
-	const char *cpu_enc_tools =
-		obs_data_get_string(settings, "cpu_enc_tools");
-	const char *cpu_brc_control =
-		obs_data_get_string(settings, "cpu_brc_control");
-	const char *cpu_buffer_hints =
-		obs_data_get_string(settings, "cpu_buffer_hints");
-	int la_depth = (int)obs_data_get_int(settings, "la_depth");
-	int max_frame_size_i_multiplier =
-		(int)obs_data_get_int(settings, "max_frame_size_i_multiplier");
-	int max_frame_size_p_multiplier =
-		(int)obs_data_get_int(settings, "max_frame_size_p_multiplier");
+	const char *extbrc = obs_data_get_string(settings, "extbrc");
 	const char *intra_ref_encoding =
 		obs_data_get_string(settings, "intra_ref_encoding");
 	const char *intra_ref_type =
 		obs_data_get_string(settings, "intra_ref_type");
-	int intra_ref_cycle_size =
-		(int)obs_data_get_int(settings, "intra_ref_cycle_size");
-	int intra_ref_qp_delta =
-		(int)obs_data_get_int(settings, "intra_ref_qp_delta");
+	int intra_ref_cycle_size = static_cast<int>(
+		obs_data_get_int(settings, "intra_ref_cycle_size"));
+	int intra_ref_qp_delta = static_cast<int>(
+		obs_data_get_int(settings, "intra_ref_qp_delta"));
 
-	int width = (int)obs_encoder_get_width(obsqsv->encoder);
-	int height = (int)obs_encoder_get_height(obsqsv->encoder);
+	int width = static_cast<int>(obs_encoder_get_width(obsqsv->encoder));
+	int height = static_cast<int>(obs_encoder_get_height(obsqsv->encoder));
 
-	if (astrcmpi(target_usage, "quality") == 0) {
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BEST_QUALITY;
-		blog(LOG_INFO, "Target usage set: Quality");
-	} else if (astrcmpi(target_usage, "balanced") == 0) {
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BALANCED;
-		blog(LOG_INFO, "Target usage set: Balanced");
-	} else if (astrcmpi(target_usage, "speed") == 0) {
-		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_BEST_SPEED;
-		blog(LOG_INFO, "Target usage set: Speed");
-	} else if (astrcmpi(target_usage, "veryslow") == 0) {
+	if (astrcmpi(target_usage, "TU1 (Veryslow)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_1;
-		blog(LOG_INFO, "Target usage set: Veryslow");
-	} else if (astrcmpi(target_usage, "slower") == 0) {
+		blog(LOG_INFO, "Target usage set: TU1 (Veryslow)");
+	} else if (astrcmpi(target_usage, "TU2 (Slower)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_2;
-		blog(LOG_INFO, "Target usage set: Slower");
-	} else if (astrcmpi(target_usage, "slow") == 0) {
+		blog(LOG_INFO, "Target usage set: TU2 (Slower)");
+	} else if (astrcmpi(target_usage, "TU3 (Slow)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_3;
-		blog(LOG_INFO, "Target usage set: Slow");
-	} else if (astrcmpi(target_usage, "medium") == 0) {
+		blog(LOG_INFO, "Target usage set: TU3 (Slow)");
+	} else if (astrcmpi(target_usage, "TU4 (Balanced)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_4;
-		blog(LOG_INFO, "Target usage set: Medium");
-	} else if (astrcmpi(target_usage, "fast") == 0) {
+		blog(LOG_INFO, "Target usage set: TU4 (Balanced)");
+	} else if (astrcmpi(target_usage, "TU5 (Fast)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_5;
-		blog(LOG_INFO, "Target usage set: Fast");
-	} else if (astrcmpi(target_usage, "faster") == 0) {
+		blog(LOG_INFO, "Target usage set: TU5 (Fast)");
+	} else if (astrcmpi(target_usage, "TU6 (Faster)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_6;
-		blog(LOG_INFO, "Target usage set: Faster");
-	} else if (astrcmpi(target_usage, "veryfast") == 0) {
+		blog(LOG_INFO, "Target usage set: TU6 (Faster)");
+	} else if (astrcmpi(target_usage, "TU7 (Veryfast)") == 0) {
 		obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_7;
-		blog(LOG_INFO, "Target usage set: Veryfast");
+		blog(LOG_INFO, "Target usage set: TU7 (Veryfast)");
 	}
 
 	// Unsupported on dGPU
@@ -1025,8 +966,8 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	} else if (astrcmpi(tune_quality, "OFF") == 0) {
 		obsqsv->params.nTuneQualityMode = 0;
 	}
-
-	if (obsqsv->codec == QSV_CODEC_AVC) {
+	switch (obsqsv->codec) {
+	case QSV_CODEC_AVC:
 		codec = "H.264";
 		if (astrcmpi(profile, "baseline") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_BASELINE;
@@ -1036,8 +977,16 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_HIGH;
 		} else if (astrcmpi(profile, "extended") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_EXTENDED;
+		} else if (astrcmpi(profile, "high10") == 0) {
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_HIGH10;
+		} else if (astrcmpi(profile, "high422") == 0) {
+			obsqsv->params.CodecProfile = MFX_PROFILE_AVC_HIGH_422;
+		} else if (astrcmpi(profile, "progressive high") == 0) {
+			obsqsv->params.CodecProfile =
+				MFX_PROFILE_AVC_PROGRESSIVE_HIGH;
 		}
-	} else if (obsqsv->codec == QSV_CODEC_HEVC) {
+		break;
+	case QSV_CODEC_HEVC:
 		codec = "HEVC";
 		if (astrcmpi(profile, "main") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAIN;
@@ -1051,8 +1000,6 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 
 		} else if (astrcmpi(profile, "main10") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAIN10;
-			//} else if (astrcmpi(profile, "mainsp") == 0) {
-			//	obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAINSP;
 		} else if (astrcmpi(profile, "rext") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_REXT;
 		} /* else if (astrcmpi(profile, "scc") == 0) {
@@ -1064,19 +1011,22 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		} else {
 			obsqsv->params.HEVCTier = MFX_TIER_HEVC_HIGH;
 		}
-	} else if (obsqsv->codec == QSV_CODEC_AV1) {
+		break;
+	case QSV_CODEC_AV1:
 		codec = "AV1";
-		if (astrcmpi(profile, "main") == 0)
+		if (astrcmpi(profile, "main") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_AV1_MAIN;
-		else if (astrcmpi(profile, "high") == 0)
+		} else if (astrcmpi(profile, "high") == 0) {
 			obsqsv->params.CodecProfile = MFX_PROFILE_AV1_HIGH;
-	} else if (obsqsv->codec == QSV_CODEC_VP9) {
+		}
+		break;
+	case QSV_CODEC_VP9:
 		codec = "VP9";
 		obsqsv->params.CodecProfile = obsqsv->params.video_fmt_10bit
 						      ? MFX_PROFILE_VP9_2
 						      : MFX_PROFILE_VP9_0;
+		break;
 	}
-
 	obsqsv->params.VideoFormat = 5;
 	obsqsv->params.VideoFullRange = voi->range == VIDEO_RANGE_FULL;
 
@@ -1122,7 +1072,8 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	const bool hlg = voi->colorspace == VIDEO_CS_2100_HLG;
 	if (pq || hlg) {
 		const int hdr_nominal_peak_level =
-			pq ? (int)obs_get_video_hdr_nominal_peak_level()
+			pq ? static_cast<int>(
+				     obs_get_video_hdr_nominal_peak_level())
 			   : (hlg ? 1000 : 0);
 
 		obsqsv->params.DisplayPrimariesX[0] = 13250;
@@ -1134,11 +1085,13 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.WhitePointX = 15635;
 		obsqsv->params.WhitePointY = 16450;
 		obsqsv->params.MaxDisplayMasteringLuminance =
-			hdr_nominal_peak_level * 10000;
+			static_cast<mfxU32>(hdr_nominal_peak_level * 10000);
 		obsqsv->params.MinDisplayMasteringLuminance = 0;
 
-		obsqsv->params.MaxContentLightLevel = hdr_nominal_peak_level;
-		obsqsv->params.MaxPicAverageLightLevel = hdr_nominal_peak_level;
+		obsqsv->params.MaxContentLightLevel =
+			static_cast<mfxU16>(hdr_nominal_peak_level);
+		obsqsv->params.MaxPicAverageLightLevel =
+			static_cast<mfxU16>(hdr_nominal_peak_level);
 	}
 
 	/* internal convenience parameter, overrides rate control param
@@ -1160,11 +1113,11 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.nMotionVectorsOverPicBoundaries = -1;
 	}
 
-	if (astrcmpi(gop_opt_flag, "OPEN") == 0) {
-		obsqsv->params.bGopOptFlag = 1;
-	} else {
-		obsqsv->params.bGopOptFlag = 0;
-	}
+	//if (astrcmpi(gop_opt_flag, "OPEN") == 0) {
+	//	obsqsv->params.bGopOptFlag = 1;
+	//} else {
+	//	obsqsv->params.bGopOptFlag = 0;
+	//}
 
 	if (astrcmpi(mbbrc, "ON") == 0) {
 		obsqsv->params.bMBBRC = 1;
@@ -1182,24 +1135,10 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	//	obsqsv->params.bDeblockingIdc = -1;
 	//}
 
-	if (astrcmpi(cpu_enc_tools, "ON") == 0) {
-		obsqsv->params.bCPUEncTools = 1;
-	} else if (astrcmpi(cpu_enc_tools, "OFF") == 0) {
-		obsqsv->params.bCPUEncTools = 0;
-	} else {
-		obsqsv->params.bCPUEncTools = -1;
-	}
-
-	if (astrcmpi(cpu_brc_control, "ON") == 0) {
-		obsqsv->params.bCPUBRCControl = 1;
-	} else if (astrcmpi(cpu_brc_control, "OFF") == 0) {
-		obsqsv->params.bCPUBRCControl = 0;
-	}
-
-	if (astrcmpi(cpu_buffer_hints, "ON") == 0) {
-		obsqsv->params.bCPUBufferHints = 1;
-	} else if (astrcmpi(cpu_buffer_hints, "OFF") == 0) {
-		obsqsv->params.bCPUBufferHints = 0;
+	if (astrcmpi(extbrc, "ON") == 0) {
+		obsqsv->params.bExtBRC = 1;
+	} else if (astrcmpi(extbrc, "OFF") == 0) {
+		obsqsv->params.bExtBRC = 0;
 	}
 
 	/*Unsupported on dGPU*/
@@ -1260,6 +1199,12 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.bGlobalMotionBiasAdjustment = -1;
 	}
 
+	if (astrcmpi(lookahead, "ON") == 0) {
+		obsqsv->params.bLookahead = true;
+	} else if (astrcmpi(lookahead, "OFF") == 0) {
+		obsqsv->params.bLookahead = false;
+	}
+
 	if (astrcmpi(lookahead_ds, "SLOW") == 0) {
 		obsqsv->params.nLookAheadDS = 0;
 	} else if (astrcmpi(lookahead_ds, "MEDIUM") == 0) {
@@ -1268,6 +1213,16 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.nLookAheadDS = 2;
 	} else if (astrcmpi(lookahead_ds, "AUTO") == 0) {
 		obsqsv->params.nLookAheadDS = -1;
+	}
+
+	if (astrcmpi(lookahead_latency, "HIGH") == 0) {
+		obsqsv->params.nLADepth = 100;
+	} else if (astrcmpi(lookahead_latency, "NORMAL") == 0) {
+		obsqsv->params.nLADepth = 60;
+	} else if (astrcmpi(lookahead_latency, "LOW") == 0) {
+		obsqsv->params.nLADepth = 40;
+	} else if (astrcmpi(lookahead_latency, "VERYLOW") == 0) {
+		obsqsv->params.nLADepth = 20;
 	}
 
 	if (astrcmpi(adaptive_i, "ON") == 0) {
@@ -1343,53 +1298,43 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	}
 
 	if (astrcmpi(trellis, "OFF") == 0) {
-		obsqsv->params.nTrellis = (int)0;
+		obsqsv->params.nTrellis = 0;
 	} else if (astrcmpi(trellis, "AUTO") == 0) {
-		obsqsv->params.nTrellis = (int)-1;
+		obsqsv->params.nTrellis = -1;
 	} else if (astrcmpi(trellis, "I") == 0) {
-		obsqsv->params.nTrellis = (int)1;
+		obsqsv->params.nTrellis = 1;
 	} else if (astrcmpi(trellis, "IP") == 0) {
-		obsqsv->params.nTrellis = (int)2;
+		obsqsv->params.nTrellis = 2;
 	} else if (astrcmpi(trellis, "IPB") == 0) {
-		obsqsv->params.nTrellis = (int)3;
+		obsqsv->params.nTrellis = 3;
 	} else if (astrcmpi(trellis, "IB") == 0) {
-		obsqsv->params.nTrellis = (int)4;
+		obsqsv->params.nTrellis = 4;
 	} else if (astrcmpi(trellis, "P") == 0) {
-		obsqsv->params.nTrellis = (int)5;
+		obsqsv->params.nTrellis = 5;
 	} else if (astrcmpi(trellis, "PB") == 0) {
-		obsqsv->params.nTrellis = (int)6;
+		obsqsv->params.nTrellis = 6;
 	} else if (astrcmpi(trellis, "B") == 0) {
-		obsqsv->params.nTrellis = (int)7;
+		obsqsv->params.nTrellis = 7;
 	}
 
 	if (astrcmpi(denoise_mode, "OFF") == 0) {
-		obsqsv->params.nDenoiseMode = (int)-1;
+		obsqsv->params.nDenoiseMode = -1;
 	} else if (astrcmpi(denoise_mode, "DEFAULT") == 0) {
-		obsqsv->params.nDenoiseMode = (int)0;
+		obsqsv->params.nDenoiseMode = 0;
 	} else if (astrcmpi(denoise_mode, "AUTO | BDRATE | PRE ENCODE") == 0) {
-		obsqsv->params.nDenoiseMode = (int)1;
+		obsqsv->params.nDenoiseMode = 1;
 	} else if (astrcmpi(denoise_mode, "AUTO | ADJUST | POST ENCODE") == 0) {
-		obsqsv->params.nDenoiseMode = (int)2;
+		obsqsv->params.nDenoiseMode = 2;
 	} else if (astrcmpi(denoise_mode, "AUTO | SUBJECTIVE | PRE ENCODE") ==
 		   0) {
-		obsqsv->params.nDenoiseMode = (int)3;
+		obsqsv->params.nDenoiseMode = 3;
 	} else if (astrcmpi(denoise_mode, "MANUAL | PRE ENCODE") == 0) {
-		obsqsv->params.nDenoiseMode = (int)4;
-		obsqsv->params.nDenoiseStrength = denoise_strength;
+		obsqsv->params.nDenoiseMode = 4;
+		obsqsv->params.nDenoiseStrength = static_cast<mfxU16>(denoise_strength);
 	} else if (astrcmpi(denoise_mode, "MANUAL | POST ENCODE") == 0) {
-		obsqsv->params.nDenoiseMode = (int)5;
-		obsqsv->params.nDenoiseStrength = denoise_strength;
+		obsqsv->params.nDenoiseMode = 5;
+		obsqsv->params.nDenoiseStrength = static_cast<mfxU16>(denoise_strength);
 	}
-
-	//if (astrcmpi(hevc_ctu, "16") == 0) {
-	//	obsqsv->params.nCTU = (mfxU16)16;
-	//} else if (astrcmpi(hevc_ctu, "32") == 0) {
-	//	obsqsv->params.nCTU = (mfxU16)32;
-	//} else if (astrcmpi(hevc_ctu, "64") == 0) {
-	//	obsqsv->params.nCTU = (mfxU16)64;
-	//} else if (astrcmpi(hevc_ctu, "AUTO") == 0) {
-	//	obsqsv->params.nCTU = (mfxU16)0;
-	//}
 
 	if (astrcmpi(hevc_sao, "DISABLE") == 0) {
 		obsqsv->params.nSAO = 0;
@@ -1415,81 +1360,62 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.RateControl = MFX_RATECONTROL_CBR;
 	} else if (astrcmpi(rate_control, "VBR") == 0) {
 		obsqsv->params.RateControl = MFX_RATECONTROL_VBR;
-	} else if (astrcmpi(rate_control, "VCM") == 0) {
-		obsqsv->params.RateControl = MFX_RATECONTROL_VCM;
 	} else if (astrcmpi(rate_control, "CQP") == 0) {
 		obsqsv->params.RateControl = MFX_RATECONTROL_CQP;
-	} else if (astrcmpi(rate_control, "AVBR") == 0) {
-		obsqsv->params.RateControl = MFX_RATECONTROL_AVBR;
 	} else if (astrcmpi(rate_control, "ICQ") == 0) {
 		obsqsv->params.RateControl = MFX_RATECONTROL_ICQ;
-	} else if (astrcmpi(rate_control, "LA_ICQ") == 0) {
-		obsqsv->params.RateControl = MFX_RATECONTROL_LA_ICQ;
-	} else if (astrcmpi(rate_control, "LA_VBR") == 0) {
-		obsqsv->params.RateControl = MFX_RATECONTROL_LA;
-	} else if (astrcmpi(rate_control, "LA_CBR") == 0) {
-		obsqsv->params.RateControl = MFX_RATECONTROL_LA_HRD;
 	} else if (astrcmpi(rate_control, "LA_EXT_ICQ") == 0) {
 		obsqsv->params.bLAExtBRC = 1;
 		obsqsv->params.RateControl = MFX_RATECONTROL_ICQ;
-		/*la_depth = la_depth > 0 ? (mfxU16)la_depth : (mfxU16)40;*/
 	}
 
 	obsqsv->params.nAsyncDepth =
-		(int)obs_data_get_int(settings, "async_depth");
-
-	obsqsv->params.nLADepth = (mfxU16)la_depth;
-
-	if (la_depth > 0) {
-		obsqsv->params.bLAExtBRC = 1;
-	}
-
-	if (obsqsv->params.nLADepth > 100) {
-		obsqsv->params.nLADepth = (mfxU16)100;
-	}
-
-	obsqsv->params.nAccuracy = (mfxU16)accuracy;
-	obsqsv->params.nConvergence = (mfxU16)convergence;
+		static_cast<mfxU16>(obs_data_get_int(settings, "async_depth"));
 
 	int actual_cqp = cqp;
 	if (obsqsv->codec == QSV_CODEC_AV1) {
 		actual_cqp *= 4;
 	}
-	obsqsv->params.nQPI = (mfxU16)actual_cqp;
-	obsqsv->params.nQPP = (mfxU16)actual_cqp;
-	obsqsv->params.nQPB = (mfxU16)actual_cqp;
+	obsqsv->params.nQPI = static_cast<mfxU16>(actual_cqp);
+	obsqsv->params.nQPP = static_cast<mfxU16>(actual_cqp);
+	obsqsv->params.nQPB = static_cast<mfxU16>(actual_cqp);
 
-	obsqsv->params.nDeviceNum = (int)device_num;
-	obsqsv->params.nTargetBitRate = (mfxU16)(target_bitrate / 100);
+	obsqsv->params.nDeviceNum = device_num;
+	obsqsv->params.nTargetBitRate = static_cast<mfxU16>(target_bitrate / 100);
 	obsqsv->params.bCustomBufferSize = (bool)custom_buffer_size;
-	obsqsv->params.nBufferSize = (mfxU16)(buffer_size / 100);
-	obsqsv->params.nMaxBitRate = (mfxU16)(max_bitrate / 100);
-	obsqsv->params.nWidth = (mfxU16)width;
-	obsqsv->params.nHeight = (mfxU16)height;
-	obsqsv->params.nFpsNum = (mfxU16)voi->fps_num;
-	obsqsv->params.nFpsDen = (mfxU16)voi->fps_den;
+	obsqsv->params.nBufferSize = static_cast<mfxU16>(buffer_size / 100);
+	obsqsv->params.nMaxBitRate = static_cast<mfxU16>(max_bitrate / 100);
+	obsqsv->params.nWidth = static_cast<mfxU16>(width);
+	obsqsv->params.nHeight = static_cast<mfxU16>(height);
+	obsqsv->params.nFpsNum = static_cast<mfxU16>(voi->fps_num);
+	obsqsv->params.nFpsDen = static_cast<mfxU16>(voi->fps_den);
 
-	obsqsv->params.nGOPRefDist = (mfxU16)gop_ref_dist;
-	obsqsv->params.nKeyIntSec = (mfxU16)keyint_sec;
-	obsqsv->params.nICQQuality = (mfxU16)icq_quality;
-	obsqsv->params.nNumRefFrame = (mfxU16)num_ref_frame;
-	obsqsv->params.nNumRefFrameLayers = (mfxU16)num_ref_frame_layers;
-	obsqsv->params.nWinBRCMaxAvgSize = (mfxU16)winbrc_max_avg_size;
-	obsqsv->params.nWinBRCSize = (mfxU16)winbrc_size;
+	obsqsv->params.nGOPRefDist = static_cast<mfxU16>(gop_ref_dist);
+	obsqsv->params.nKeyIntSec = static_cast<mfxU16>(keyint_sec);
+	obsqsv->params.nICQQuality = static_cast<mfxU16>(icq_quality);
+	obsqsv->params.nNumRefFrame = static_cast<mfxU16>(num_ref_frame);
+	obsqsv->params.nNumRefFrameLayers = static_cast<mfxU16>(num_ref_frame_layers);
+	obsqsv->params.nWinBRCMaxAvgSize = static_cast<mfxU16>(winbrc_max_avg_size);
+	obsqsv->params.nWinBRCSize = static_cast<mfxU16>(winbrc_size);
 
-	obsqsv->params.nIntraRefCycleSize = (mfxU16)intra_ref_cycle_size;
-	obsqsv->params.nIntraRefQPDelta = (mfxI16)intra_ref_qp_delta;
+	obsqsv->params.nIntraRefCycleSize = static_cast<mfxU16>(intra_ref_cycle_size);
+	obsqsv->params.nIntraRefQPDelta = static_cast<mfxU16>(intra_ref_qp_delta);
 
-	if (voi->format == VIDEO_FORMAT_NV12) {
+	switch (voi->format) {
+	default:
+	case VIDEO_FORMAT_NV12:
 		obsqsv->params.nFourCC = MFX_FOURCC_NV12;
 		obsqsv->params.nChromaFormat = MFX_CHROMAFORMAT_YUV420;
-	} else if (voi->format == VIDEO_FORMAT_P010) {
+		break;
+	case VIDEO_FORMAT_P010:
 		obsqsv->params.nFourCC = MFX_FOURCC_P010;
 		obsqsv->params.nChromaFormat = MFX_CHROMAFORMAT_YUV420;
-	} else if (voi->format == VIDEO_FORMAT_RGBA ||
-		   voi->format == VIDEO_FORMAT_BGRA) {
+		break;
+	case VIDEO_FORMAT_RGBA:
+	case VIDEO_FORMAT_BGRA:
 		obsqsv->params.nFourCC = MFX_FOURCC_RGB4;
 		obsqsv->params.nChromaFormat = MFX_CHROMAFORMAT_YUV444;
+		break;
 	}
 
 	info("settings:\n"
@@ -1497,27 +1423,18 @@ static void update_params(struct obs_qsv *obsqsv, obs_data_t *settings)
 	     "\trate_control:   %s",
 	     codec, rate_control);
 
-	if (obsqsv->params.RateControl != MFX_RATECONTROL_LA_ICQ &&
-	    obsqsv->params.RateControl != MFX_RATECONTROL_ICQ &&
+	if (obsqsv->params.RateControl != MFX_RATECONTROL_ICQ &&
 	    obsqsv->params.RateControl != MFX_RATECONTROL_CQP)
 		blog(LOG_INFO, "\ttarget_bitrate: %d",
-		     (int)obsqsv->params.nTargetBitRate * 100);
+		     obsqsv->params.nTargetBitRate * 100);
 
-	if (obsqsv->params.RateControl == MFX_RATECONTROL_VBR ||
-	    obsqsv->params.RateControl == MFX_RATECONTROL_VCM)
+	if (obsqsv->params.RateControl == MFX_RATECONTROL_VBR)
 		blog(LOG_INFO, "\tmax_bitrate:    %d",
-		     (int)obsqsv->params.nMaxBitRate * 100);
+		     obsqsv->params.nMaxBitRate * 100);
 
-	if (obsqsv->params.RateControl == MFX_RATECONTROL_LA_ICQ ||
-	    obsqsv->params.RateControl == MFX_RATECONTROL_ICQ)
+	if (obsqsv->params.RateControl == MFX_RATECONTROL_ICQ)
 		blog(LOG_INFO, "\tICQ Quality:    %d",
-		     (int)obsqsv->params.nICQQuality);
-
-	/*if (obsqsv->params.RateControl == MFX_RATECONTROL_LA_ICQ ||
-		obsqsv->params.RateControl == MFX_RATECONTROL_LA ||
-		obsqsv->params.RateControl == MFX_RATECONTROL_LA_HRD)
-		blog(LOG_INFO, "\tLookahead Depth:%d",
-			(int)obsqsv->params.nLADEPTH);*/
+		     obsqsv->params.nICQQuality);
 
 	if (obsqsv->params.RateControl == MFX_RATECONTROL_CQP)
 		blog(LOG_INFO, "\tCQP:            %d\n", actual_cqp);
@@ -1592,6 +1509,8 @@ static void load_headers(struct obs_qsv *obsqsv)
 
 static bool obs_qsv_update(void *data, obs_data_t *settings)
 {
+	data;
+	settings;
 	//struct obs_qsv *obsqsv = data;
 
 	//obsqsv->params.bResetAllowed = false;
@@ -1623,7 +1542,8 @@ static bool obs_qsv_update(void *data, obs_data_t *settings)
 static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 			    obs_encoder_t *encoder)
 {
-	struct obs_qsv *obsqsv = bzalloc(sizeof(struct obs_qsv));
+	struct obs_qsv *obsqsv =
+		static_cast<obs_qsv *>(bzalloc(sizeof(struct obs_qsv)));
 	obsqsv->encoder = encoder;
 	obsqsv->codec = codec;
 
@@ -1643,9 +1563,8 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 		obsqsv->params.video_fmt_10bit = true;
 		break;
 	default:
-		switch (voi->colorspace) {
-		case VIDEO_CS_2100_PQ:
-		case VIDEO_CS_2100_HLG: {
+		if (voi->colorspace == VIDEO_CS_2100_PQ ||
+		    voi->colorspace == VIDEO_CS_2100_HLG) {
 			const char *const text =
 				obs_module_text("8bitUnsupportedHdr");
 			obs_encoder_set_last_error(encoder, text);
@@ -1653,20 +1572,20 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 			bfree(obsqsv);
 			return NULL;
 		}
-		}
 	}
 
 	if (update_settings(obsqsv, settings)) {
-		AcquireSRWLockExclusive(&g_QsvLock);
+		pthread_mutex_lock(&g_QsvLock);
 		obsqsv->context = qsv_encoder_open(&obsqsv->params, codec);
-		ReleaseSRWLockExclusive(&g_QsvLock);
+		pthread_mutex_unlock(&g_QsvLock);
 
-		if (obsqsv->context == NULL)
+		if (obsqsv->context == NULL) {
 			warn("qsv failed to load");
-		else if (obsqsv->codec == QSV_CODEC_HEVC)
+		} else if (obsqsv->codec == QSV_CODEC_HEVC) {
 			load_hevc_headers(obsqsv);
-		else
+		} else {
 			load_headers(obsqsv);
+		}
 	} else {
 		warn("bad settings specified");
 	}
@@ -1677,22 +1596,6 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 	     "\tmajor:          %d\n"
 	     "\tminor:          %d",
 	     g_verMajor, g_verMinor);
-	int64_t interval = obsqsv->params.nGOPRefDist;
-	int64_t GopPicSize = 0;
-	if (obsqsv->params.nKeyIntSec == 0) {
-		int64_t GopPicSize =
-			(int64_t)(((obsqsv->params.nFpsNum +
-				    (float)obsqsv->params.nFpsDen - 1) /
-				   (float)obsqsv->params.nFpsDen) *
-				  10);
-	} else {
-		int64_t GopPicSize = (int64_t)(obsqsv->params.nKeyIntSec *
-					       obsqsv->params.nFpsNum /
-					       (float)obsqsv->params.nFpsDen);
-	}
-
-	/*g_pts2dtsShift = GopPicSize - (GopPicSize / interval) * interval;*/
-	//g_pts2dtsShift = -1;
 
 	if (!obsqsv->context) {
 		bfree(obsqsv);
@@ -1726,21 +1629,13 @@ static void *obs_qsv_create_vp9(obs_data_t *settings, obs_encoder_t *encoder)
 	return obs_qsv_create(QSV_CODEC_VP9, settings, encoder);
 }
 
-static inline bool valid_format(enum video_format format)
+static inline bool valid_sdr_format(enum video_format format)
 {
-	enum qsv_cpu_platform qsv_platform = qsv_get_cpu_platform();
-
-	// Platforms >= KBL have direct ARGB encoding support
-	if (qsv_platform >= QSV_CPU_PLATFORM_KBL) {
-		return format == VIDEO_FORMAT_NV12 ||
-		       format == VIDEO_FORMAT_RGBA ||
-		       format == VIDEO_FORMAT_BGRA;
-	} else {
-		return format == VIDEO_FORMAT_NV12;
-	}
+	return format == VIDEO_FORMAT_NV12 || format == VIDEO_FORMAT_RGBA ||
+	       format == VIDEO_FORMAT_BGRA;
 }
 
-static inline bool valid_av1_format(enum video_format format)
+static inline bool valid_hdr_format(enum video_format format)
 {
 	return format == VIDEO_FORMAT_NV12 || format == VIDEO_FORMAT_RGBA ||
 	       format == VIDEO_FORMAT_P010 || format == VIDEO_FORMAT_BGRA;
@@ -1762,8 +1657,8 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
 	video_t *video = obs_encoder_video(encoder);
 	const struct video_output_info *voi = video_output_get_info(video);
 
-	if (!valid_format(voi->format) ||
-	    (codec == QSV_CODEC_AV1 && !valid_av1_format(voi->format))) {
+	if (!valid_sdr_format(voi->format) ||
+	    (codec == QSV_CODEC_AV1 && !valid_hdr_format(voi->format))) {
 		blog(LOG_INFO,
 		     ">>> unsupported video format, fall back to non-texture encoder");
 		return obs_encoder_create_rerouted(encoder,
@@ -1795,6 +1690,16 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
 		     ">>> encoder scaling active, fall back to non-texture encoder");
 		return obs_encoder_create_rerouted(encoder,
 						   (const char *)fallback_id);
+	}
+
+	if (obs_encoder_scaling_enabled(encoder)) {
+		if (!obs_encoder_gpu_scaling_enabled(encoder)) {
+			blog(LOG_INFO,
+			     ">>> encoder CPU scaling active, fall back to old qsv encoder");
+			return obs_encoder_create_rerouted(
+				encoder, (const char *)fallback_id);
+		}
+		blog(LOG_INFO, ">>> encoder GPU scaling active");
 	}
 
 	blog(LOG_INFO, ">>> Texture encoder");
@@ -1831,7 +1736,7 @@ static void *obs_qsv_create_tex_vp9(obs_data_t *settings,
 
 static bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size)
 {
-	struct obs_qsv *obsqsv = data;
+	struct obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
 	if (!obsqsv->context)
 		return false;
@@ -1843,7 +1748,7 @@ static bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size)
 
 static bool obs_qsv_sei(void *data, uint8_t **sei, size_t *size)
 {
-	struct obs_qsv *obsqsv = data;
+	struct obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
 	if (!obsqsv->context)
 		return false;
@@ -1856,12 +1761,8 @@ static bool obs_qsv_sei(void *data, uint8_t **sei, size_t *size)
 static inline void cap_resolution(struct obs_qsv *obsqsv,
 				  struct video_scale_info *info)
 {
-	enum qsv_cpu_platform qsv_platform = qsv_get_cpu_platform();
 	uint32_t width = obs_encoder_get_width(obsqsv->encoder);
 	uint32_t height = obs_encoder_get_height(obsqsv->encoder);
-
-	if (qsv_encoder_is_dgpu(obsqsv->context))
-		qsv_platform = QSV_CPU_PLATFORM_UNKNOWN;
 
 	info->height = height;
 	info->width = width;
@@ -1869,16 +1770,17 @@ static inline void cap_resolution(struct obs_qsv *obsqsv,
 
 static void obs_qsv_video_info(void *data, struct video_scale_info *info)
 {
-	struct obs_qsv *obsqsv = data;
+	struct obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 	enum video_format pref_format;
 
 	/*pref_format = qsv_encoder_get_video_format(obsqsv->context);*/
 
 	pref_format = obs_encoder_get_preferred_video_format(obsqsv->encoder);
 
-	if (!valid_format(pref_format)) {
-		pref_format = valid_format(info->format) ? info->format
-							 : VIDEO_FORMAT_NV12;
+	if (!valid_sdr_format(pref_format)) {
+		pref_format = valid_sdr_format(info->format)
+				      ? info->format
+				      : VIDEO_FORMAT_NV12;
 	}
 
 	info->format = pref_format;
@@ -1888,13 +1790,13 @@ static void obs_qsv_video_info(void *data, struct video_scale_info *info)
 static void obs_qsv_video_plus_hdr_info(void *data,
 					struct video_scale_info *info)
 {
-	struct obs_qsv *obsqsv = data;
+	struct obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 	enum video_format pref_format;
 
 	pref_format = obs_encoder_get_preferred_video_format(obsqsv->encoder);
 
-	if (!valid_av1_format(pref_format)) {
-		pref_format = valid_av1_format(info->format)
+	if (!valid_hdr_format(pref_format)) {
+		pref_format = valid_hdr_format(info->format)
 				      ? info->format
 				      : VIDEO_FORMAT_NV12;
 	}
@@ -1912,18 +1814,20 @@ static int64_t ts_mfx_to_obs(mfxI64 ts, const struct video_output_info *voi)
 {
 	int64_t div = 90000 * (int64_t)voi->fps_den;
 	/* Round to the nearest integer multiple of `voi->fps_den`. */
-	if (ts < 0)
-		return ((ts * voi->fps_num - div / 2) / div * voi->fps_den);
-	else
-		return ((ts * voi->fps_num + div / 2) / div * voi->fps_den);
+	return voi->fps_num * ts / 90000;
+	//if (ts < 0)
+	//	return ((ts * voi->fps_num - div / 2) / div * voi->fps_den);
+	//else
+	//	return ((ts * voi->fps_num + div / 2) / div * voi->fps_den);
 }
 
-static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
-			 mfxBitstream *pBS, const struct video_output_info *voi,
-			 bool *received_packet)
+static void parse_packet_h264(struct obs_qsv *obsqsv,
+			      struct encoder_packet *packet, mfxBitstream *pBS,
+			      const struct video_output_info *voi,
+			      bool *received_packet)
 {
-	uint8_t *start, *end;
-	int type;
+	//uint8_t *start, *end;
+	//int type;
 
 	if (pBS == NULL || pBS->DataLength == 0) {
 		*received_packet = false;
@@ -1938,54 +1842,45 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 	packet->size = obsqsv->packet_data.num;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
-	packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-			    (pBS->FrameType & MFX_FRAMETYPE_xIDR)) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS)
-			   || (pBS->FrameType & MFX_FRAMETYPE_I) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xI);
+	//packet->keyframe = obs_avc_keyframe(packet->data, packet->size);
+	packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_IDR);
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
 
-	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
-	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) ||
-	    (frameType & MFX_FRAMETYPE_S) ||
-	    (frameType & MFX_FRAMETYPE_xS)) {
+	if ((frameType & MFX_FRAMETYPE_IDR)) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
-	} else if ((frameType & MFX_FRAMETYPE_P) ||
-		   (frameType & MFX_FRAMETYPE_REF) ||
-		   (frameType & MFX_FRAMETYPE_xREF) ||
-		   (frameType & MFX_FRAMETYPE_xP)) {
+	} else if ((frameType & MFX_FRAMETYPE_I)) {
 		priority = OBS_NAL_PRIORITY_HIGH;
+	} else if ((frameType & MFX_FRAMETYPE_P)) {
+		priority = OBS_NAL_PRIORITY_LOW;
 	} else {
 		priority = OBS_NAL_PRIORITY_DISPOSABLE;
 	}
 
-	packet->priority = priority;
+	packet->priority = static_cast<int>(priority);
+	packet->drop_priority = static_cast<int>(priority);
+	//start = obsqsv->packet_data.array;
+	//end = start + obsqsv->packet_data.num;
 
-	start = obsqsv->packet_data.array;
-	end = start + obsqsv->packet_data.num;
+	//start = (uint8_t *)obs_nal_find_startcode(start, end);
+	//while (true) {
+	//	while (start < end && !*(start++))
+	//		;
 
-	start = (uint8_t *)obs_avc_find_startcode(start, end);
-	while (true) {
-		while (start < end && !*(start++))
-			;
+	//	if (start == end)
+	//		break;
 
-		if (start == end)
-			break;
+	//	type = (int)(start[0] & 0x1F);
+	//	if (type == OBS_NAL_SLICE_IDR || type == OBS_NAL_SLICE) {
+	//		start[0] &= ~(3 << 5);
+	//		start[0] |=
+	//			priority
+	//			<< 5; //0 for non-ref frames and not equal to 0 for ref frames
+	//	}
 
-		type = start[0] & 0x1F;
-		if (type == OBS_NAL_SLICE_IDR || type == OBS_NAL_SLICE) {
-			start[0] &= ~(3 << 5);
-			start[0] |=
-				priority
-				<< 5; //0 for non-ref frames and not equal to 0 for ref frames
-		}
-
-		start = (uint8_t *)obs_avc_find_startcode(start, end);
-	}
+	//	start = (uint8_t *)obs_nal_find_startcode(start, end);
+	//}
 
 	packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
 
@@ -1999,7 +1894,7 @@ static bool obs_qsv_encode_texture_available(void *data,
 					     struct video_scale_info *info)
 {
 	UNUSED_PARAMETER(data);
-	return valid_format(info->format);
+	return valid_sdr_format(info->format);
 }
 
 static void parse_packet_av1(struct obs_qsv *obsqsv,
@@ -2022,8 +1917,6 @@ static void parse_packet_av1(struct obs_qsv *obsqsv,
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
 	packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_IDR) ||
 			    (pBS->FrameType & MFX_FRAMETYPE_xIDR)) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
 			   (pBS->FrameType & MFX_FRAMETYPE_I) ||
 			   (pBS->FrameType & MFX_FRAMETYPE_xI);
 
@@ -2032,8 +1925,7 @@ static void parse_packet_av1(struct obs_qsv *obsqsv,
 
 	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
 	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) || (frameType & MFX_FRAMETYPE_S) ||
-	    (frameType & MFX_FRAMETYPE_xS)) {
+	    (frameType & MFX_FRAMETYPE_xIDR)) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
 	} else if ((frameType & MFX_FRAMETYPE_P) ||
 		   (frameType & MFX_FRAMETYPE_REF) ||
@@ -2044,7 +1936,7 @@ static void parse_packet_av1(struct obs_qsv *obsqsv,
 		priority = OBS_NAL_PRIORITY_DISPOSABLE;
 	}
 
-	packet->priority = priority;
+	packet->priority = static_cast<int>(priority);
 
 	packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
 
@@ -2059,7 +1951,7 @@ static void parse_packet_hevc(struct obs_qsv *obsqsv,
 			      const struct video_output_info *voi,
 			      bool *received_packet)
 {
-	bool is_vcl_packet = false;
+	//bool is_vcl_packet = false;
 
 	if (pBS == NULL || pBS->DataLength == 0) {
 		*received_packet = false;
@@ -2074,20 +1966,20 @@ static void parse_packet_hevc(struct obs_qsv *obsqsv,
 	packet->size = obsqsv->packet_data.num;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->pts = ts_mfx_to_obs((mfxI64)pBS->TimeStamp, voi);
-	packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-			    (pBS->FrameType & MFX_FRAMETYPE_xIDR)) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_S) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_I) ||
-			   (pBS->FrameType & MFX_FRAMETYPE_xI);
+	packet->keyframe = obs_hevc_keyframe(packet->data, packet->size);
+	//packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_IDR) ||
+	//		    (pBS->FrameType & MFX_FRAMETYPE_xIDR)) ||
+	//		   (pBS->FrameType & MFX_FRAMETYPE_S) ||
+	//		   (pBS->FrameType & MFX_FRAMETYPE_xS) ||
+	//		   (pBS->FrameType & MFX_FRAMETYPE_I) ||
+	//		   (pBS->FrameType & MFX_FRAMETYPE_xI);
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
 
 	if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_xI) ||
 	    (frameType & MFX_FRAMETYPE_IDR) ||
-	    (frameType & MFX_FRAMETYPE_xIDR) || (frameType & MFX_FRAMETYPE_S) ||
-	    (frameType & MFX_FRAMETYPE_xS)) {
+	    (frameType & MFX_FRAMETYPE_xIDR)) {
 		priority = OBS_NAL_PRIORITY_HIGHEST;
 	} else if ((frameType & MFX_FRAMETYPE_P) ||
 		   (frameType & MFX_FRAMETYPE_REF) ||
@@ -2098,7 +1990,7 @@ static void parse_packet_hevc(struct obs_qsv *obsqsv,
 		priority = OBS_NAL_PRIORITY_DISPOSABLE;
 	}
 
-	packet->priority = priority;
+	packet->priority = static_cast<int>(priority);
 
 	packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
 
@@ -2130,7 +2022,6 @@ static void parse_packet_vp9(struct obs_qsv *obsqsv,
 			   (pBS->FrameType & MFX_FRAMETYPE_I) ||
 			   (pBS->FrameType & MFX_FRAMETYPE_xI) ||
 			   (pBS->FrameType & MFX_FRAMETYPE_xIDR);
-	;
 
 	uint16_t frameType = pBS->FrameType;
 	uint8_t priority;
@@ -2150,8 +2041,6 @@ static void parse_packet_vp9(struct obs_qsv *obsqsv,
 
 	packet->priority = priority;
 
-	bool pFrame = pBS->FrameType & MFX_FRAMETYPE_P;
-
 	packet->dts = packet->pts;
 
 	*received_packet = true;
@@ -2163,19 +2052,19 @@ static void parse_packet_vp9(struct obs_qsv *obsqsv,
 static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 			   struct encoder_packet *packet, bool *received_packet)
 {
-	struct obs_qsv *obsqsv = data;
+	struct obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
 	if (!frame || !packet || !received_packet) {
 		return false;
 	}
-	AcquireSRWLockExclusive(&g_QsvLock);
+	pthread_mutex_lock(&g_QsvLock);
 
 	video_t *video = obs_encoder_video(obsqsv->encoder);
 	const struct video_output_info *voi = video_output_get_info(video);
 
 	mfxBitstream *pBS = NULL;
 
-	int ret;
+	int ret = 0;
 
 	mfxU64 qsvPTS = ts_obs_to_mfx(frame->pts, voi);
 
@@ -2194,12 +2083,12 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 	if (ret < 0) {
 
 		warn("encode failed");
-		ReleaseSRWLockExclusive(&g_QsvLock);
+		pthread_mutex_unlock(&g_QsvLock);
 		return false;
 	}
 
 	if (obsqsv->codec == QSV_CODEC_AVC) {
-		parse_packet(obsqsv, packet, pBS, voi, received_packet);
+		parse_packet_h264(obsqsv, packet, pBS, voi, received_packet);
 	} else if (obsqsv->codec == QSV_CODEC_AV1) {
 		parse_packet_av1(obsqsv, packet, pBS, voi, received_packet);
 	} else if (obsqsv->codec == QSV_CODEC_HEVC) {
@@ -2208,7 +2097,7 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 		parse_packet_vp9(obsqsv, packet, pBS, voi, received_packet);
 	}
 
-	ReleaseSRWLockExclusive(&g_QsvLock);
+	pthread_mutex_unlock(&g_QsvLock);
 
 	return true;
 }
@@ -2218,7 +2107,7 @@ static bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
 			       struct encoder_packet *packet,
 			       bool *received_packet)
 {
-	struct obs_qsv *obsqsv = data;
+	struct obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
 	if (handle == GS_INVALID_HANDLE) {
 		warn("Encode failed: bad texture handle");
@@ -2229,29 +2118,27 @@ static bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
 	if (!packet || !received_packet) {
 		return false;
 	}
-	AcquireSRWLockExclusive(&g_QsvLock);
+	pthread_mutex_lock(&g_QsvLock);
 
 	video_t *video = obs_encoder_video(obsqsv->encoder);
 	const struct video_output_info *voi = video_output_get_info(video);
 
 	mfxBitstream *pBS = NULL;
 
-	int ret;
-
 	mfxU64 qsvPTS = ts_obs_to_mfx(pts, voi);
 
-	ret = qsv_encoder_encode_tex(obsqsv->context, qsvPTS, handle, lock_key,
-				     next_key, &pBS);
+	int ret = qsv_encoder_encode_tex(obsqsv->context, qsvPTS, handle,
+					 lock_key, next_key, &pBS);
 
 	if (ret < 0) {
 
 		warn("encode failed");
-		ReleaseSRWLockExclusive(&g_QsvLock);
+		pthread_mutex_unlock(&g_QsvLock);
 		return false;
 	}
 
 	if (obsqsv->codec == QSV_CODEC_AVC) {
-		parse_packet(obsqsv, packet, pBS, voi, received_packet);
+		parse_packet_h264(obsqsv, packet, pBS, voi, received_packet);
 	} else if (obsqsv->codec == QSV_CODEC_AV1) {
 		parse_packet_av1(obsqsv, packet, pBS, voi, received_packet);
 	} else if (obsqsv->codec == QSV_CODEC_HEVC) {
@@ -2260,7 +2147,7 @@ static bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
 		parse_packet_vp9(obsqsv, packet, pBS, voi, received_packet);
 	}
 
-	ReleaseSRWLockExclusive(&g_QsvLock);
+	pthread_mutex_unlock(&g_QsvLock);
 
 	return true;
 }
@@ -2269,13 +2156,13 @@ struct obs_encoder_info obs_qsv_h264_encoder = {
 	.id = "obs_qsv_vpl_h264",
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "h264",
-	.get_name = obs_qsv_getname,
+	.get_name = obs_qsv_getname_h264,
 	.create = obs_qsv_create_h264,
 	.destroy = obs_qsv_destroy,
 	.encode = obs_qsv_encode,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_h264,
 	.get_defaults = obs_qsv_defaults_h264,
+	.get_properties = obs_qsv_props_h264,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_info,
@@ -2289,9 +2176,9 @@ struct obs_encoder_info obs_qsv_av1_encoder = {
 	.create = obs_qsv_create_av1,
 	.destroy = obs_qsv_destroy,
 	.encode = obs_qsv_encode,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_av1,
 	.get_defaults = obs_qsv_defaults_av1,
+	.get_properties = obs_qsv_props_av1,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
@@ -2305,9 +2192,9 @@ struct obs_encoder_info obs_qsv_hevc_encoder = {
 	.create = obs_qsv_create_hevc,
 	.destroy = obs_qsv_destroy,
 	.encode = obs_qsv_encode,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_hevc,
 	.get_defaults = obs_qsv_defaults_hevc,
+	.get_properties = obs_qsv_props_hevc,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
@@ -2321,9 +2208,9 @@ struct obs_encoder_info obs_qsv_vp9_encoder = {
 	.create = obs_qsv_create_vp9,
 	.destroy = obs_qsv_destroy,
 	.encode = obs_qsv_encode,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_vp9,
 	.get_defaults = obs_qsv_defaults_vp9,
+	.get_properties = obs_qsv_props_vp9,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
@@ -2333,17 +2220,17 @@ struct obs_encoder_info obs_qsv_h264_encoder_tex = {
 	.id = "obs_qsv_vpl_tex_h264",
 	.type = OBS_ENCODER_VIDEO,
 	.codec = "h264",
-	.get_name = obs_qsv_getname,
+	.get_name = obs_qsv_getname_h264,
 	.create = obs_qsv_create_tex_h264,
 	.destroy = obs_qsv_destroy,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_h264,
 	.get_defaults = obs_qsv_defaults_h264,
+	.get_properties = obs_qsv_props_h264,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
-	.get_video_info = obs_qsv_video_info};
+	.get_video_info = obs_qsv_video_info,
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
+	.encode_texture = obs_qsv_encode_tex};
 
 struct obs_encoder_info obs_qsv_av1_encoder_tex = {
 	.id = "obs_qsv_vpl_tex_av1",
@@ -2352,14 +2239,14 @@ struct obs_encoder_info obs_qsv_av1_encoder_tex = {
 	.get_name = obs_qsv_getname_av1,
 	.create = obs_qsv_create_tex_av1,
 	.destroy = obs_qsv_destroy,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_av1,
 	.get_defaults = obs_qsv_defaults_av1,
+	.get_properties = obs_qsv_props_av1,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
+	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
-};
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
+	.encode_texture = obs_qsv_encode_tex};
 
 struct obs_encoder_info obs_qsv_hevc_encoder_tex = {
 	.id = "obs_qsv_vpl_tex_hevc",
@@ -2368,14 +2255,14 @@ struct obs_encoder_info obs_qsv_hevc_encoder_tex = {
 	.get_name = obs_qsv_getname_hevc,
 	.create = obs_qsv_create_tex_hevc,
 	.destroy = obs_qsv_destroy,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_hevc,
 	.get_defaults = obs_qsv_defaults_hevc,
+	.get_properties = obs_qsv_props_hevc,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
+	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
-};
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
+	.encode_texture = obs_qsv_encode_tex};
 
 struct obs_encoder_info obs_qsv_vp9_encoder_tex = {
 	.id = "obs_qsv_vpl_tex_vp9",
@@ -2384,11 +2271,11 @@ struct obs_encoder_info obs_qsv_vp9_encoder_tex = {
 	.get_name = obs_qsv_getname_vp9,
 	.create = obs_qsv_create_tex_vp9,
 	.destroy = obs_qsv_destroy,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex,
-	.update = obs_qsv_update,
-	.get_properties = obs_qsv_props_vp9,
 	.get_defaults = obs_qsv_defaults_vp9,
+	.get_properties = obs_qsv_props_vp9,
+	.update = obs_qsv_update,
 	.get_extra_data = obs_qsv_extra_data,
+	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
-};
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
+	.encode_texture = obs_qsv_encode_tex};

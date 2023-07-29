@@ -93,9 +93,9 @@ enum qsv_cpu_platform qsv_get_cpu_platform()
 	util_cpuid(cpuInfo, 0);
 
 	string vendor;
-	vendor += string((char *)&cpuInfo[1], 4);
-	vendor += string((char *)&cpuInfo[3], 4);
-	vendor += string((char *)&cpuInfo[2], 4);
+	vendor += string(reinterpret_cast<char *>(&cpuInfo[1]), 4);
+	vendor += string(reinterpret_cast<char *>(&cpuInfo[3]), 4);
+	vendor += string(reinterpret_cast<char *>(&cpuInfo[2]), 4);
 
 	if (vendor != "GenuineIntel")
 		return QSV_CPU_PLATFORM_UNKNOWN;

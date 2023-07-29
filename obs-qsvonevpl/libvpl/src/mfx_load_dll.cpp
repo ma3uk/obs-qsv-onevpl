@@ -6,7 +6,7 @@
 
 #include "mfx_load_dll.h"
 #include "mfx_dispatcher.h"
-#include "mfx.h"
+
 #include <string.h>
 #include <wchar.h>
 #include <windows.h>

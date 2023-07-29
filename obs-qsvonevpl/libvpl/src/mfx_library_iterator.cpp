@@ -11,7 +11,7 @@
 
 #include "mfx_dxva2_device.h"
 #include "mfx_load_dll.h"
-#include "mfx.h"
+
 #include <tchar.h>
 #include <windows.h>
 

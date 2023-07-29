@@ -26,12 +26,12 @@ void mfxGetTime(mfxTime *timestamp)
 
 double TimeDiffMsec(mfxTime tfinish, mfxTime tstart)
 {
-	static LARGE_INTEGER tFreq = {0};
+	static LARGE_INTEGER tFreq = {};
 
 	if (!tFreq.QuadPart)
 		QueryPerformanceFrequency(&tFreq);
 
-	double freq = (double)tFreq.QuadPart;
-	return 1000.0 * ((double)tfinish.QuadPart - (double)tstart.QuadPart) /
-	       freq;
+	double freq = static_cast<double>(tFreq.QuadPart);
+	return static_cast<double>(1000.0 * (static_cast<double>(tfinish.QuadPart) - static_cast<double>(tstart.QuadPart)) /
+	       freq);
 }

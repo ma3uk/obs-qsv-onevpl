@@ -5,7 +5,6 @@
   ############################################################################*/
 
 #include "mfx_critical_section.h"
-#include "mfx.h"
 
 #include <windows.h>
 // SDK re-declares the following functions with different call declarator.

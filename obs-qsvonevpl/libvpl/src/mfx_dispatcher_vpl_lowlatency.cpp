@@ -143,7 +143,6 @@ mfxStatus LoaderCtxVPL::LoadLibsFromDriverStore(mfxU32 numAdapters,
 
 mfxStatus LoaderCtxVPL::LoadLibsFromSystemDir(LibType libType) {
 #if defined(_WIN32) || defined(_WIN64)
-    mfxStatus sts = MFX_ERR_NONE;
 
     const CHAR_TYPE *libName = nullptr;
     const char *reqFunc      = nullptr;
@@ -196,7 +195,8 @@ mfxStatus LoaderCtxVPL::LoadLibsFromSystemDir(LibType libType) {
 #endif
 }
 
-mfxStatus LoaderCtxVPL::LoadLibsFromMultipleDirs(LibType libType) {
+mfxStatus LoaderCtxVPL::LoadLibsFromMultipleDirs(LibType libType = LibTypeVPL)
+{
 #ifdef __linux__
     // clang-format off
 

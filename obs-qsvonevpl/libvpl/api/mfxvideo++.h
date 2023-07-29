@@ -4,20 +4,12 @@
   # SPDX-License-Identifier: MIT
   ###########################################################################*/
 #pragma warning(disable : 4996)
-#define MFX_DEPRECATED_OFF
-#define ONEVPL_EXPERIMENTAL
-#define MFX_ENABLE_ENCTOOLS
-#define MFX_ENABLE_EXT
-#define MFX_ENABLE_FADE_DETECTION
-#define MFX_ENABLE_H264_REPARTITION_CHECK
-#define MFX_ENABLE_H264_ROUNDING_OFFSET
-#define MFX_ENABLE_AVCE_VDENC_B_FRAMES
-#define MFX_ENABLE_MCTF_IN_AVC
 #ifndef __MFXVIDEOPLUSPLUS_H
 #define __MFXVIDEOPLUSPLUS_H
-
+#define ONEVPL_EXPERIMENTAL
+#define MFX_DEPRECATED_OFF
 #ifdef MFXVIDEO_CPP_ENABLE_MFXLOAD
-#include "mfx.h"
+#include "vpl/mfx.h"
 #define MFX_IMPL_ACCELMODE(x) (0xff00 & (x))
 #else
 #include "mfxvideo.h"

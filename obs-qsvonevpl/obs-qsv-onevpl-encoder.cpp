@@ -106,7 +106,7 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 	isDGPU = adapters[adapter_idx].is_dgpu;
 	mfxStatus sts;
 	QSV_VPL_Encoder_Internal *pEncoder =
-		new QSV_VPL_Encoder_Internal( ver, isDGPU);
+		new QSV_VPL_Encoder_Internal(ver, isDGPU);
 
 	sts = pEncoder->Open(pParams, codec);
 
@@ -304,7 +304,8 @@ int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
 
 enum video_format qsv_encoder_get_video_format(qsv_t *pContext)
 {
-	QSV_VPL_Encoder_Internal *pEncoder = (QSV_VPL_Encoder_Internal *)pContext;
+	QSV_VPL_Encoder_Internal *pEncoder =
+		(QSV_VPL_Encoder_Internal *)pContext;
 
 	mfxU32 fourCC;
 	mfxStatus sts = pEncoder->GetCurrentFourCC(fourCC);

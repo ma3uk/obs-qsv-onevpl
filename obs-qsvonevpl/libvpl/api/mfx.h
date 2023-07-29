@@ -3,6 +3,10 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
+
+#ifndef __MFX_H__
+#define __MFX_H__
+
 #define _MFX_CONFIG_ENCODE_H_
 #define MFX_DEPRECATED_OFF
 #define ONEVPL_EXPERIMENTAL
@@ -20,29 +24,22 @@
 #define MFX_ENABLE_FADE_DETECTION
 #define MFX_ENABLE_EXT_BRC
 #define MFX_ENABLE_VIDEO_BRC_COMMON
-#ifndef __MFX_H__
-#define __MFX_H__
 
 #include "mfxdefs.h"
 #include "mfxcommon.h"
 #include "mfxstructures.h"
 #include "mfxdispatcher.h"
-#include "mfx_library_iterator.h"
-#include "mfx_load_dll.h"
-#include "mfx_dispatcher_defs.h"
-#include "mfx_dispatcher_vpl.h"
 #include "mfximplcaps.h"
 #include "mfxsession.h"
 #include "mfxvideo.h"
 #include "mfxadapter.h"
+
 #include "mfxbrc.h"
-#include "mfxmvc.h"
-#include "mfxpcp.h"
-#include "mfxvp8.h"
-#include "mfxjpeg.h"
-#include "mfxsurfacepool.h"
+
 #include "mfxenctools.h"
 #include "mfxav1.h"
+
+#include "mfxsurfacepool.h"
 
 //#ifdef ONEVPL_EXPERIMENTAL
 //#include "mfxencodestats.h"

@@ -1421,7 +1421,7 @@ bool ConfigCtxVPL::CheckLowLatencyConfig(std::list<ConfigCtxVPL *> configCtxList
         }
     }
 
-    for (mfxU32 idx = 0; idx < eProp_TotalProps; idx++) {
+    for (idx = 0; idx < eProp_TotalProps; idx++) {
         switch (idx) {
             case ePropMain_Impl:
                 if (cfgPropsAll[idx].Type == MFX_VARIANT_TYPE_U32) {

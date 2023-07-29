@@ -53,6 +53,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+#include <obs.h>
 #include <obs-module.h>
 #include <util/windows/device-enum.h>
 #include <util/config-file.h>
@@ -61,8 +62,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <util/dstr.h>
 #include "obs-qsv-onevpl-encoder.h"
 
+
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("obs-qsvonevpl", "en-US")
+OBS_MODULE_USE_DEFAULT_LOCALE("obs-qsvonevpl", "en-US");
 MODULE_EXPORT const char *obs_module_description(void)
 {
 	return "Intel Quick Sync Video support for Windows (oneVPL)";
@@ -87,7 +89,7 @@ size_t adapter_count = 0;
 
 static bool enum_luids(void *param, uint32_t idx, uint64_t luid)
 {
-	struct dstr *cmd = param;
+	struct dstr *cmd = static_cast<dstr *>(param);
 	dstr_catf(cmd, " %llX", luid);
 	UNUSED_PARAMETER(idx);
 	return true;
@@ -111,7 +113,7 @@ bool obs_module_load(void)
 	}
 
 	for (;;) {
-		char data[2048];
+		char data[2048] = "nullptr";
 		size_t len = os_process_pipe_read(pp_vpl, (uint8_t *)data,
 						  sizeof(data));
 		if (!len)

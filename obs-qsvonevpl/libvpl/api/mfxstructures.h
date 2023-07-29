@@ -3,11 +3,10 @@
   #
   # SPDX-License-Identifier: MIT
   ############################################################################*/
-#define ONEVPL_EXPERIMENTAL
+
 #ifndef __MFXSTRUCTURES_H__
 #define __MFXSTRUCTURES_H__
 #include "mfxcommon.h"
-
 
 #if !defined (__GNUC__)
 #pragma warning(disable: 4201)
@@ -235,8 +234,11 @@ enum {
     MFX_CORRUPTION_REFERENCE_FRAME = 0x0010, /*!< Decoding used a corrupted reference frame. A corrupted reference frame was used for decoding this
                                                 frame. For example, if the frame uses a reference frame that was decoded with minor/major corruption flag, then this
                                                 frame is also marked with a reference corruption flag. */
-    MFX_CORRUPTION_REFERENCE_LIST  = 0x0020  /*!< The reference list information of this frame does not match what is specified in the Reference Picture Marking
+    MFX_CORRUPTION_REFERENCE_LIST  = 0x0020, /*!< The reference list information of this frame does not match what is specified in the Reference Picture Marking
                                                   Repetition SEI message. (ITU-T H.264 D.1.8 dec_ref_pic_marking_repetition) */
+#ifdef ONEVPL_EXPERIMENTAL
+    MFX_CORRUPTION_HW_RESET        = 0x0040  /*!< The hardware reset is reported from media driver. */
+#endif
 };
 
 MFX_PACK_BEGIN_USUAL_STRUCT()
@@ -272,18 +274,18 @@ typedef struct
 } mfxA2RGB10;
 MFX_PACK_END()
 
-//#ifdef ONEVPL_EXPERIMENTAL
-//MFX_PACK_BEGIN_USUAL_STRUCT()
-///*! Specifies "pixel" in ABGR 16 bit half float point color format */
-//typedef struct
-//{
-//    mfxFP16 R; /*!< R component. */
-//    mfxFP16 G; /*!< G component. */
-//    mfxFP16 B; /*!< B component. */
-//    mfxFP16 A; /*!< A component. */
-//} mfxABGR16FP;
-//MFX_PACK_END()
-//#endif
+#ifdef ONEVPL_EXPERIMENTAL
+MFX_PACK_BEGIN_USUAL_STRUCT()
+/*! Specifies "pixel" in ABGR 16 bit half float point color format */
+typedef struct
+{
+    mfxFP16 R; /*!< R component. */
+    mfxFP16 G; /*!< G component. */
+    mfxFP16 B; /*!< B component. */
+    mfxFP16 A; /*!< A component. */
+} mfxABGR16FP;
+MFX_PACK_END()
+#endif
 
 /*! Describes frame buffer pointers. */
 MFX_PACK_BEGIN_STRUCT_W_L_TYPE()
@@ -347,9 +349,9 @@ typedef struct {
         mfxU16  *V16;   /*!< V16 channel. */
         mfxU8   *B;     /*!< B channel. */
         mfxA2RGB10 *A2RGB10; /*!< A2RGB10 channel for A2RGB10 format (merged ARGB). */
-//#ifdef ONEVPL_EXPERIMENTAL
-//        mfxABGR16FP* ABGRFP16; /*!< ABGRFP16 channel for half float ARGB format (use this merged one due to no separate FP16 Alpha Channel). */
-//#endif
+#ifdef ONEVPL_EXPERIMENTAL
+        mfxABGR16FP* ABGRFP16; /*!< ABGRFP16 channel for half float ARGB format (use this merged one due to no separate FP16 Alpha Channel). */
+#endif
     };
     mfxU8       *A;     /*!< A channel. */
     mfxMemId    MemId;  /*!< Memory ID of the data buffers. Ignored if any of the preceding data pointers is non-zero. */
@@ -367,14 +369,14 @@ MFX_PACK_END()
 
 /*! The mfxHandleType enumerator itemizes system handle types that implementations might use. */
 typedef enum {
-    MFX_HANDLE_DIRECT3D_DEVICE_MANAGER9         =1,      /*!< Pointer to the IDirect3DDeviceManager9 interface. See Working with Microsoft* DirectX* Applications for more details on how to use this handle. */
+    MFX_HANDLE_DIRECT3D_DEVICE_MANAGER9         = 1,  /*!< Pointer to the IDirect3DDeviceManager9 interface. See Working with Microsoft* DirectX* Applications for more details on how to use this handle. */
     MFX_HANDLE_D3D9_DEVICE_MANAGER              = MFX_HANDLE_DIRECT3D_DEVICE_MANAGER9, /*!< Pointer to the IDirect3DDeviceManager9 interface. See Working with Microsoft* DirectX* Applications for more details on how to use this handle. */
-    MFX_HANDLE_RESERVED1                        = 2, /* Reserved.  */
-    MFX_HANDLE_D3D11_DEVICE                     = 3, /*!< Pointer to the ID3D11Device interface. See Working with Microsoft* DirectX* Applications for more details on how to use this handle. */
-    MFX_HANDLE_VA_DISPLAY                       = 4, /*!< Pointer to VADisplay interface. See Working with VA-API Applications for more details on how to use this handle. */
-    MFX_HANDLE_RESERVED3                        = 5, /* Reserved.  */
-    MFX_HANDLE_VA_CONFIG_ID                     = 6, /*!< Pointer to VAConfigID interface. It represents external VA config for Common Encryption usage model. */
-    MFX_HANDLE_VA_CONTEXT_ID                    = 7, /*!< Pointer to VAContextID interface. It represents external VA context for Common Encryption usage model. */
+    MFX_HANDLE_RESERVED1                        = 2,  /* Reserved.  */
+    MFX_HANDLE_D3D11_DEVICE                     = 3,  /*!< Pointer to the ID3D11Device interface. See Working with Microsoft* DirectX* Applications for more details on how to use this handle. */
+    MFX_HANDLE_VA_DISPLAY                       = 4,  /*!< VADisplay interface. See Working with VA-API Applications for more details on how to use this handle. */
+    MFX_HANDLE_RESERVED3                        = 5,  /* Reserved.  */
+    MFX_HANDLE_VA_CONFIG_ID                     = 6,  /*!< Pointer to VAConfigID interface. It represents external VA config for Common Encryption usage model. */
+    MFX_HANDLE_VA_CONTEXT_ID                    = 7,  /*!< Pointer to VAContextID interface. It represents external VA context for Common Encryption usage model. */
     MFX_HANDLE_CM_DEVICE                        = 8,  /*!< Pointer to CmDevice interface ( Intel(r) C for Metal Runtime ). */
     MFX_HANDLE_HDDLUNITE_WORKLOADCONTEXT        = 9,  /*!< Pointer to HddlUnite::WorkloadContext interface. */
     MFX_HANDLE_PXP_CONTEXT                      = 10, /*!< Pointer to PXP context for protected content support. */
@@ -1756,18 +1758,8 @@ typedef struct {
        If this flag is set to OFF, regular reference frames are used for encoding.
     */
     mfxU16      AdaptiveRef;
-  
-#ifdef ONEVPL_EXPERIMENTAL
-    /*!
-       The tri-state option specifies hint for the library to execute encoding tools processing on CPU. 
-       It may give better encoding quality, but leads to higher CPU utilization. 
-       The library can ignore MFX_CODINGOPTION_ON if processing on CPU is not supported.
-    */
-    mfxU16      CPUEncToolsProcessing;
-    mfxU16      reserved[160];
-#else
+ 
     mfxU16      reserved[161];
-#endif     
   
 } mfxExtCodingOption3;
 MFX_PACK_END()
@@ -4863,7 +4855,7 @@ MFX_PACK_END()
 #ifdef ONEVPL_EXPERIMENTAL
 /*! The TuneQuality enumerator specifies tuning option for encode. Multiple tuning options can be combined using bit mask. */
 enum {
-    MFX_ENCODE_TUNE_DEFAULT = 0,   /*!< The balanced option to keep quality balanced across all metrics.  */
+    MFX_ENCODE_TUNE_OFF = 0,  /*!< Tuning quality is disabled.  */
     MFX_ENCODE_TUNE_PSNR    = 0x1, /*!< The encoder optimizes quality according to Peak Signal-to-Noise Ratio (PSNR) metric. */
     MFX_ENCODE_TUNE_SSIM    = 0x2, /*!< The encoder optimizes quality according to Structural Similarity Index Measure (SSIM) metric. */
     MFX_ENCODE_TUNE_MS_SSIM = 0x4, /*!< The encoder optimizes quality according to Multi-Scale Structural Similarity Index Measure (MS-SSIM) metric. */

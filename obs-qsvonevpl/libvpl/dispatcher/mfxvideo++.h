@@ -7,7 +7,7 @@
 #ifndef DISPATCHER_WINDOWS_MFXVIDEO___H_
 #define DISPATCHER_WINDOWS_MFXVIDEO___H_
 
-#include "mfxvideo.h"
+#include "vpl/mfxvideo.h"
 
 class MFXVideoSession {
 public:
