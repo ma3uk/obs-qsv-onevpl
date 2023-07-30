@@ -62,7 +62,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <util/dstr.h>
 #include "obs-qsv-onevpl-encoder.h"
 
-
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-qsvonevpl", "en-US");
 MODULE_EXPORT const char *obs_module_description(void)
@@ -70,26 +69,26 @@ MODULE_EXPORT const char *obs_module_description(void)
 	return "Intel Quick Sync Video support for Windows (oneVPL)";
 }
 
-extern struct obs_encoder_info obs_qsv_h264_encoder_tex;
-extern struct obs_encoder_info obs_qsv_h264_encoder;
+extern obs_encoder_info obs_qsv_h264_encoder_tex;
+extern obs_encoder_info obs_qsv_h264_encoder;
 
-extern struct obs_encoder_info obs_qsv_av1_encoder_tex;
-extern struct obs_encoder_info obs_qsv_av1_encoder;
+extern obs_encoder_info obs_qsv_av1_encoder_tex;
+extern obs_encoder_info obs_qsv_av1_encoder;
 
-extern struct obs_encoder_info obs_qsv_hevc_encoder_tex;
-extern struct obs_encoder_info obs_qsv_hevc_encoder;
+extern obs_encoder_info obs_qsv_hevc_encoder_tex;
+extern obs_encoder_info obs_qsv_hevc_encoder;
 
-extern struct obs_encoder_info obs_qsv_vp9_encoder_tex;
-extern struct obs_encoder_info obs_qsv_vp9_encoder;
+extern obs_encoder_info obs_qsv_vp9_encoder_tex;
+extern obs_encoder_info obs_qsv_vp9_encoder;
 
 extern bool av1_supported(mfxIMPL impl);
 
-struct adapter_info adapters[MAX_ADAPTERS] = {0};
+adapter_info adapters[MAX_ADAPTERS] = {0};
 size_t adapter_count = 0;
 
 static bool enum_luids(void *param, uint32_t idx, uint64_t luid)
 {
-	struct dstr *cmd = static_cast<dstr *>(param);
+	dstr *cmd = static_cast<dstr *>(param);
 	dstr_catf(cmd, " %llX", luid);
 	UNUSED_PARAMETER(idx);
 	return true;
@@ -98,8 +97,8 @@ static bool enum_luids(void *param, uint32_t idx, uint64_t luid)
 bool obs_module_load(void)
 {
 	char *test_exe = os_get_executable_path_ptr("obs-qsv-test.exe");
-	struct dstr cmd = {0};
-	struct dstr caps_str = {0};
+	dstr cmd = {0};
+	dstr caps_str = {0};
 	os_process_pipe_t *pp_vpl = NULL;
 	config_t *config = NULL;
 
@@ -153,7 +152,7 @@ bool obs_module_load(void)
 		char section[16];
 		snprintf(section, sizeof(section), "%u", (int)i);
 
-		struct adapter_info *adapter = &adapters[i];
+		adapter_info *adapter = &adapters[i];
 
 		adapter->is_intel =
 			config_get_bool(config, section, "is_intel");

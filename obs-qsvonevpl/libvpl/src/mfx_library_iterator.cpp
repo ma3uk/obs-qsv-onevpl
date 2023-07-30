@@ -588,6 +588,7 @@ mfxStatus MFXLibraryIterator::GetDriverStoreDir(std::wstring &driverStoreDir,
                                                 size_t length,
                                                 mfxU32 deviceID,
                                                 int storageID) {
+    length;
     wchar_t wcDir[MFX_MAX_DLL_PATH];
     wcDir[0] = 0;
 
@@ -616,6 +617,7 @@ mfxStatus MFXLibraryIterator::GetDriverStoreDir(std::wstring &driverStoreDir,
 }
 
 mfxStatus MFXLibraryIterator::GetRegkeyDir(std::wstring &regDir, size_t length, int storageID) {
+    length;
     mfxStatus sts = MFX_ERR_UNSUPPORTED;
     MFX::MFXLibraryIterator libIterator;
     wchar_t wRegDir[MFX_MAX_DLL_PATH];

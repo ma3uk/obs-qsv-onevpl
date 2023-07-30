@@ -35,10 +35,10 @@ public:
 
 protected:
 
-	typedef struct {
+	struct Task {
 		mfxBitstream mfxBS;
 		mfxSyncPoint syncp;
-	} Task;
+	};
 
 	mfxStatus InitENCParams(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus AllocateSurfaces();
@@ -169,9 +169,9 @@ private:
 	mfxFrameSurface1 **mfx_SurfacePool;
 	mfxU16 n_SurfaceNum;
 	MFXVideoENCODE *mfx_VideoENC;
-	mfxU8 VPS_Buffer[128];
-	mfxU8 SPS_Buffer[128];
-	mfxU8 PPS_Buffer[128];
+	mfxU8 VPS_Buffer[1024];
+	mfxU8 SPS_Buffer[1024];
+	mfxU8 PPS_Buffer[1024];
 	mfxU16 VPS_BufferSize;
 	mfxU16 SPS_BufferSize;
 	mfxU16 PPS_BufferSize;

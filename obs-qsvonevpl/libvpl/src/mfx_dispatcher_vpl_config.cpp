@@ -815,7 +815,7 @@ mfxStatus ConfigCtxVPL::CheckPropsGeneral(const mfxVariant cfgPropsAll[],
 
     // check if this implementation includes
     //   all of the required top-level properties
-    CHECK_PROP(ePropMain_Impl, U32, libImplDesc->Impl);
+    CHECK_PROP(ePropMain_Impl, U32, static_cast<mfxU32>(libImplDesc->Impl));
     CHECK_PROP(ePropMain_VendorID, U32, libImplDesc->VendorID);
     CHECK_PROP(ePropMain_VendorImplID, U32, libImplDesc->VendorImplID);
 
@@ -837,7 +837,7 @@ mfxStatus ConfigCtxVPL::CheckPropsGeneral(const mfxVariant cfgPropsAll[],
     }
     else {
         // check default mode
-        CHECK_PROP(ePropMain_AccelerationMode, U32, libImplDesc->AccelerationMode);
+        CHECK_PROP(ePropMain_AccelerationMode, U32, static_cast<mfxU32>(libImplDesc->AccelerationMode));
     }
 
     if (cfgPropsAll[ePropMain_PoolAllocationPolicy].Type != MFX_VARIANT_TYPE_UNSET) {
@@ -937,7 +937,7 @@ mfxStatus ConfigCtxVPL::CheckPropsDec(const mfxVariant cfgPropsAll[],
         CHECK_PROP(ePropDec_CodecID, U32, dc.CodecID);
         CHECK_PROP(ePropDec_MaxcodecLevel, U16, dc.MaxcodecLevel);
         CHECK_PROP(ePropDec_Profile, U32, dc.Profile);
-        CHECK_PROP(ePropDec_MemHandleType, U32, dc.MemHandleType);
+	CHECK_PROP(ePropDec_MemHandleType, U32, static_cast<mfxU32>(dc.MemHandleType));
         CHECK_PROP(ePropDec_ColorFormats, U32, dc.ColorFormat);
 
         // special handling for properties passed via pointer
@@ -983,7 +983,7 @@ mfxStatus ConfigCtxVPL::CheckPropsEnc(const mfxVariant cfgPropsAll[],
         CHECK_PROP(ePropEnc_MaxcodecLevel, U16, ec.MaxcodecLevel);
         CHECK_PROP(ePropEnc_BiDirectionalPrediction, U16, ec.BiDirectionalPrediction);
         CHECK_PROP(ePropEnc_Profile, U32, ec.Profile);
-        CHECK_PROP(ePropEnc_MemHandleType, U32, ec.MemHandleType);
+	CHECK_PROP(ePropEnc_MemHandleType, U32, static_cast<mfxU32>(ec.MemHandleType));
         CHECK_PROP(ePropEnc_ColorFormats, U32, ec.ColorFormat);
 
         // special handling for properties passed via pointer
@@ -1035,7 +1035,7 @@ mfxStatus ConfigCtxVPL::CheckPropsVPP(const mfxVariant cfgPropsAll[],
         //   all of the required VPP properties
         CHECK_PROP(ePropVPP_FilterFourCC, U32, vc.FilterFourCC);
         CHECK_PROP(ePropVPP_MaxDelayInFrames, U16, vc.MaxDelayInFrames);
-        CHECK_PROP(ePropVPP_MemHandleType, U32, vc.MemHandleType);
+	CHECK_PROP(ePropVPP_MemHandleType, U32, static_cast<mfxU32>(vc.MemHandleType));
         CHECK_PROP(ePropVPP_InFormat, U32, vc.InFormat);
         CHECK_PROP(ePropVPP_OutFormat, U32, vc.OutFormat);
 

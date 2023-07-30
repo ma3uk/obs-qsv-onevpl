@@ -16,11 +16,11 @@ std::map<mfxMemId *, mfxHDL> allocResponses;
 std::map<mfxHDL, mfxFrameAllocResponse> allocDecodeResponses;
 std::map<mfxHDL, int> allocDecodeRefCount;
 
-typedef struct {
+struct CustomMemId {
 	mfxMemId memId;
 	mfxMemId memIdStage;
 	mfxU16 rw;
-} CustomMemId;
+};
 
 const struct {
 	mfxIMPL impl;     // actual implementation
@@ -323,18 +323,19 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
 	// Container also stores the intended read and/or write operation.
 	CustomMemId **mids = static_cast<CustomMemId **>(
 		calloc(static_cast<size_t>(request->NumFrameSuggested),
-		       sizeof(CustomMemId *)));
+		       sizeof(CustomMemId) * 2));
 	if (!mids)
 		return MFX_ERR_MEMORY_ALLOC;
 
 	for (int i = 0; i < request->NumFrameSuggested; i++) {
 		mids[i] = static_cast<CustomMemId *>(
-			calloc(1, sizeof(CustomMemId)));
+			calloc(1, sizeof(CustomMemId) * 2));
 		if (!mids[i]) {
 			return MFX_ERR_MEMORY_ALLOC;
 		}
-		mids[i]->rw = static_cast<mfxU16>(request->Type &
-			      0xF000); // Set intended read/write operation
+		mids[i]->rw = static_cast<mfxU16>(
+			request->Type &
+			0xF000); // Set intended read/write operation
 	}
 
 	request->Type = request->Type & 0x0FFF;

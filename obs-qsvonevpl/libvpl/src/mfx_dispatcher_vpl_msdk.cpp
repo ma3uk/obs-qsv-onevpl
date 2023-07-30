@@ -508,6 +508,7 @@ mfxU32 read_device_file(std::string &path) {
 mfxStatus LoaderCtxMSDK::GetRenderNodeDescription(mfxU32 adapterID,
                                                   mfxU32 &vendorID,
                                                   mfxU16 &deviceID) {
+    adapterID;
     vendorID = 0;
     deviceID = 0;
 

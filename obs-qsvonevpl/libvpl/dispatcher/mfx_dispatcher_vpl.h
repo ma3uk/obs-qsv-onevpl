@@ -226,29 +226,29 @@ struct VPPConfig {
 // these are updated with every call to ValidateConfig() and may
 //   be used in MFXCreateSession()
 struct SpecialConfig {
-    bool bIsSet_deviceHandleType;
-    mfxHandleType deviceHandleType;
+    bool bIsSet_deviceHandleType = false;
+    mfxHandleType deviceHandleType = {};
 
-    bool bIsSet_deviceHandle;
-    mfxHDL deviceHandle;
+    bool bIsSet_deviceHandle = false;
+    mfxHDL deviceHandle = nullptr;
 
-    bool bIsSet_accelerationMode;
-    mfxAccelerationMode accelerationMode;
+    bool bIsSet_accelerationMode = false;
+    mfxAccelerationMode accelerationMode = {};
 
-    bool bIsSet_ApiVersion;
-    mfxVersion ApiVersion;
+    bool bIsSet_ApiVersion = false;
+    mfxVersion ApiVersion = {};
 
-    bool bIsSet_dxgiAdapterIdx;
-    mfxU32 dxgiAdapterIdx;
+    bool bIsSet_dxgiAdapterIdx = false;
+    mfxU32 dxgiAdapterIdx = 0;
 
-    bool bIsSet_NumThread;
-    mfxU32 NumThread;
+    bool bIsSet_NumThread = false;
+    mfxU32 NumThread = 0;
 
-    bool bIsSet_DeviceCopy;
-    mfxU16 DeviceCopy;
+    bool bIsSet_DeviceCopy = false;
+    mfxU16 DeviceCopy = 0;
 
-    bool bIsSet_ExtBuffer;
-    std::vector<mfxExtBuffer *> ExtBuffers;
+    bool bIsSet_ExtBuffer = false;
+    std::vector<mfxExtBuffer *> ExtBuffers = {};
 };
 
 // config class implementation

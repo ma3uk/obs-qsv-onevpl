@@ -162,14 +162,14 @@ Assumed that any structure changes are backward binary compatible.
 typedef union {
     /*! Structure with Major and Minor fields.  */
     /*! @struct Anonymous */
-    struct {
+    struct Version {
       /*! @{
       @name Major and Minor fields
       Anonymous structure with Major and Minor fields. Minor number is incremented when reserved fields are used. Major number is incremented when the size of structure is increased. */
         mfxU8  Minor; /*!< Minor number of the correspondent structure. */
         mfxU8  Major; /*!< Major number of the correspondent structure. */
       /*! @} */
-    };
+    } mfxU8;
     mfxU16  Version;   /*!< Structure version number. */
 } mfxStructVersion;
 MFX_PACK_END()

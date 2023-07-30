@@ -77,7 +77,7 @@ static const char *const qsv_ratecontrols_av1[] = {"CBR", "VBR",        "CQP",
 						   "ICQ", "LA_EXT_ICQ", 0};
 
 static const char *const qsv_profile_names_h264[] = {
-	"high", "main", "baseline", "extended", "high10", "high422", "progressive high", 0};
+	"high", "main", "baseline", "extended", "high10", "high422", 0};
 static const char *const qsv_profile_names_av1[] = {"main", 0};
 static const char *const qsv_profile_names_hevc[] = {"main", "main10", "rext",
 						     0};
@@ -117,7 +117,8 @@ static const char *const qsv_params_condition_denoise_mode[] = {
 	"OFF",
 	0};
 
-typedef struct qsv_t qsv_t;
+struct qsv_t {
+};
 
 struct adapter_info {
 	bool is_intel;
@@ -133,7 +134,7 @@ enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
 extern struct adapter_info adapters[MAX_ADAPTERS];
 extern size_t adapter_count;
 
-typedef struct {
+struct qsv_param_t {
 	mfxU16 nTargetUsage; /* 1 through 7, 1 being best quality and 7
 					being the best speed */
 	mfxU16 nWidth;       /* source picture width */
@@ -221,7 +222,7 @@ typedef struct {
 
 	mfxU32 nFourCC;
 	mfxU16 nChromaFormat;
-} qsv_param_t;
+};
 
 enum qsv_cpu_platform {
 	QSV_CPU_PLATFORM_UNKNOWN,

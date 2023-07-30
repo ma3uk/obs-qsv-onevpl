@@ -1603,7 +1603,7 @@ mfxStatus LoaderCtxVPL::CreateSession(mfxU32 idx, mfxSession *session) {
 
                 extThreadsParam.Header.BufferId = MFX_EXTBUFF_THREADS_PARAM;
                 extThreadsParam.Header.BufferSz = sizeof(mfxExtThreadsParam);
-                extThreadsParam.NumThread       = m_specialConfig.NumThread;
+                extThreadsParam.NumThread       = static_cast<mfxU16>(m_specialConfig.NumThread);
 
                 extBufs.push_back((mfxExtBuffer *)&extThreadsParam);
             }

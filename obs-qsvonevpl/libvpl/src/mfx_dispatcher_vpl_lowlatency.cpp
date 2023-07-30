@@ -197,6 +197,7 @@ mfxStatus LoaderCtxVPL::LoadLibsFromSystemDir(LibType libType) {
 
 mfxStatus LoaderCtxVPL::LoadLibsFromMultipleDirs(LibType libType = LibTypeVPL)
 {
+    libType;
 #ifdef __linux__
     // clang-format off
 
