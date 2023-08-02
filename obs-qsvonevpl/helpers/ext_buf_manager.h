@@ -186,14 +186,14 @@ template<> struct mfx_ext_buffer_id<mfxExtCodingOptionVPS> {
 	enum { id = MFX_EXTBUFF_CODING_OPTION_VPS };
 };
 
-#ifdef ONEVPL_EXPERIMENTAL
+//#ifdef ONEVPL_EXPERIMENTAL
 template<> struct mfx_ext_buffer_id<mfxExtVPPPercEncPrefilter> {
 	enum { id = MFX_EXTBUFF_VPP_PERC_ENC_PREFILTER };
 };
 template<> struct mfx_ext_buffer_id<mfxExtTuneEncodeQuality> {
 	enum { id = MFX_EXTBUFF_TUNE_ENCODE_QUALITY };
 };
-#endif
+//#endif
 
 template<typename T> struct IsPairedMfxExtBuffer : std::false_type {};
 template<>
@@ -338,15 +338,15 @@ public:
 		return (TB *)FindExtBuffer(mfx_ext_buffer_id<TB>::id, fieldId);
 	}
 
-	template<typename TB> operator TB *()
-	{
-		return (TB *)FindExtBuffer(mfx_ext_buffer_id<TB>::id, 0);
-	}
+	//template<typename TB> operator TB *()
+	//{
+	//	return (TB *)FindExtBuffer(mfx_ext_buffer_id<TB>::id, 0);
+	//}
 
-	template<typename TB> operator TB *() const
-	{
-		return (TB *)FindExtBuffer(mfx_ext_buffer_id<TB>::id, 0);
-	}
+	//template<typename TB> operator TB *() const
+	//{
+	//	return (TB *)FindExtBuffer(mfx_ext_buffer_id<TB>::id, 0);
+	//}
 
 private:
 	mfxExtBuffer *AddExtBuffer(mfxU32 id, mfxU32 size,

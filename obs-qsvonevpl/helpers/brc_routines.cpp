@@ -16,10 +16,10 @@ This sample was distributed or derived from the Intel's Media Samples package.
 The original version of this sample may be obtained from https://software.intel.com/en-us/intel-media-server-studio
 or https://software.intel.com/en-us/media-client-solutions-support.
 \**********************************************************************************/
-
+#include <obs-module.h>
 #include "brc_routines.h"
 
-#include <corecrt_math.h>
+#include <math.h>
 #include "mfxdefs.h"
 #include <algorithm>
 #include <memory>
@@ -32,7 +32,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #error MFX_VERSION not defined
 #endif
 
-#define BRC_SCENE_CHANGE_RATIO1 20.0
+#define BRC_SCENE_CHANGE_RATIO1 15.0
 #define BRC_SCENE_CHANGE_RATIO2 5.0
 
 static mfxU32 hevcBitRateScale(mfxU32 bitrate)
@@ -72,7 +72,7 @@ mfxExtBuffer *Hevc_GetExtBuffer(mfxExtBuffer **extBuf, mfxU32 numExtBuf,
 
 mfxStatus cBRCParams::Init(mfxVideoParam *par, bool bField)
 {
-	printf("Sample BRC is used\n");
+	blog(LOG_INFO, "Sample BRC is used\n");
 	MFX_CHECK_NULL_PTR1(par);
 	MFX_CHECK(par->mfx.RateControlMethod == MFX_RATECONTROL_CBR ||
 			  par->mfx.RateControlMethod == MFX_RATECONTROL_VBR,
@@ -153,12 +153,13 @@ mfxStatus cBRCParams::Init(mfxVideoParam *par, bool bField)
 	mfxExtCodingOption2 *pExtCO2 = (mfxExtCodingOption2 *)Hevc_GetExtBuffer(
 		par->ExtParam, par->NumExtParam, MFX_EXTBUFF_CODING_OPTION2);
 	bPyr = (pExtCO2 && pExtCO2->BRefType == MFX_B_REF_PYRAMID);
-	maxFrameSizeInBits = pExtCO2 ? pExtCO2->MaxFrameSize * 8 : 0;
-
-	fAbPeriodLong = 100;
-	fAbPeriodShort = 6;
-	dqAbPeriod = 100;
-	bAbPeriod = 100;
+	maxFrameSizeInBits =
+		pExtCO2 && pExtCO2->MaxFrameSize ? pExtCO2->MaxFrameSize * 8 : 0;
+	//CHANGED
+	fAbPeriodLong = 200;
+	fAbPeriodShort = 200;
+	dqAbPeriod = 3;
+	bAbPeriod = 200;
 
 	if (maxFrameSizeInBits) {
 		bRec = 1;
@@ -294,6 +295,8 @@ mfxI32 QStep2QpFloor(
 mfxI32 Qstep2QP(mfxF64 qstep,
 		mfxI32 qpoffset = 0) // return 0<=qp<=51+mQuantOffset
 {
+	//qpoffset;
+	//return (int32_t)(4.0 + 6.0 * log(qstep) / log(2.0));
 	mfxI32 qp = QStep2QpFloor(qstep, qpoffset);
 
 	// prevent going QSTEP index out of bounds
@@ -303,9 +306,12 @@ mfxI32 Qstep2QP(mfxF64 qstep,
 		       ? qp
 		       : qp + 1;
 }
+
 mfxF64 QP2Qstep(mfxI32 qp, mfxI32 qpoffset = 0)
 {
+	//qpoffset;
 	return QSTEP[min(51 + qpoffset, qp)];
+	//return (double)(pow(2.0, (qp - 4.0) / 6.0));
 }
 
 mfxI32 GetNewQP(mfxF64 totalFrameBits, mfxF64 targetFrameSizeInBits,
@@ -391,7 +397,7 @@ bool isFieldMode(mfxVideoParam *par)
 mfxStatus ExtBRC::Init(mfxVideoParam *par)
 {
 	mfxStatus sts = MFX_ERR_NONE;
-
+	blog(LOG_WARNING, "ExtBRC EXPLICIT INIT");
 	MFX_CHECK(!m_bInit, MFX_ERR_UNDEFINED_BEHAVIOR);
 	sts = m_par.Init(par, isFieldMode(par));
 	MFX_CHECK_STS(sts);
@@ -429,8 +435,8 @@ mfxStatus ExtBRC::Init(mfxVideoParam *par)
 		MFX_CHECK_NULL_PTR1(m_avg.get());
 	}
 	if (m_par.mMBBRC) {
-		mfxU32 size = par->AsyncDepth > 1 ? 8 : 1;
-		mfxU16 blSize = 4;
+		mfxU32 size = par->AsyncDepth > 1 ? 2 : 1;
+		mfxU16 blSize = 16;
 		mfxU32 wInBlk =
 			(par->mfx.FrameInfo.Width + blSize - 1) / blSize;
 		mfxU32 hInBlk =
@@ -464,13 +470,13 @@ mfxStatus ExtBRC::Init(mfxVideoParam *par)
 
 mfxU16 GetFrameType(mfxU16 m_frameType, mfxU16 level, mfxU16 gopRegDist)
 {
-	if (m_frameType & MFX_FRAMETYPE_IDR)
+	if (m_frameType == MFX_FRAMETYPE_IDR)
 		return MFX_FRAMETYPE_I;
-	else if (m_frameType & MFX_FRAMETYPE_I)
+	else if (m_frameType == MFX_FRAMETYPE_I)
 		return MFX_FRAMETYPE_I;
-	else if (m_frameType & MFX_FRAMETYPE_P)
+	else if (m_frameType == MFX_FRAMETYPE_P)
 		return MFX_FRAMETYPE_P;
-	else if ((m_frameType & MFX_FRAMETYPE_REF) &&
+	else if ((m_frameType == MFX_FRAMETYPE_REF) &&
 		 (level == 0 || gopRegDist == 1))
 		return MFX_FRAMETYPE_P; //low delay B
 	else
@@ -628,8 +634,9 @@ mfxI32 GetFrameTargetSize(mfxU32 brcSts, mfxI32 minFrameSize,
 {
 	if (brcSts != MFX_BRC_BIG_FRAME && brcSts != MFX_BRC_SMALL_FRAME)
 		return 0;
-	return (brcSts == MFX_BRC_BIG_FRAME) ? maxFrameSize * 3 / 4
-					     : minFrameSize * 5 / 4;
+	//CHANGED
+	return (brcSts == MFX_BRC_BIG_FRAME) ? maxFrameSize * 5 / 7
+					     : minFrameSize * 6 / 5;
 }
 mfxStatus ExtBRC::Update(mfxBRCFrameParam *frame_par,
 			 mfxBRCFrameCtrl *frame_ctrl, mfxBRCFrameStatus *status)
@@ -732,9 +739,9 @@ mfxStatus ExtBRC::Update(mfxBRCFrameParam *frame_par,
 					     frame_par->EncodedOrder, bIntra,
 					     qpY);
 
-		MFX_CHECK(brcSts == MFX_BRC_OK || (!m_ctx.bPanic),
+		MFX_CHECK(brcSts & MFX_BRC_OK || (!m_ctx.bPanic),
 			  MFX_ERR_NOT_ENOUGH_BUFFER);
-		if (brcSts == MFX_BRC_OK && !m_ctx.bPanic)
+		if (brcSts & MFX_BRC_OK && !m_ctx.bPanic)
 			bNeedUpdateQP = true;
 
 		status->MinFrameSize = m_hrdSpec->GetMinFrameSizeInBits(
@@ -780,11 +787,12 @@ mfxStatus ExtBRC::Update(mfxBRCFrameParam *frame_par,
 	{
 		mfxF64 targetFrameSize = std::max<mfxF64>(
 			(mfxF64)m_par.inputBitsPerFrame, fAbLong);
+		
 		mfxF64 maxFrameSize =
 			(m_ctx.encOrder == 0                        ? 6.0
 			 : (bSHStart || picType & MFX_FRAMETYPE_I) ? 8.0
 								    : 4.0) *
-			targetFrameSize * (m_par.bPyr ? 1.5 : 1.0);
+			targetFrameSize * (m_par.bPyr ? 1.5 /*CHANGED*/ : 1.0);
 		mfxI32 quantMax = m_ctx.QuantMax;
 		mfxI32 quantMin = m_ctx.QuantMin;
 		mfxI32 quant = qpY;

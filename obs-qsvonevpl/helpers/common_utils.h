@@ -79,7 +79,7 @@
 		(x).Header.BufferSz = sizeof(x); \
 	}
 
-
+#define INFINITE 0xFFFFFFFF // Infinite timeout
 
 void PrintErrString(int err, const char *filestr, int line);
 

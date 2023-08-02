@@ -59,13 +59,13 @@ NalHrdConformance | VuiNalHrdParameters   |  Result
     on (or default)      on (or default)    => MFX_BRC_HRD_STRONG
 --------------------------------------------------------------
 */
-
+#if !defined(__MFXENCTOOLS_INT_H__) || (MFX_VERSION < MFX_VERSION_NEXT)
 enum : mfxU16 {
 	MFX_BRC_NO_HRD = 0,
 	MFX_BRC_HRD_WEAK, // IF HRD CALCULATION IS REQUIRED, BUT NOT WRITTEN TO THE STREAM
 	MFX_BRC_HRD_STRONG
 };
-
+#endif
 
 class cBRCParams {
 public:
@@ -146,7 +146,7 @@ public:
 		  mRawFrameSizeInPixs(0),
 		  gopPicSize(0),
 		  gopRefDist(0),
-		  bPyr(0),
+		  bPyr(1),
 		  bFieldMode(0),
 		  fAbPeriodLong(0),
 		  fAbPeriodShort(0),
@@ -159,7 +159,7 @@ public:
 		  quantMinP(0),
 		  quantMaxB(0),
 		  quantMinB(0),
-		  mMBBRC(false),
+		  mMBBRC(true),
 		  codecId(0)
 	{
 	}

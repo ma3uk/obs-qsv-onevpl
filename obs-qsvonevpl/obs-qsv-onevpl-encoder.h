@@ -90,6 +90,8 @@ static const char *const qsv_latency_names[] = {"ultra-low", "low", "normal",
 static const char *const qsv_params_condition[] = {"ON", "OFF", 0};
 static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
 							    0};
+static const char *const qsv_params_condition_extbrc[] = {"IMPLICIT", "EXPLICIT", "OFF",
+							  0};
 //static const char *const qsv_params_condition_gop[] = {"CLOSED", "OPEN", 0};
 static const char *const qsv_params_condition_intra_ref_encoding[] = {
 	"VERTICAL", "HORIZONTAL", 0};
@@ -205,6 +207,7 @@ struct qsv_param_t {
 	bool bResetAllowed;
 	bool bCustomBufferSize;
 	bool bLookahead;
+	bool bEncTools;
 
 	int nIntraRefType;
 
