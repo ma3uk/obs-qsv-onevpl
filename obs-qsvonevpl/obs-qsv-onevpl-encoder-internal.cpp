@@ -1176,7 +1176,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 	if (codec != QSV_CODEC_VP9 &&
 	    ((mfx_Version.Major >= 2 && mfx_Version.Minor >= 8) &&
 	     pParams->nTargetUsage == MFX_TARGETUSAGE_1 &&
-	     (pParams->bLookahead == false || pParams->bExtBRC == 2) &&
+	     (pParams->bLookahead == false) &&
 	     (m_mfxEncParams.mfx.RateControlMethod == MFX_RATECONTROL_CBR ||
 	      m_mfxEncParams.mfx.RateControlMethod == MFX_RATECONTROL_VBR)) &&
 	    pParams->bEncTools == true) {
@@ -2104,10 +2104,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Drain()
 
 mfxStatus QSV_VPL_Encoder_Internal::ClearData()
 {
-	auto ExtBRC = m_mfxEncParams.GetExtBuffer<mfxExtBRC>();
-	if (ExtBRC)
-		HEVCExtBRC::Destroy(*ExtBRC);
-
 	mfxStatus sts = MFX_ERR_NONE;
 	sts = Drain();
 
