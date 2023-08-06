@@ -7,7 +7,7 @@
 #ifndef __MFXVIDEOPLUSPLUS_H
 #define __MFXVIDEOPLUSPLUS_H
 #define ONEVPL_EXPERIMENTAL
-#define MFX_DEPRECATED_OFF
+//#define MFX_DEPRECATED_OFF
 #ifdef MFXVIDEO_CPP_ENABLE_MFXLOAD
 #include "vpl/mfx.h"
 #define MFX_IMPL_ACCELMODE(x) (0xff00 & (x))

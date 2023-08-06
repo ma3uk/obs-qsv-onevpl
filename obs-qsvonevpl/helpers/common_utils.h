@@ -1,5 +1,4 @@
 #pragma once
-#define MFX_DEPRECATED_OFF
 #include <stdio.h>
 
 #include "mfxvideo++.h"

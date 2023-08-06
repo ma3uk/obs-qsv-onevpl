@@ -20,12 +20,8 @@ public:
 	mfxStatus Encode(uint64_t ts, uint8_t *pDataY, uint8_t *pDataUV,
 			 uint32_t strideY, uint32_t strideUV,
 			 mfxBitstream **pBS);
-	mfxStatus Encode_tex(uint64_t ts, uint32_t tex_handle,
-			     uint64_t lock_key, uint64_t *next_key,
-			     mfxBitstream **pBS);
 	mfxStatus ClearData();
-	mfxStatus Initialize(mfxFrameAllocator *FrameAllocator,
-			     mfxU32 deviceNum);
+	mfxStatus Initialize(int deviceNum);
 	mfxStatus Reset(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus GetCurrentFourCC(mfxU32 &fourCC);
 	mfxStatus ReconfigureEncoder();
@@ -35,12 +31,11 @@ public:
 
 protected:
 	struct Task {
-		mfxBitstream mfxBS;
+		mfxBitstream* mfxBS;
 		mfxSyncPoint syncp;
 	};
 	mfxStatus InitENCCtrlParams(qsv_param_t *pParams, enum qsv_codec codec);
 	mfxStatus InitENCParams(qsv_param_t *pParams, enum qsv_codec codec);
-	mfxStatus AllocateSurfaces();
 	mfxStatus GetVideoParam(enum qsv_codec codec);
 	mfxStatus InitBitstream();
 	mfxStatus LoadNV12(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
@@ -53,8 +48,6 @@ protected:
 			   uint32_t strideY);
 	mfxStatus Drain();
 	int GetFreeTaskIndex(Task *pTaskPool, mfxU16 nPoolSize);
-	int GetFreeSurfaceIndex(mfxFrameSurface1 **pSurfacesPool,
-				mfxU16 nPoolSize);
 
 	mfxU16 AVCGetMaxNumRefActivePL0(mfxU16 targetUsage, mfxU16 isLowPower,
 					bool lookAHead,
@@ -173,15 +166,10 @@ private:
 	mfxPlatform mfx_Platform;
 	mfxVersion mfx_Version;
 	mfxLoader mfx_Loader;
-	mfxConfig mfx_LoaderConfig[10];
-	mfxVariant mfx_LoaderVariant[10];
+	mfxConfig mfx_LoaderConfig;
+	mfxVariant mfx_LoaderVariant;
 	mfxSession mfx_Session;
-	mfxFrameAllocator mfx_FrameAllocator;
-	mfxFrameAllocRequest mfx_FrameAllocRequest;
-	//mfxVideoParam mfx_ENC_Params;
-	mfxFrameAllocResponse mfx_FrameAllocResponse;
-	mfxFrameSurface1 **mfx_SurfacePool;
-	mfxU16 n_SurfaceNum;
+	mfxFrameSurface1 *mfx_SurfacePool;
 	MFXVideoENCODE *mfx_VideoENC;
 	mfxU8 VPS_Buffer[1024];
 	mfxU8 SPS_Buffer[1024];

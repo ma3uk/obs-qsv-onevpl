@@ -69,16 +69,12 @@ MODULE_EXPORT const char *obs_module_description(void)
 	return "Intel Quick Sync Video support for Windows (oneVPL)";
 }
 
-extern obs_encoder_info obs_qsv_h264_encoder_tex;
 extern obs_encoder_info obs_qsv_h264_encoder;
 
-extern obs_encoder_info obs_qsv_av1_encoder_tex;
 extern obs_encoder_info obs_qsv_av1_encoder;
 
-extern obs_encoder_info obs_qsv_hevc_encoder_tex;
 extern obs_encoder_info obs_qsv_hevc_encoder;
 
-extern obs_encoder_info obs_qsv_vp9_encoder_tex;
 extern obs_encoder_info obs_qsv_vp9_encoder;
 
 extern bool av1_supported(mfxIMPL impl);
@@ -174,23 +170,19 @@ bool obs_module_load(void)
 	}
 
 	if (avc_supported) {
-		obs_register_encoder(&obs_qsv_h264_encoder_tex);
 		obs_register_encoder(&obs_qsv_h264_encoder);
 		blog(LOG_INFO, "QSV AVC support");
 	}
 	if (av1_supported) {
-		obs_register_encoder(&obs_qsv_av1_encoder_tex);
 		obs_register_encoder(&obs_qsv_av1_encoder);
 		blog(LOG_INFO, "QSV AV1 support");
 	}
 	if (vp9_supported) {
-		obs_register_encoder(&obs_qsv_vp9_encoder_tex);
 		obs_register_encoder(&obs_qsv_vp9_encoder);
 		blog(LOG_INFO, "QSV VP9 support");
 	}
 #if ENABLE_HEVC
 	if (hevc_supported) {
-		obs_register_encoder(&obs_qsv_hevc_encoder_tex);
 		obs_register_encoder(&obs_qsv_hevc_encoder);
 		blog(LOG_INFO, "QSV HEVC support");
 	}

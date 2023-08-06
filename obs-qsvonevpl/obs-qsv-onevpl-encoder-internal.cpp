@@ -1,7 +1,6 @@
 #ifndef __MFX_H__
 #include "mfx.h"
 #endif
-#include "helpers/common_directx11.h"
 #include "obs-qsv-onevpl-encoder-internal.h"
 #include "helpers/brc_routines.h"
 //#include "obs-qsv-onevpl-encoder.h"
@@ -33,11 +32,7 @@ QSV_VPL_Encoder_Internal::QSV_VPL_Encoder_Internal(mfxVersion &version,
 	  mfx_LoaderConfig(),
 	  mfx_LoaderVariant(),
 	  mfx_Session(),
-	  mfx_FrameAllocator(),
-	  mfx_FrameAllocRequest(),
-	  mfx_FrameAllocResponse(),
 	  mfx_SurfacePool(),
-	  n_SurfaceNum(),
 	  mfx_VideoENC(),
 	  VPS_Buffer(),
 	  SPS_Buffer(),
@@ -90,133 +85,120 @@ QSV_VPL_Encoder_Internal::~QSV_VPL_Encoder_Internal()
 	}
 }
 mfxStatus
-QSV_VPL_Encoder_Internal::Initialize(mfxFrameAllocator *FrameAllocator,
-				     mfxU32 deviceNum)
+QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
 {
 
 	mfxStatus sts = MFX_ERR_NONE;
 
 	// If mfxFrameAllocator is provided it means we need to setup DirectX device and memory allocator
-	if (FrameAllocator) {
-		// Initialize VPL Session
-		mfx_Loader = MFXLoad();
-		mfx_LoaderConfig[0] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[0].Type = MFX_VARIANT_TYPE_U32;
-		mfx_LoaderVariant[0].Data.U32 = static_cast<mfxU32>(0x8086);
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[0],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxImplDescription.VendorID"),
-			mfx_LoaderVariant[0]);
 
-		mfx_LoaderConfig[1] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[1].Type = MFX_VARIANT_TYPE_PTR;
-		mfx_LoaderVariant[1].Data.Ptr = mfxHDL("mfx-gen");
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[1],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxImplDescription.ImplName"),
-			mfx_LoaderVariant[1]);
+	// Initialize VPL Session
+	mfx_Loader = MFXLoad();
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = static_cast<mfxU32>(0x8086);
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>("mfxImplDescription.VendorID"),
+		mfx_LoaderVariant);
 
-		mfx_LoaderConfig[2] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[2].Type = MFX_VARIANT_TYPE_U32;
-		mfx_LoaderVariant[2].Data.U32 = MFX_IMPL_TYPE_HARDWARE;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[2],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxImplDescription.Impl.mfxImplType"),
-			mfx_LoaderVariant[2]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_PTR;
+	mfx_LoaderVariant.Data.Ptr = mfxHDL("mfx-gen");
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>("mfxImplDescription.ImplName"),
+		mfx_LoaderVariant);
 
-		mfx_LoaderConfig[3] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[3].Type = MFX_VARIANT_TYPE_U32;
-		mfx_LoaderVariant[3].Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[3],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxImplDescription.mfxAccelerationModeDescription.Mode"),
-			mfx_LoaderVariant[3]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_IMPL_TYPE_HARDWARE;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxImplDescription.Impl.mfxImplType"),
+		mfx_LoaderVariant);
 
-		mfx_LoaderConfig[4] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[4].Type = MFX_VARIANT_TYPE_U16;
-		mfx_LoaderVariant[4].Data.U16 = MFX_GPUCOPY_ON;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[4],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxInitializationParam.DeviceCopy"),
-			mfx_LoaderVariant[4]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxImplDescription.mfxAccelerationModeDescription.Mode"),
+		mfx_LoaderVariant);
 
-		mfx_LoaderConfig[5] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[5].Type = MFX_VARIANT_TYPE_U16;
-		mfx_LoaderVariant[5].Data.U16 = MFX_GPUCOPY_ON;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[5],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxInitializationParam.DeviceCopy"),
-			mfx_LoaderVariant[5]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_HANDLE_D3D11_DEVICE;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>("mfxHandleType"),
+		mfx_LoaderVariant);
 
-		mfx_LoaderConfig[6] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[6].Type = MFX_VARIANT_TYPE_U32;
-		mfx_LoaderVariant[6].Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[6],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxInitializationParam.AccelerationMode"),
-			mfx_LoaderVariant[6]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
+	mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>("mfxInitParam.GPUCopy"),
+		mfx_LoaderVariant);
 
-		mfx_LoaderConfig[7] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[7].Type = MFX_VARIANT_TYPE_U16;
-		mfx_LoaderVariant[7].Data.U16 = (mfxU16)32;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[7],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxInitializationParam.mfxExtThreadsParam.NumThread"),
-			mfx_LoaderVariant[7]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
+	mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
+	MFXSetConfigFilterProperty(mfx_LoaderConfig,
+				   reinterpret_cast<const mfxU8 *>(
+					   "mfxInitializationParam.DeviceCopy"),
+				   mfx_LoaderVariant);
 
-		mfx_LoaderConfig[8] = MFXCreateConfig(mfx_Loader);
-		mfx_LoaderVariant[8].Type = MFX_VARIANT_TYPE_U32;
-		mfx_LoaderVariant[8].Data.U32 = MFX_PRIORITY_NORMAL;
-		MFXSetConfigFilterProperty(
-			mfx_LoaderConfig[8],
-			reinterpret_cast<const mfxU8 *>(
-				"mfxInitializationParam.mfxExtThreadsParam.Priority"),
-			mfx_LoaderVariant[8]);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
+	mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig, reinterpret_cast<const mfxU8 *>("DeviceCopy"),
+		mfx_LoaderVariant);
 
-		sts = MFXCreateSession(mfx_Loader,
-				       (deviceNum >= 0) ? deviceNum : 0,
-				       &mfx_Session);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxInitializationParam.AccelerationMode"),
+		mfx_LoaderVariant);
 
-		MFXQueryIMPL(mfx_Session, &mfx_Impl);
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
+	mfx_LoaderVariant.Data.U16 = (mfxU16)64;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxInitializationParam.mfxExtThreadsParam.NumThread"),
+		mfx_LoaderVariant);
 
-		MFXSetPriority(mfx_Session, MFX_PRIORITY_HIGH);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-		// Create DirectX device context
-		if (mfx_DX_Handle == nullptr) {
-			sts = CreateHWDevice(mfx_Session, &mfx_DX_Handle, NULL);
-			MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-		}
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_PRIORITY_HIGH;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxInitializationParam.mfxExtThreadsParam.Priority"),
+		mfx_LoaderVariant);
 
-		if (mfx_DX_Handle == nullptr)
-			return MFX_ERR_DEVICE_FAILED;
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = 32;
+	MFXSetConfigFilterProperty(mfx_LoaderConfig,
+				   reinterpret_cast<const mfxU8 *>("NumThread"),
+				   mfx_LoaderVariant);
 
-		// Provide device manager to VPL
+	sts = MFXCreateSession(mfx_Loader, (deviceNum >= 0) ? deviceNum : 0,
+			       &mfx_Session);
 
-		sts = MFXVideoCORE_SetHandle(mfx_Session, DEVICE_MGR_TYPE,
-					     mfx_DX_Handle);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	MFXQueryIMPL(mfx_Session, &mfx_Impl);
 
-		FrameAllocator->pthis =
-			mfx_Session; // We use VPL session ID as the allocation identifier
-		FrameAllocator->Alloc = simple_alloc;
-		FrameAllocator->Free = simple_free;
-		FrameAllocator->Lock = simple_lock;
-		FrameAllocator->Unlock = simple_unlock;
-		FrameAllocator->GetHDL = simple_gethdl;
-
-		// Since we are using video memory we must provide VPL with an external allocator
-		sts = MFXVideoCORE_SetFrameAllocator(mfx_Session,
-						     FrameAllocator);
-		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-	}
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 	MFXVideoCORE_QueryPlatform(mfx_Session, &mfx_Platform);
 	if (mfx_Platform.MediaAdapterType == MFX_MEDIA_DISCRETE) {
@@ -233,7 +215,7 @@ QSV_VPL_Encoder_Internal::Initialize(mfxFrameAllocator *FrameAllocator,
 mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 					 enum qsv_codec codec)
 {
-	mfxStatus sts = Initialize(&mfx_FrameAllocator, pParams->nDeviceNum);
+	mfxStatus sts = Initialize(pParams->nDeviceNum);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 	mfx_VideoENC = new MFXVideoENCODE(mfx_Session);
@@ -246,9 +228,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 
 	sts = mfx_VideoENC->Query(&m_mfxEncParams, &m_mfxEncParams);
 	MSDK_IGNORE_MFX_STS(sts, MFX_WRN_INCOMPATIBLE_VIDEO_PARAM);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	sts = AllocateSurfaces();
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 	sts = mfx_VideoENC->Init(&m_mfxEncParams);
@@ -266,9 +245,10 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 		mfx_OpenEncodersNum++;
 	} else {
 		blog(LOG_INFO, "\tOpen encoder: [ERROR]");
-		mfx_VideoENC->Close();
+		/*mfx_VideoENC->Close();
 		MFXClose(mfx_Session);
-		MFXUnload(mfx_Loader);
+		MFXUnload(mfx_Loader);*/
+		ClearData();
 	}
 
 	return sts;
@@ -277,34 +257,9 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 mfxStatus QSV_VPL_Encoder_Internal::InitENCCtrlParams(qsv_param_t *pParams,
 						      enum qsv_codec codec)
 {
-	memset(&m_mfxEncCtrlParams, 0, sizeof(mfxEncodeCtrl));
-	if (pParams->bExtBRC > 0) {
-		//mfxExtCodingOption2 CO_2;
-		//memset(&CO_2, 0, sizeof(mfxExtCodingOption2));
-		//INIT_MFX_EXT_BUFFER(CO_2, MFX_EXTBUFF_BRC);
-		//CO_2.ExtBRC = pParams->bExtBRC > 0 ? MFX_CODINGOPTION_ON
-		//				   : MFX_CODINGOPTION_UNKNOWN;
-		//mfx_CtrlBuffers.push_back((mfxExtBuffer *)&CO_2);
-
-		auto CO2 = encCTRL.AddExtBuffer<mfxExtCodingOption2>();
-		CO2->ExtBRC = MFX_CODINGOPTION_ON;
-		CO2->LookAheadDepth = pParams->nLADepth;
-		if (pParams->bExtBRC == 2) {
-			auto ExplicitBRC = encCTRL.AddExtBuffer<mfxExtBRC>();
-
-			HEVCExtBRC::Create(*ExplicitBRC);
-			ExplicitBRC->pthis = new ExtBRC();
-			ExplicitBRC->Init = HEVCExtBRC::Init;
-			ExplicitBRC->GetFrameCtrl = HEVCExtBRC::GetFrameCtrl;
-			ExplicitBRC->Reset = HEVCExtBRC::Reset;
-			ExplicitBRC->Update = HEVCExtBRC::Update;
-			//HEVCExtBRC::Init(HB, &m_mfxEncParams);
-
-			//auto BB = new ExtBRC();
-			//BB->Init(&m_mfxEncParams);
-			/*	HEVCExtBRC::Init(&ExtBRC, &m_mfxEncParams);*/
-		}
-	}
+	auto CO2 = encCTRL.AddExtBuffer<mfxExtCodingOption2>();
+	CO2->LookAheadDepth = 100;
+	CO2->ExtBRC = MFX_CODINGOPTION_ON;
 	return MFX_ERR_NONE;
 }
 
@@ -611,7 +566,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			static_cast<mfxU16>(pParams->nGOPRefDist);
 		if (m_mfxEncParams.mfx.GopRefDist > 16) {
 			m_mfxEncParams.mfx.GopRefDist = 16;
-		} else if (((pParams->bExtBRC > 0 && pParams->bLookahead) || pParams->bEncTools == true) &&
+		} else if (((pParams->bExtBRC > 0 && pParams->bLookahead) ||
+			    pParams->bEncTools == true) &&
 			   m_mfxEncParams.mfx.GopRefDist > 8) {
 			m_mfxEncParams.mfx.GopRefDist = 8;
 			blog(LOG_INFO,
@@ -620,11 +576,12 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		break;
 	}
 
-	if ((pParams->bExtBRC > 0 || pParams->bEncTools == true) && (m_mfxEncParams.mfx.GopRefDist != 1 &&
-				       m_mfxEncParams.mfx.GopRefDist != 2 &&
-				       m_mfxEncParams.mfx.GopRefDist != 4 &&
-				       m_mfxEncParams.mfx.GopRefDist != 8 &&
-				       m_mfxEncParams.mfx.GopRefDist != 16)) {
+	if ((pParams->bExtBRC > 0 || pParams->bEncTools == true) &&
+	    (m_mfxEncParams.mfx.GopRefDist != 1 &&
+	     m_mfxEncParams.mfx.GopRefDist != 2 &&
+	     m_mfxEncParams.mfx.GopRefDist != 4 &&
+	     m_mfxEncParams.mfx.GopRefDist != 8 &&
+	     m_mfxEncParams.mfx.GopRefDist != 16)) {
 		m_mfxEncParams.mfx.GopRefDist = 4;
 		blog(LOG_INFO,
 		     "\tExtBRC and CPUEncTools only works with GOPRefDist equal to 1, 2, 4, 8, 16. GOPRefDist is set to 4.");
@@ -754,14 +711,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			blog(LOG_INFO, "\tLookahead set to: %d",
 			     pParams->nLADepth);
 		}
-		if ((!pParams->bLookahead && pParams->nLADepth == 0) &&
-		    pParams->nTargetUsage == MFX_TARGETUSAGE_1 &&
-		    codec == QSV_CODEC_AVC &&
-		    (pParams->RateControl == MFX_RATECONTROL_CBR ||
-		     pParams->RateControl == MFX_RATECONTROL_VBR) && pParams->bEncTools == true && pParams->bExtBRC == 0) {
-			CO2->LookAheadDepth = 100;
-		}
-
 
 		if (codec != QSV_CODEC_VP9) {
 			if (pParams->bMBBRC == 1) {
@@ -1176,19 +1125,43 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 	if (codec != QSV_CODEC_VP9 &&
 	    ((mfx_Version.Major >= 2 && mfx_Version.Minor >= 8) &&
 	     pParams->nTargetUsage == MFX_TARGETUSAGE_1 &&
-	     (pParams->bLookahead == false) &&
+	     /*(pParams->bLookahead == false) &&*/
 	     (m_mfxEncParams.mfx.RateControlMethod == MFX_RATECONTROL_CBR ||
 	      m_mfxEncParams.mfx.RateControlMethod == MFX_RATECONTROL_VBR)) &&
-	    pParams->bEncTools == true) {
+	    pParams->bEncTools == true && pParams->bExtBRC != 1) {
 		auto EncToolsParam =
 			m_mfxEncParams.AddExtBuffer<mfxExtEncToolsConfig>();
-
-		EncToolsParam->BRC = MFX_CODINGOPTION_ON; //Включить обязательно
+		if (pParams->bExtBRC < 2) {
+			EncToolsParam->BRC =
+				MFX_CODINGOPTION_ON; //Включить обязательно
+			EncToolsParam->AdaptiveLTR =
+				pParams->bAdaptiveLTR == 1 ? MFX_CODINGOPTION_ON
+				: pParams->bAdaptiveLTR == 0
+					? MFX_CODINGOPTION_OFF
+					: MFX_CODINGOPTION_UNKNOWN;
+			EncToolsParam->AdaptiveRefP =
+				pParams->bAdaptiveRef == 1 ? MFX_CODINGOPTION_ON
+				: pParams->bAdaptiveRef == 0
+					? MFX_CODINGOPTION_OFF
+					: MFX_CODINGOPTION_UNKNOWN;
+			EncToolsParam->AdaptiveRefB =
+				pParams->bAdaptiveRef == 1 ? MFX_CODINGOPTION_ON
+				: pParams->bAdaptiveRef == 0
+					? MFX_CODINGOPTION_OFF
+					: MFX_CODINGOPTION_UNKNOWN;
+		}
+		EncToolsParam->AdaptiveI =
+			pParams->bAdaptiveI == 1   ? MFX_CODINGOPTION_ON
+			: pParams->bAdaptiveI == 0 ? MFX_CODINGOPTION_OFF
+						   : MFX_CODINGOPTION_UNKNOWN;
+		EncToolsParam->AdaptiveB =
+			pParams->bAdaptiveB == 1   ? MFX_CODINGOPTION_ON
+			: pParams->bAdaptiveB == 0 ? MFX_CODINGOPTION_OFF
+						   : MFX_CODINGOPTION_UNKNOWN;
 		EncToolsParam->BRCBufferHints =
 			MFX_CODINGOPTION_ON; //Включить обязательно
 		EncToolsParam->SceneChange =
 			MFX_CODINGOPTION_ON; //Включить обязательно
-
 		EncToolsParam->AdaptiveQuantMatrices =
 			pParams->bAdaptiveCQM == 1   ? MFX_CODINGOPTION_ON
 			: pParams->bAdaptiveCQM == 0 ? MFX_CODINGOPTION_OFF
@@ -1202,26 +1175,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			pParams->bAdaptiveCQM == 1   ? MFX_CODINGOPTION_ON
 			: pParams->bAdaptiveCQM == 0 ? MFX_CODINGOPTION_OFF
 						     : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveI =
-			pParams->bAdaptiveI == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveI == 0 ? MFX_CODINGOPTION_OFF
-						   : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveB =
-			pParams->bAdaptiveB == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveB == 0 ? MFX_CODINGOPTION_OFF
-						   : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveRefP =
-			pParams->bAdaptiveRef == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveRef == 0 ? MFX_CODINGOPTION_OFF
-						     : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveRefB =
-			pParams->bAdaptiveRef == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveRef == 0 ? MFX_CODINGOPTION_OFF
-						     : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveLTR =
-			pParams->bAdaptiveLTR == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveLTR == 0 ? MFX_CODINGOPTION_OFF
-						     : MFX_CODINGOPTION_UNKNOWN;
+
 		//EncToolsParam->SaliencyMapHint = MFX_CODINGOPTION_ON;
 	}
 
@@ -1633,58 +1587,6 @@ mfxStatus QSV_VPL_Encoder_Internal::ReconfigureEncoder()
 	return mfx_VideoENC->Reset(&m_mfxEncParams);
 }
 
-mfxStatus QSV_VPL_Encoder_Internal::AllocateSurfaces()
-{
-	// Query number of required surfaces for encoder
-	mfxStatus sts = mfx_VideoENC->QueryIOSurf(&m_mfxEncParams,
-						  &mfx_FrameAllocRequest);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	mfx_FrameAllocRequest.Type |=
-		WILL_WRITE | MFX_MEMTYPE_FROM_VPPIN | MFX_MEMTYPE_FROM_VPPOUT |
-		MFX_MEMTYPE_VIDEO_MEMORY_PROCESSOR_TARGET |
-		MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET |
-		MFX_MEMTYPE_SHARED_RESOURCE | MFX_MEMTYPE_INTERNAL_FRAME |
-		MFX_MEMTYPE_VIDEO_MEMORY_ENCODER_TARGET |
-		MFX_MEMTYPE_EXTERNAL_FRAME | MFX_MEMTYPE_FROM_PAK |
-		MFX_MEMTYPE_FROM_DECODE;
-
-	auto CO2 = m_mfxEncParams.GetExtBuffer<mfxExtCodingOption2>();
-
-	// SNB hack. On some SNB, it seems to require more surfaces
-	mfx_FrameAllocRequest.NumFrameSuggested +=
-		static_cast<mfxU16>(m_mfxEncParams.mfx.FrameInfo.FrameRateExtN +
-				    m_mfxEncParams.AsyncDepth +
-				    CO2->LookAheadDepth + 20);
-	mfx_FrameAllocRequest.NumFrameMin =
-		static_cast<mfxU16>(mfx_FrameAllocRequest.NumFrameSuggested);
-	// Allocate required surfaces
-	sts = mfx_FrameAllocator.Alloc(mfx_FrameAllocator.pthis,
-				       &mfx_FrameAllocRequest,
-				       &mfx_FrameAllocResponse);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	n_SurfaceNum = mfx_FrameAllocResponse.NumFrameActual;
-
-	mfx_SurfacePool = new mfxFrameSurface1 *[n_SurfaceNum];
-
-	MSDK_CHECK_POINTER(mfx_SurfacePool, MFX_ERR_MEMORY_ALLOC);
-
-	for (int i = 0; i < n_SurfaceNum; i++) {
-
-		mfx_SurfacePool[i] = new mfxFrameSurface1;
-		memset(mfx_SurfacePool[i], 0, sizeof(mfxFrameSurface1));
-		memcpy(&(mfx_SurfacePool[i]->Info),
-		       &(m_mfxEncParams.mfx.FrameInfo), sizeof(mfxFrameInfo));
-		mfx_SurfacePool[i]->Data.MemType = mfx_FrameAllocRequest.Type;
-		mfx_SurfacePool[i]->Data.MemId = mfx_FrameAllocResponse.mids[i];
-		mfx_SurfacePool[i]->Data.Locked = 0;
-	}
-	blog(LOG_INFO, "\tSurface count:     %d", n_SurfaceNum);
-
-	return sts;
-}
-
 mfxStatus QSV_VPL_Encoder_Internal::GetVideoParam(enum qsv_codec codec)
 {
 	if (codec != QSV_CODEC_VP9) {
@@ -1752,26 +1654,28 @@ mfxStatus QSV_VPL_Encoder_Internal::InitBitstream()
 	n_TaskNum = m_mfxEncParams.AsyncDepth;
 	n_FirstSyncTask = 0;
 
-	t_TaskPool = new Task[n_TaskNum];
+	t_TaskPool = new struct Task[n_TaskNum];
 	memset(t_TaskPool, 0, sizeof(Task) * n_TaskNum);
 
 	mfxU32 MaxLength = static_cast<mfxU32>(
-		(m_mfxEncParams.mfx.BufferSizeInKB * 1000 * 100 * 5));
+		(m_mfxEncParams.mfx.BufferSizeInKB * 1000 * 100 * 3));
 
 	for (int i = 0; i < n_TaskNum; i++) {
-		t_TaskPool[i].mfxBS.MaxLength = MaxLength;
-		t_TaskPool[i].mfxBS.Data =
-			new mfxU8[t_TaskPool[i].mfxBS.MaxLength];
-		t_TaskPool[i].mfxBS.DataOffset = 0;
-		t_TaskPool[i].mfxBS.DataLength = 0;
-		t_TaskPool[i].mfxBS.CodecId = m_mfxEncParams.mfx.CodecId;
-		t_TaskPool[i].mfxBS.DataFlag = MFX_BITSTREAM_COMPLETE_FRAME |
-					       MFX_BITSTREAM_EOS;
+		t_TaskPool[i].mfxBS = new mfxBitstream;
+		memset(t_TaskPool[i].mfxBS, 0, sizeof(mfxBitstream));
+		t_TaskPool[i].mfxBS->MaxLength = MaxLength;
+		t_TaskPool[i].mfxBS->Data =
+			new mfxU8[t_TaskPool[i].mfxBS->MaxLength];
+		t_TaskPool[i].mfxBS->DataOffset = 0;
+		t_TaskPool[i].mfxBS->DataLength = 0;
+		t_TaskPool[i].mfxBS->CodecId = m_mfxEncParams.mfx.CodecId;
+		t_TaskPool[i].mfxBS->DataFlag = MFX_BITSTREAM_COMPLETE_FRAME |
+						MFX_BITSTREAM_EOS;
 		t_TaskPool[i].syncp = nullptr;
-		MSDK_CHECK_POINTER(t_TaskPool[i].mfxBS.Data,
+		MSDK_CHECK_POINTER(t_TaskPool[i].mfxBS->Data,
 				   MFX_ERR_MEMORY_ALLOC);
 	}
-	mfx_Bitstream = new mfxBitstream();
+	mfx_Bitstream = new mfxBitstream;
 	memset(mfx_Bitstream, 0, sizeof(mfxBitstream));
 	mfx_Bitstream->MaxLength = MaxLength;
 	mfx_Bitstream->Data = new mfxU8[mfx_Bitstream->MaxLength];
@@ -1905,20 +1809,6 @@ int QSV_VPL_Encoder_Internal::GetFreeTaskIndex(Task *TaskPool, mfxU16 nPoolSize)
 	return MFX_ERR_NOT_FOUND;
 }
 
-int QSV_VPL_Encoder_Internal::GetFreeSurfaceIndex(
-	mfxFrameSurface1 **SurfacesPool, mfxU16 nPoolSize)
-{
-	if (SurfacesPool) {
-		for (mfxU16 i = 0; i < nPoolSize; i++) {
-			if (static_cast<mfxU16>(0) ==
-			    SurfacesPool[i]->Data.Locked) {
-				return i;
-			}
-		}
-	}
-	return MFX_ERR_NOT_FOUND;
-}
-
 mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 					   uint8_t *pDataUV, uint32_t strideY,
 					   uint32_t strideUV,
@@ -1928,56 +1818,56 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 	*pBS = nullptr;
 	int n_TaskIdx = GetFreeTaskIndex(t_TaskPool, n_TaskNum);
 
-	int n_SurfIdx = GetFreeSurfaceIndex(mfx_SurfacePool, n_SurfaceNum);
-
-	while (MFX_ERR_NOT_FOUND == n_TaskIdx ||
-	       MFX_ERR_NOT_FOUND == n_SurfIdx) {
+	while (MFX_ERR_NOT_FOUND == n_TaskIdx) {
 		// No more free tasks or surfaces, need to sync
 		//sts = MFXVideoCORE_SyncOperation(
 		//	mfx_Session, t_TaskPool[n_FirstSyncTask].syncp,
 		//	static_cast<mfxU32>(100));
 
 		mfxU8 *pTemp = mfx_Bitstream->Data;
-		memcpy(mfx_Bitstream, &t_TaskPool[n_FirstSyncTask].mfxBS,
+		memcpy(mfx_Bitstream, t_TaskPool[n_FirstSyncTask].mfxBS,
 		       sizeof(mfxBitstream));
 
-		t_TaskPool[n_FirstSyncTask].mfxBS.Data = pTemp;
-		t_TaskPool[n_FirstSyncTask].mfxBS.DataLength = 0;
-		t_TaskPool[n_FirstSyncTask].mfxBS.DataOffset = 0;
+		t_TaskPool[n_FirstSyncTask].mfxBS->Data = pTemp;
+		t_TaskPool[n_FirstSyncTask].mfxBS->DataLength = 0;
+		t_TaskPool[n_FirstSyncTask].mfxBS->DataOffset = 0;
 		t_TaskPool[n_FirstSyncTask].syncp =
 			static_cast<mfxSyncPoint>(nullptr);
 		n_TaskIdx = n_FirstSyncTask;
 		n_FirstSyncTask =
 			(n_FirstSyncTask + 1) % static_cast<int>(n_TaskNum);
 		*pBS = mfx_Bitstream;
-
-		n_SurfIdx = GetFreeSurfaceIndex(mfx_SurfacePool, n_SurfaceNum);
 	}
 
-	mfxFrameSurface1 *pSurface = mfx_SurfacePool[n_SurfIdx];
-	sts = mfx_FrameAllocator.Lock(mfx_FrameAllocator.pthis,
-				      pSurface->Data.MemId, &(pSurface->Data));
+	sts = mfx_VideoENC->GetSurface(&mfx_SurfacePool);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	sts = (pSurface->Info.FourCC == MFX_FOURCC_P010)
-		      ? LoadP010(pSurface, pDataY, pDataUV, strideY, strideUV)
-	      : (pSurface->Info.FourCC == MFX_FOURCC_NV12)
-		      ? LoadNV12(pSurface, pDataY, pDataUV, strideY, strideUV)
-		      : LoadBGRA(pSurface, pDataY, strideY);
-
+	sts = mfx_SurfacePool->FrameInterface->Map(mfx_SurfacePool,
+						   MFX_MAP_WRITE);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-	pSurface->Data.TimeStamp = static_cast<mfxU64>(ts);
 
-	sts = mfx_FrameAllocator.Unlock(mfx_FrameAllocator.pthis,
-					pSurface->Data.MemId,
-					&(pSurface->Data));
+	mfx_SurfacePool->Info = m_mfxEncParams.mfx.FrameInfo;
+
+	sts = (mfx_SurfacePool->Info.FourCC == MFX_FOURCC_P010)
+		      ? LoadP010(mfx_SurfacePool, pDataY, pDataUV, strideY,
+				 strideUV)
+	      : (mfx_SurfacePool->Info.FourCC == MFX_FOURCC_NV12)
+		      ? LoadNV12(mfx_SurfacePool, pDataY, pDataUV, strideY,
+				 strideUV)
+		      : LoadBGRA(mfx_SurfacePool, pDataY, strideY);
+
+	mfx_SurfacePool->Data.TimeStamp = ts;
+
+	sts = mfx_SurfacePool->FrameInterface->Unmap(mfx_SurfacePool);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
 	for (;;) {
 		// Encode a frame asynchronously (returns immediately)
 		sts = mfx_VideoENC->EncodeFrameAsync(
-			NULL, pSurface, &t_TaskPool[n_TaskIdx].mfxBS,
+			nullptr, mfx_SurfacePool, t_TaskPool[n_TaskIdx].mfxBS,
 			&t_TaskPool[n_TaskIdx].syncp);
+
+		mfx_SurfacePool->FrameInterface->Release(mfx_SurfacePool);
 
 		if (MFX_ERR_NONE == sts && t_TaskPool[n_TaskIdx].syncp) {
 			sts = MFXVideoCORE_SyncOperation(
@@ -2004,92 +1894,14 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 	return sts;
 }
 
-mfxStatus QSV_VPL_Encoder_Internal::Encode_tex(uint64_t ts, uint32_t tex_handle,
-					       uint64_t lock_key,
-					       uint64_t *next_key,
-					       mfxBitstream **pBS)
-{
-	mfxStatus sts = MFX_ERR_NONE;
-	*pBS = nullptr;
-	int n_TaskIdx = GetFreeTaskIndex(t_TaskPool, n_TaskNum);
-	int n_SurfIdx = GetFreeSurfaceIndex(mfx_SurfacePool, n_SurfaceNum);
-	/*blog(LOG_INFO, "wakeup");*/
-	while (MFX_ERR_NOT_FOUND == n_TaskIdx ||
-	       MFX_ERR_NOT_FOUND == n_SurfIdx) {
-		// No more free tasks or surfaces, need to sync
-		/*sts = MFXVideoCORE_SyncOperation(
-			mfx_Session, t_TaskPool[n_FirstSyncTask].syncp,
-			static_cast<mfxU32>(100));*/
-
-		mfxU8 *pTemp = mfx_Bitstream->Data;
-		memcpy(mfx_Bitstream, &t_TaskPool[n_FirstSyncTask].mfxBS,
-		       sizeof(mfxBitstream));
-
-		t_TaskPool[n_FirstSyncTask].mfxBS.Data = pTemp;
-		t_TaskPool[n_FirstSyncTask].mfxBS.DataLength = 0;
-		t_TaskPool[n_FirstSyncTask].mfxBS.DataOffset = 0;
-		t_TaskPool[n_FirstSyncTask].syncp =
-			static_cast<mfxSyncPoint>(nullptr);
-		n_TaskIdx = n_FirstSyncTask;
-		n_FirstSyncTask =
-			(n_FirstSyncTask + 1) % static_cast<int>(n_TaskNum);
-		*pBS = mfx_Bitstream;
-
-		n_SurfIdx = GetFreeSurfaceIndex(mfx_SurfacePool, n_SurfaceNum);
-	}
-	//blog(LOG_INFO, "TaskID: %d, SurfID: %d, SYNCP: %d", n_TaskIdx,
-	//     n_SurfIdx, t_TaskPool[n_FirstSyncTask].syncp);
-	mfxFrameSurface1 *pSurface = mfx_SurfacePool[n_SurfIdx];
-	//copy to default surface directly
-	pSurface->Data.TimeStamp = static_cast<mfxU64>(ts);
-	sts = simple_copytex(mfx_FrameAllocator.pthis, pSurface->Data.MemId,
-			     tex_handle, lock_key, next_key);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	for (;;) {
-		// Encode a frame asynchronously (returns immediately)
-		sts = mfx_VideoENC->EncodeFrameAsync(
-			&encCTRL, pSurface, &t_TaskPool[n_TaskIdx].mfxBS,
-			&t_TaskPool[n_TaskIdx].syncp);
-
-		if (MFX_ERR_NONE == sts /* && t_TaskPool[n_TaskIdx].syncp*/) {
-			sts = MFXVideoCORE_SyncOperation(
-				mfx_Session, t_TaskPool[n_TaskIdx].syncp,
-				static_cast<mfxU32>(INFINITE));
-			break;
-		} else if (MFX_ERR_NONE == sts &&
-			   !t_TaskPool[n_TaskIdx].syncp) {
-			// Repeat the call if warning and no output
-			/*if (MFX_WRN_DEVICE_BUSY == sts)*/
-			MSDK_SLEEP(
-				1); // Wait if device is busy, then repeat the same call
-		} else if (MFX_ERR_NONE < sts && !t_TaskPool[n_TaskIdx].syncp) {
-			// Repeat the call if warning and no output
-			/*if (MFX_WRN_DEVICE_BUSY == sts)*/
-			MSDK_SLEEP(
-				1); // Wait if device is busy, then repeat the same call
-		} else if (MFX_ERR_NONE < sts && t_TaskPool[n_TaskIdx].syncp) {
-			sts = MFX_ERR_NONE; // Ignore warnings if output is available
-			break;
-		} else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
-			// Allocate more bitstream buffer memory here if needed...
-			break;
-		} else {
-			break;
-		}
-	}
-
-	return sts;
-}
-
 mfxStatus QSV_VPL_Encoder_Internal::Drain()
 {
 	mfxStatus sts = MFX_ERR_NONE;
 
 	while (t_TaskPool && t_TaskPool[n_FirstSyncTask].syncp) {
-		mfx_VideoENC->EncodeFrameAsync(
-			NULL, NULL, &t_TaskPool[n_FirstSyncTask].mfxBS,
-			&t_TaskPool[n_FirstSyncTask].syncp);
+		//mfx_VideoENC->EncodeFrameAsync(
+		//	NULL, NULL, t_TaskPool[n_FirstSyncTask].mfxBS,
+		//	&t_TaskPool[n_FirstSyncTask].syncp);
 		sts = MFXVideoCORE_SyncOperation(
 			mfx_Session, t_TaskPool[n_FirstSyncTask].syncp,
 			static_cast<mfxU32>(INFINITE));
@@ -2115,22 +1927,12 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData()
 		m_mfxEncParams.~ExtBufManager();
 	}
 
-	mfx_FrameAllocator.Free(mfx_FrameAllocator.pthis,
-				&mfx_FrameAllocResponse);
-
-	if (mfx_SurfacePool) {
-		for (int i = 0; i < n_SurfaceNum; i++) {
-			delete mfx_SurfacePool[i]->Data.Y;
-			delete mfx_SurfacePool[i];
-		}
-
-		delete[] mfx_SurfacePool;
-		mfx_SurfacePool = nullptr;
-	}
+	mfx_SurfacePool = nullptr;
 
 	if (t_TaskPool) {
 		for (int i = 0; i < n_TaskNum; i++) {
-			delete t_TaskPool[i].mfxBS.Data;
+			delete t_TaskPool[i].mfxBS->Data;
+			delete t_TaskPool[i].mfxBS;
 		}
 		delete[] t_TaskPool;
 		t_TaskPool = nullptr;
@@ -2155,7 +1957,7 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData()
 
 	if (mfx_Session) {
 		MFXClose(mfx_Session);
-		//MFXDispReleaseImplDescription(mfx_Loader, nullptr);
+		MFXDispReleaseImplDescription(mfx_Loader, nullptr);
 		MFXUnload(mfx_Loader);
 		mfx_Session = nullptr;
 		mfx_Loader = nullptr;

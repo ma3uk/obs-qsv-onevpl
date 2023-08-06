@@ -354,18 +354,27 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 
 	const char *lookahead = obs_data_get_string(settings, "lookahead");
 
-	bVisible = (astrcmpi(rate_control, "ICQ") == 0 ||
-		    astrcmpi(rate_control, "CBR") == 0 ||
-		    astrcmpi(rate_control, "VBR") == 0) &&
-		   astrcmpi(lookahead, "ON") == 0;
+	bVisible = (astrcmpi(rate_control, "CBR") == 0 ||
+		    astrcmpi(rate_control, "VBR") == 0);
+	p = obs_properties_get(ppts, "lookahead");
+	obs_property_set_visible(p, bVisible);
+	if (bVisible) {
 
-	p = obs_properties_get(ppts, "lookahead_latency");
-	obs_property_set_visible(p, bVisible);
-	p = obs_properties_get(ppts, "lookahead_ds");
-	obs_property_set_visible(p, bVisible);
-	//p = obs_properties_get(ppts, "cpu_enc_tools");
-	//obs_property_set_visible(p, !bVisible);
-	if (!bVisible) {
+		bVisible = astrcmpi(lookahead, "ON") == 0 &&
+			   (strcmpi(rate_control, "CBR") == 0 ||
+			    astrcmpi(rate_control, "VBR") == 0);
+		p = obs_properties_get(ppts, "lookahead_latency");
+		obs_property_set_visible(p, bVisible);
+		p = obs_properties_get(ppts, "lookahead_ds");
+		obs_property_set_visible(p, bVisible);
+		//p = obs_properties_get(ppts, "cpu_enc_tools");
+		//obs_property_set_visible(p, !bVisible);
+		if (!bVisible) {
+			obs_data_erase(settings, "lookahead_latency");
+			obs_data_erase(settings, "lookahead_ds");
+		}
+	} else {
+		obs_data_set_string(settings, "lookahead", "OFF");
 		obs_data_erase(settings, "lookahead_latency");
 		obs_data_erase(settings, "lookahead_ds");
 	}
@@ -1225,37 +1234,29 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings)
 
 	if (astrcmpi(lookahead, "ON") == 0) {
 		obsqsv->params.bLookahead = true;
+		if (astrcmpi(lookahead_ds, "SLOW") == 0) {
+			obsqsv->params.nLookAheadDS = 0;
+		} else if (astrcmpi(lookahead_ds, "MEDIUM") == 0) {
+			obsqsv->params.nLookAheadDS = 1;
+		} else if (astrcmpi(lookahead_ds, "FAST") == 0) {
+			obsqsv->params.nLookAheadDS = 2;
+		} else if (astrcmpi(lookahead_ds, "AUTO") == 0) {
+			obsqsv->params.nLookAheadDS = -1;
+		}
+
+		if (astrcmpi(lookahead_latency, "HIGH") == 0) {
+			obsqsv->params.nLADepth = 100;
+		} else if (astrcmpi(lookahead_latency, "NORMAL") == 0) {
+			obsqsv->params.nLADepth = 60;
+		} else if (astrcmpi(lookahead_latency, "LOW") == 0) {
+			obsqsv->params.nLADepth = 40;
+		} else if (astrcmpi(lookahead_latency, "VERYLOW") == 0) {
+			obsqsv->params.nLADepth = 20;
+		}
 	} else if (astrcmpi(lookahead, "OFF") == 0) {
 		obsqsv->params.bLookahead = false;
 	}
 
-	if (astrcmpi(lookahead_ds, "SLOW") == 0) {
-		obsqsv->params.nLookAheadDS = 0;
-	} else if (astrcmpi(lookahead_ds, "MEDIUM") == 0) {
-		obsqsv->params.nLookAheadDS = 1;
-	} else if (astrcmpi(lookahead_ds, "FAST") == 0) {
-		obsqsv->params.nLookAheadDS = 2;
-	} else if (astrcmpi(lookahead_ds, "AUTO") == 0) {
-		obsqsv->params.nLookAheadDS = -1;
-	}
-
-	if (astrcmpi(lookahead_latency, "HIGH") == 0) {
-		obsqsv->params.nLADepth = 100;
-	} else if (astrcmpi(lookahead_latency, "NORMAL") == 0) {
-		obsqsv->params.nLADepth = 60;
-	} else if (astrcmpi(lookahead_latency, "LOW") == 0) {
-		obsqsv->params.nLADepth = 40;
-	} else if (astrcmpi(lookahead_latency, "VERYLOW") == 0) {
-		obsqsv->params.nLADepth = 20;
-	}
-
-	if (astrcmpi(adaptive_i, "ON") == 0) {
-		obsqsv->params.bAdaptiveI = 1;
-	} else if (astrcmpi(adaptive_i, "OFF") == 0) {
-		obsqsv->params.bAdaptiveI = 0;
-	} else {
-		obsqsv->params.bAdaptiveI = -1;
-	}
 
 	if (astrcmpi(intra_ref_encoding, "ON") == 0) {
 		obsqsv->params.bIntraRefEncoding = 1;
@@ -1287,6 +1288,14 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings)
 		obsqsv->params.bAdaptiveLTR = 0;
 	} else {
 		obsqsv->params.bAdaptiveLTR = -1;
+	}
+
+	if (astrcmpi(adaptive_i, "ON") == 0) {
+		obsqsv->params.bAdaptiveI = 1;
+	} else if (astrcmpi(adaptive_i, "OFF") == 0) {
+		obsqsv->params.bAdaptiveI = 0;
+	} else {
+		obsqsv->params.bAdaptiveI = -1;
 	}
 
 	if (astrcmpi(adaptive_b, "ON") == 0) {
@@ -1578,7 +1587,7 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 
 	obs_qsv *obsqsv = new obs_qsv();
 	if (!obsqsv) {
-		delete obsqsv;
+		/*delete obsqsv;*/
 		return nullptr;
 	}
 
@@ -1614,8 +1623,6 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 
 	if (update_settings(obsqsv, settings)) {
 		pthread_mutex_lock(&g_QsvLock);
-		obsqsv->context =
-			static_cast<qsv_t *>(calloc(1, sizeof(qsv_t *) * 2));
 		obsqsv->context = qsv_encoder_open(&obsqsv->params, codec);
 		pthread_mutex_unlock(&g_QsvLock);
 
@@ -1681,99 +1688,6 @@ static inline bool valid_hdr_format(enum video_format format)
 {
 	return format == VIDEO_FORMAT_NV12 || format == VIDEO_FORMAT_RGBA ||
 	       format == VIDEO_FORMAT_P010 || format == VIDEO_FORMAT_BGRA;
-}
-
-static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
-				obs_encoder_t *encoder, const char *fallback_id)
-{
-	obs_video_info ovi;
-	obs_get_video_info(&ovi);
-
-	if (!adapters[ovi.adapter].is_intel) {
-		blog(LOG_INFO,
-		     ">>> app not on intel GPU, fall back to non-texture encoder");
-		return obs_encoder_create_rerouted(encoder,
-						   (const char *)fallback_id);
-	}
-
-	video_t *video = obs_encoder_video(encoder);
-	const video_output_info *voi = video_output_get_info(video);
-
-	if (!valid_sdr_format(voi->format) ||
-	    (codec == QSV_CODEC_AV1 && !valid_hdr_format(voi->format))) {
-		blog(LOG_INFO,
-		     ">>> unsupported video format, fall back to non-texture encoder");
-		return obs_encoder_create_rerouted(encoder,
-						   (const char *)fallback_id);
-	}
-
-	if (codec == QSV_CODEC_AV1 && !adapters[ovi.adapter].supports_av1) {
-		blog(LOG_INFO,
-		     ">>> cap on different device, fall back to non-texture sharing AV1 qsv encoder");
-		return obs_encoder_create_rerouted(encoder,
-						   (const char *)fallback_id);
-	}
-
-	bool gpu_texture_active = obs_nv12_tex_active();
-
-	if (codec != QSV_CODEC_AVC)
-		gpu_texture_active = gpu_texture_active ||
-				     obs_p010_tex_active();
-
-	if (!gpu_texture_active) {
-		blog(LOG_INFO,
-		     ">>> gpu tex not active, fall back to non-texture encoder");
-		return obs_encoder_create_rerouted(encoder,
-						   (const char *)fallback_id);
-	}
-
-	if (obs_encoder_scaling_enabled(encoder)) {
-		blog(LOG_INFO,
-		     ">>> encoder scaling active, fall back to non-texture encoder");
-		return obs_encoder_create_rerouted(encoder,
-						   (const char *)fallback_id);
-	}
-
-	if (obs_encoder_scaling_enabled(encoder)) {
-		if (!obs_encoder_gpu_scaling_enabled(encoder)) {
-			blog(LOG_INFO,
-			     ">>> encoder CPU scaling active, fall back to old qsv encoder");
-			return obs_encoder_create_rerouted(
-				encoder, (const char *)fallback_id);
-		}
-		blog(LOG_INFO, ">>> encoder GPU scaling active");
-	}
-
-	blog(LOG_INFO, ">>> Texture encoder");
-	return obs_qsv_create(codec, settings, encoder);
-}
-
-static void *obs_qsv_create_tex_h264(obs_data_t *settings,
-				     obs_encoder_t *encoder)
-{
-	return obs_qsv_create_tex(QSV_CODEC_AVC, settings, encoder,
-				  "obs_qsv_vpl_h264");
-}
-
-static void *obs_qsv_create_tex_av1(obs_data_t *settings,
-				    obs_encoder_t *encoder)
-{
-	return obs_qsv_create_tex(QSV_CODEC_AV1, settings, encoder,
-				  "obs_qsv_vpl_av1");
-}
-
-static void *obs_qsv_create_tex_hevc(obs_data_t *settings,
-				     obs_encoder_t *encoder)
-{
-	return obs_qsv_create_tex(QSV_CODEC_HEVC, settings, encoder,
-				  "obs_qsv_vpl_hevc");
-}
-
-static void *obs_qsv_create_tex_vp9(obs_data_t *settings,
-				    obs_encoder_t *encoder)
-{
-	return obs_qsv_create_tex(QSV_CODEC_VP9, settings, encoder,
-				  "obs_qsv_vpl_vp9");
 }
 
 static bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size)
@@ -2084,56 +1998,6 @@ static bool obs_qsv_encode(void *data, encoder_frame *frame,
 	return true;
 }
 
-static bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
-			       uint64_t lock_key, uint64_t *next_key,
-			       encoder_packet *packet, bool *received_packet)
-{
-	obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
-
-	if (handle == GS_INVALID_HANDLE) {
-		warn("Encode failed: bad texture handle");
-		*next_key = lock_key;
-		return false;
-	}
-
-	if (!packet || !received_packet) {
-		blog(LOG_ERROR, "PACKET SKIPPED");
-		return false;
-	}
-	pthread_mutex_lock(&g_QsvLock);
-
-	video_t *video = obs_encoder_video(obsqsv->encoder);
-	const video_output_info *voi = video_output_get_info(video);
-
-	mfxBitstream *pBS = nullptr;
-
-	mfxU64 qsvPTS = ts_obs_to_mfx(pts, voi);
-
-	int ret = qsv_encoder_encode_tex(obsqsv->context, qsvPTS, handle,
-					 lock_key, next_key, &pBS);
-
-	if (ret < 0) {
-
-		warn("encode failed");
-		pthread_mutex_unlock(&g_QsvLock);
-		return false;
-	}
-
-	if (obsqsv->codec == QSV_CODEC_AVC) {
-		parse_packet_h264(obsqsv, packet, pBS, voi, received_packet);
-	} else if (obsqsv->codec == QSV_CODEC_AV1) {
-		parse_packet_av1(obsqsv, packet, pBS, voi, received_packet);
-	} else if (obsqsv->codec == QSV_CODEC_HEVC) {
-		parse_packet_hevc(obsqsv, packet, pBS, voi, received_packet);
-	} else if (obsqsv->codec == QSV_CODEC_VP9) {
-		parse_packet_vp9(obsqsv, packet, pBS, voi, received_packet);
-	}
-
-	pthread_mutex_unlock(&g_QsvLock);
-
-	return true;
-}
-
 obs_encoder_info obs_qsv_h264_encoder = {.id = "obs_qsv_vpl_h264",
 					 .type = OBS_ENCODER_VIDEO,
 					 .codec = "h264",
@@ -2147,8 +2011,7 @@ obs_encoder_info obs_qsv_h264_encoder = {.id = "obs_qsv_vpl_h264",
 					 .get_extra_data = obs_qsv_extra_data,
 					 .get_sei_data = obs_qsv_sei,
 					 .get_video_info = obs_qsv_video_info,
-					 .caps = OBS_ENCODER_CAP_DYN_BITRATE |
-						 OBS_ENCODER_CAP_INTERNAL};
+					 .caps = OBS_ENCODER_CAP_DYN_BITRATE};
 
 obs_encoder_info obs_qsv_av1_encoder = {
 	.id = "obs_qsv_vpl_av1",
@@ -2164,7 +2027,7 @@ obs_encoder_info obs_qsv_av1_encoder = {
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL};
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE};
 
 obs_encoder_info obs_qsv_hevc_encoder = {
 	.id = "obs_qsv_vpl_hevc",
@@ -2180,7 +2043,7 @@ obs_encoder_info obs_qsv_hevc_encoder = {
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL};
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE};
 
 obs_encoder_info obs_qsv_vp9_encoder = {
 	.id = "obs_qsv_vpl_vp9",
@@ -2196,68 +2059,4 @@ obs_encoder_info obs_qsv_vp9_encoder = {
 	.get_extra_data = obs_qsv_extra_data,
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_plus_hdr_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL};
-
-obs_encoder_info obs_qsv_h264_encoder_tex = {
-	.id = "obs_qsv_vpl_tex_h264",
-	.type = OBS_ENCODER_VIDEO,
-	.codec = "h264",
-	.get_name = obs_qsv_getname_h264,
-	.create = obs_qsv_create_tex_h264,
-	.destroy = obs_qsv_destroy,
-	.get_defaults = obs_qsv_defaults_h264,
-	.get_properties = obs_qsv_props_h264,
-	.update = obs_qsv_update,
-	.get_extra_data = obs_qsv_extra_data,
-	.get_sei_data = obs_qsv_sei,
-	.get_video_info = obs_qsv_video_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex};
-
-obs_encoder_info obs_qsv_av1_encoder_tex = {
-	.id = "obs_qsv_vpl_tex_av1",
-	.type = OBS_ENCODER_VIDEO,
-	.codec = "av1",
-	.get_name = obs_qsv_getname_av1,
-	.create = obs_qsv_create_tex_av1,
-	.destroy = obs_qsv_destroy,
-	.get_defaults = obs_qsv_defaults_av1,
-	.get_properties = obs_qsv_props_av1,
-	.update = obs_qsv_update,
-	.get_extra_data = obs_qsv_extra_data,
-	.get_sei_data = obs_qsv_sei,
-	.get_video_info = obs_qsv_video_plus_hdr_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex};
-
-obs_encoder_info obs_qsv_hevc_encoder_tex = {
-	.id = "obs_qsv_vpl_tex_hevc",
-	.type = OBS_ENCODER_VIDEO,
-	.codec = "hevc",
-	.get_name = obs_qsv_getname_hevc,
-	.create = obs_qsv_create_tex_hevc,
-	.destroy = obs_qsv_destroy,
-	.get_defaults = obs_qsv_defaults_hevc,
-	.get_properties = obs_qsv_props_hevc,
-	.update = obs_qsv_update,
-	.get_extra_data = obs_qsv_extra_data,
-	.get_sei_data = obs_qsv_sei,
-	.get_video_info = obs_qsv_video_plus_hdr_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex};
-
-obs_encoder_info obs_qsv_vp9_encoder_tex = {
-	.id = "obs_qsv_vpl_tex_vp9",
-	.type = OBS_ENCODER_VIDEO,
-	.codec = "vp9",
-	.get_name = obs_qsv_getname_vp9,
-	.create = obs_qsv_create_tex_vp9,
-	.destroy = obs_qsv_destroy,
-	.get_defaults = obs_qsv_defaults_vp9,
-	.get_properties = obs_qsv_props_vp9,
-	.update = obs_qsv_update,
-	.get_extra_data = obs_qsv_extra_data,
-	.get_sei_data = obs_qsv_sei,
-	.get_video_info = obs_qsv_video_plus_hdr_info,
-	.caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-	.encode_texture = obs_qsv_encode_tex};
+	.caps = OBS_ENCODER_CAP_DYN_BITRATE};

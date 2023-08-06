@@ -321,15 +321,13 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
 
 	// Allocate custom container to keep texture and stage buffers for each surface
 	// Container also stores the intended read and/or write operation.
-	CustomMemId **mids = static_cast<CustomMemId **>(
-		calloc(static_cast<size_t>(request->NumFrameSuggested),
-		       sizeof(CustomMemId) * 2));
+	CustomMemId **mids = new struct CustomMemId *[request->NumFrameSuggested];
 	if (!mids)
 		return MFX_ERR_MEMORY_ALLOC;
 
 	for (int i = 0; i < request->NumFrameSuggested; i++) {
-		mids[i] = static_cast<CustomMemId *>(
-			calloc(1, sizeof(CustomMemId) * 2));
+		mids[i] = new struct CustomMemId;
+		memset(mids[i], 0, sizeof(CustomMemId));
 		if (!mids[i]) {
 			return MFX_ERR_MEMORY_ALLOC;
 		}
@@ -732,10 +730,10 @@ mfxStatus _simple_free(mfxFrameAllocResponse *response)
 				if (pStage)
 					pStage->Release();
 
-				free(mid);
+				delete mid;
 			}
 		}
-		free(response->mids);
+		delete[] response->mids;
 		response->mids = nullptr;
 	}
 

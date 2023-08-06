@@ -56,7 +56,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // QSV_Encoder.cpp : Defines the exported functions for the DLL application.
 //
-#define MFX_DEPRECATED_OFF
+//#define MFX_DEPRECATED_OFF
 #define ONEVPL_EXPERIMENTAL
 
 #include "obs-qsv-onevpl-encoder.h"
@@ -105,6 +105,7 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 	blog(LOG_INFO, "Selected adapter: %d", adapter_idx);
 	isDGPU = adapters[adapter_idx].is_dgpu;
 	mfxStatus sts;
+
 	QSV_VPL_Encoder_Internal *pEncoder =
 		new QSV_VPL_Encoder_Internal(ver, isDGPU);
 
@@ -194,13 +195,14 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec)
 
 #undef WARN_ERR
 #undef WARN_ERR_IMPL
-		delete pEncoder;
-		pEncoder = nullptr;
-		if (pEncoder)
+		if (pEncoder) {
+			/*delete pEncoder;*/
+			pEncoder = nullptr;
 			is_active.store(false);
+		}
 		return NULL;
 	}
-
+	is_active.store(true);
 	return (qsv_t *)pEncoder;
 }
 
@@ -233,26 +235,6 @@ int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
 	if (pDataY != NULL)
 		sts = pEncoder->Encode(ts, pDataY, pDataUV, strideY, strideUV,
 				       pBS);
-
-	if (sts == MFX_ERR_NONE) {
-		return 0;
-	} else if (sts == MFX_ERR_MORE_DATA) {
-		return 1;
-	} else {
-		return -1;
-	}
-}
-
-int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
-			   uint64_t lock_key, uint64_t *next_key,
-			   mfxBitstream **pBS)
-{
-	QSV_VPL_Encoder_Internal *pEncoder =
-		(QSV_VPL_Encoder_Internal *)pContext;
-
-	mfxStatus sts = MFX_ERR_NONE;
-
-	sts = pEncoder->Encode_tex(ts, tex_handle, lock_key, next_key, pBS);
 
 	if (sts == MFX_ERR_NONE) {
 		return 0;
