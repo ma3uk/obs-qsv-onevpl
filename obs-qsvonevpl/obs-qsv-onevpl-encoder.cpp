@@ -59,9 +59,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //#define MFX_DEPRECATED_OFF
 #define ONEVPL_EXPERIMENTAL
 
-#include "obs-qsv-onevpl-encoder.h"
-#include "obs-qsv-onevpl-encoder-internal.h"
-#include "helpers/common_utils.h"
+#include "obs-qsv-onevpl-encoder.hpp"
+#include "obs-qsv-onevpl-encoder-internal.hpp"
+#include "helpers/common_utils.hpp"
 #include <obs-module.h>
 
 #include <string>
@@ -213,16 +213,6 @@ bool qsv_encoder_is_dgpu(qsv_t *pContext)
 	return pEncoder->IsDGPU();
 }
 
-int qsv_encoder_headers(qsv_t *pContext, uint8_t **pSPS, uint8_t **pPPS,
-			uint16_t *pnSPS, uint16_t *pnPPS)
-{
-	QSV_VPL_Encoder_Internal *pEncoder =
-		(QSV_VPL_Encoder_Internal *)pContext;
-	pEncoder->GetSPSPPS(pSPS, pPPS, pnSPS, pnPPS);
-
-	return 0;
-}
-
 int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
 		       uint8_t *pDataUV, uint32_t strideY, uint32_t strideUV,
 		       mfxBitstream **pBS)
@@ -273,7 +263,7 @@ int qsv_encoder_reconfig(qsv_t *pContext, qsv_param_t *pParams)
 	return true;
 }
 
-int qsv_hevc_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
+int qsv_encoder_headers(qsv_t *pContext, uint8_t **pVPS, uint8_t **pSPS,
 			     uint8_t **pPPS, uint16_t *pnVPS, uint16_t *pnSPS,
 			     uint16_t *pnPPS)
 {

@@ -23,6 +23,9 @@
 #define MFX_ENABLE_FADE_DETECTION
 #define MFX_ENABLE_EXT_BRC
 #define MFX_ENABLE_VIDEO_BRC_COMMON
+#define MFXVIDEO_CPP_ENABLE_MFXLOAD
+#define MFX_ENABLE_LPLA_BASE
+
 
 #include "mfxdefs.h"
 #include "mfxcommon.h"
@@ -31,12 +34,14 @@
 #include "mfximplcaps.h"
 #include "mfxsession.h"
 #include "mfxvideo.h"
+#include "mfxvideo++.h"
 #include "mfxadapter.h"
 
 #include "mfxbrc.h"
 
 #include "mfxenctools.h"
 #include "mfxav1.h"
+#include "mfxddi.h"
 
 #include "mfxsurfacepool.h"
 

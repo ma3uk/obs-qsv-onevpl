@@ -1,7 +1,7 @@
-#include "common_utils.h"
-#include "../obs-qsv-onevpl-encoder.h"
+#include "common_utils.hpp"
+#include "../obs-qsv-onevpl-encoder.hpp"
 #include <string>
-#include <stdint.h>
+#include <cstdint>
 
 // =================================================================
 // Utility functions, not directly tied to Intel Media SDK functionality

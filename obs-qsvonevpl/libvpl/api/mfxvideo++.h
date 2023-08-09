@@ -9,7 +9,7 @@
 #define ONEVPL_EXPERIMENTAL
 //#define MFX_DEPRECATED_OFF
 #ifdef MFXVIDEO_CPP_ENABLE_MFXLOAD
-#include "vpl/mfx.h"
+#include "mfx.h"
 #define MFX_IMPL_ACCELMODE(x) (0xff00 & (x))
 #else
 #include "mfxvideo.h"

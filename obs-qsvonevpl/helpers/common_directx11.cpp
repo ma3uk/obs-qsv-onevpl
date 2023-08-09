@@ -1,40 +1,42 @@
-#include "common_directx11.h"
-
-#include <map>
-
-ID3D11Device *g_pD3D11Device;
-ID3D11DeviceContext *g_pD3D11Ctx;
-IDXGIFactory2 *g_pDXGIFactory;
-IDXGIAdapter *g_pAdapter;
-std::wstring g_displayDeviceName;
-LUID g_devLUID;
-BOOL g_bIsA2rgb10 = false;
-mfxU16 n_Views = 0;
-CComPtr<IDXGISwapChain1> g_pSwapChain;
-
-std::map<mfxMemId *, mfxHDL> allocResponses;
-std::map<mfxHDL, mfxFrameAllocResponse> allocDecodeResponses;
-std::map<mfxHDL, int> allocDecodeRefCount;
-
-struct CustomMemId {
-	mfxMemId memId;
-	mfxMemId memIdStage;
-	mfxU16 rw;
-};
-
-const struct {
-	mfxIMPL impl;     // actual implementation
-	mfxU32 adapterID; // device adapter number
-} implTypes[] = {{MFX_IMPL_HARDWARE, 0},
-		 {MFX_IMPL_HARDWARE2, 1},
-		 {MFX_IMPL_HARDWARE3, 2},
-		 {MFX_IMPL_HARDWARE4, 3}};
+#include "common_directx11.hpp"
 
 // =================================================================
 // DirectX functionality required to manage DX11 device and surfaces
 //
 
-mfxStatus FillSCD1(DXGI_SWAP_CHAIN_DESC1 &scd1)
+QSV_VPL_D3D11::QSV_VPL_D3D11(mfxSession session)
+	: g_devLUID(),
+	  g_pAdapter(),
+	  g_pD3D11Ctx(),
+	  g_pD3D11Device(),
+	  g_pDXGIFactory()
+{
+	this->session = session;
+}
+
+QSV_VPL_D3D11::~QSV_VPL_D3D11()
+{
+	CleanupHWDevice();
+}
+
+mfxStatus QSV_VPL_D3D11::FillSCD(DXGI_SWAP_CHAIN_DESC &scd)
+{
+	scd.BufferDesc.Width = 0; // Use automatic sizing.
+	scd.BufferDesc.Height = 0;
+	scd.BufferDesc.Format = (g_bIsA2rgb10) ? DXGI_FORMAT_R10G10B10A2_UNORM
+					       : DXGI_FORMAT_B8G8R8A8_UNORM;
+	scd.SampleDesc.Count = 1; // Don't use multi-sampling.
+	scd.SampleDesc.Quality = 0;
+	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	scd.BufferCount = 2; // Use double buffering to minimize latency.
+	scd.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+	scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+	return MFX_ERR_NONE;
+}
+
+mfxStatus QSV_VPL_D3D11::FillSCD1(DXGI_SWAP_CHAIN_DESC1 &scd1)
 {
 	scd1.Width = 0; // Use automatic sizing.
 	scd1.Height = 0;
@@ -52,7 +54,7 @@ mfxStatus FillSCD1(DXGI_SWAP_CHAIN_DESC1 &scd1)
 	return MFX_ERR_NONE;
 }
 
-IDXGIAdapter *GetIntelDeviceAdapterHandle(mfxSession session)
+IDXGIAdapter *QSV_VPL_D3D11::GetIntelDeviceAdapterHandle()
 {
 	mfxU32 adapterNum = 0;
 	mfxIMPL impl;
@@ -84,7 +86,7 @@ IDXGIAdapter *GetIntelDeviceAdapterHandle(mfxSession session)
 }
 
 // Create HW device context
-mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle, HWND hWindow)
+mfxStatus QSV_VPL_D3D11::CreateHWDevice(mfxHDL *deviceHandle)
 {
 	HRESULT hres = S_OK;
 
@@ -94,7 +96,7 @@ mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle, HWND hWindow)
 						    D3D_FEATURE_LEVEL_10_0};
 	D3D_FEATURE_LEVEL pFeatureLevelsOut;
 
-	g_pAdapter = GetIntelDeviceAdapterHandle(session);
+	g_pAdapter = GetIntelDeviceAdapterHandle();
 	if (NULL == g_pAdapter) {
 		return MFX_ERR_DEVICE_FAILED;
 	}
@@ -104,11 +106,18 @@ mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle, HWND hWindow)
 		       D3D11_CREATE_DEVICE_DISABLE_GPU_TIMEOUT;
 	//UINT dxFlags = D3D11_CREATE_DEVICE_DEBUG;
 
-	hres = D3D11CreateDevice(g_pAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL,
-				 dxFlags, FeatureLevels,
-				 _countof(FeatureLevels), D3D11_SDK_VERSION,
-				 &g_pD3D11Device, &pFeatureLevelsOut,
-				 &g_pD3D11Ctx);
+	//hres = D3D11CreateDevice(g_pAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL,
+	//			 dxFlags, FeatureLevels,
+	//			 _countof(FeatureLevels), D3D11_SDK_VERSION,
+	//			 &g_pD3D11Device, &pFeatureLevelsOut,
+	//			 &g_pD3D11Ctx);
+	DXGI_SWAP_CHAIN_DESC swapChainDesc = {0};
+	FillSCD(swapChainDesc);
+	hres = D3D11CreateDeviceAndSwapChain(
+		g_pAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, dxFlags,
+		FeatureLevels, _countof(FeatureLevels), D3D11_SDK_VERSION,
+		&swapChainDesc, NULL, &g_pD3D11Device, &pFeatureLevelsOut,
+		&g_pD3D11Ctx);
 	if (FAILED(hres)) {
 		return MFX_ERR_DEVICE_FAILED;
 	}
@@ -128,26 +137,12 @@ mfxStatus CreateHWDevice(mfxSession session, mfxHDL *deviceHandle, HWND hWindow)
 		return MFX_ERR_DEVICE_FAILED;
 	}
 
-	if (hWindow) {
-		MSDK_CHECK_POINTER(g_pDXGIFactory, MFX_ERR_NULL_PTR);
-		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {0};
-
-		FillSCD1(swapChainDesc);
-
-		hres = g_pDXGIFactory->CreateSwapChainForHwnd(
-			g_pD3D11Device, reinterpret_cast<HWND>(hWindow),
-			&swapChainDesc, NULL, NULL,
-			reinterpret_cast<IDXGISwapChain1 **>(&g_pSwapChain));
-		if (FAILED(hres))
-			return MFX_ERR_DEVICE_FAILED;
-	}
-
 	*deviceHandle = static_cast<mfxHDL>(g_pD3D11Device);
 
 	return MFX_ERR_NONE;
 }
 
-mfxStatus Reset(mfxHDL *deviceHandle)
+mfxStatus QSV_VPL_D3D11::Reset(mfxHDL *deviceHandle)
 {
 
 	MSDK_CHECK_POINTER(g_pDXGIFactory, MFX_ERR_NULL_PTR);
@@ -156,6 +151,7 @@ mfxStatus Reset(mfxHDL *deviceHandle)
 	FillSCD1(swapChainDesc);
 
 	HRESULT hres = S_OK;
+
 	hres = g_pDXGIFactory->CreateSwapChainForHwnd(
 		g_pD3D11Device, reinterpret_cast<HWND>(deviceHandle),
 		&swapChainDesc, NULL, NULL,
@@ -167,7 +163,7 @@ mfxStatus Reset(mfxHDL *deviceHandle)
 	return MFX_ERR_NONE;
 }
 
-mfxStatus CreateVideoProcessor(mfxFrameSurface1 *pSurface)
+mfxStatus QSV_VPL_D3D11::CreateVideoProcessor(mfxFrameSurface1 *pSurface)
 {
 	CComPtr<ID3D11VideoProcessorEnumerator> m_VideoProcessorEnum;
 	if (m_VideoProcessorEnum.p || pSurface == nullptr) {
@@ -203,66 +199,53 @@ mfxStatus CreateVideoProcessor(mfxFrameSurface1 *pSurface)
 	return MFX_ERR_NONE;
 }
 
-void SetHWDeviceContext(CComPtr<ID3D11DeviceContext> devCtx)
+void QSV_VPL_D3D11::SetHWDeviceContext(CComPtr<ID3D11DeviceContext> devCtx)
 {
 	g_pD3D11Ctx = devCtx;
 	devCtx->GetDevice(&g_pD3D11Device);
 }
 
 // Free HW device context
-void CleanupHWDevice()
+void QSV_VPL_D3D11::CleanupHWDevice()
 {
 	if (g_pAdapter) {
 		g_pAdapter->Release();
-		g_pAdapter = NULL;
+		g_pAdapter = nullptr;
 	}
 	if (g_pD3D11Device) {
 		g_pD3D11Device->Release();
-		g_pD3D11Device = NULL;
+		g_pD3D11Device = nullptr;
 	}
 	if (g_pD3D11Ctx) {
 		g_pD3D11Ctx->Release();
-		g_pD3D11Ctx = NULL;
+		g_pD3D11Ctx = nullptr;
 	}
 	if (g_pDXGIFactory) {
 		g_pDXGIFactory->Release();
-		g_pDXGIFactory = NULL;
+		g_pDXGIFactory = nullptr;
 	}
 }
 
-CComPtr<ID3D11DeviceContext> GetHWDeviceContext()
+CComPtr<ID3D11DeviceContext> QSV_VPL_D3D11::GetHWDeviceContext()
 {
 	return g_pD3D11Ctx;
 }
 
-LUID GetHWDeviceLUID()
+LUID QSV_VPL_D3D11::GetHWDeviceLUID()
 {
 	return g_devLUID;
 }
 
-std::wstring GetHWDeviceName()
+std::wstring QSV_VPL_D3D11::GetHWDeviceName()
 {
 	return g_displayDeviceName;
 }
 
-/* (Hugh) Functions currently unused */
-#if 0
-void ClearYUVSurfaceD3D(mfxMemId memId)
-{
-    // TBD
-}
-
-void ClearRGBSurfaceD3D(mfxMemId memId)
-{
-    // TBD
-}
-#endif
-
 //
 // Intel Media SDK memory allocator entrypoints....
 //
-mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
-			mfxFrameAllocResponse *response)
+mfxStatus QSV_VPL_D3D11::_simple_alloc(mfxFrameAllocRequest *request,
+				       mfxFrameAllocResponse *response)
 {
 	HRESULT hRes;
 
@@ -321,7 +304,8 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
 
 	// Allocate custom container to keep texture and stage buffers for each surface
 	// Container also stores the intended read and/or write operation.
-	CustomMemId **mids = new struct CustomMemId *[request->NumFrameSuggested];
+	CustomMemId **mids =
+		new struct CustomMemId *[request->NumFrameSuggested];
 	if (!mids)
 		return MFX_ERR_MEMORY_ALLOC;
 
@@ -433,8 +417,9 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest *request,
 	return MFX_ERR_NONE;
 }
 
-mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest *request,
-		       mfxFrameAllocResponse *response)
+mfxStatus QSV_VPL_D3D11::simple_alloc(mfxHDL pthis,
+				      mfxFrameAllocRequest *request,
+				      mfxFrameAllocResponse *response)
 {
 	mfxStatus sts = MFX_ERR_NONE;
 
@@ -469,7 +454,8 @@ mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest *request,
 	return sts;
 }
 
-mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr)
+mfxStatus QSV_VPL_D3D11::simple_lock(mfxHDL pthis, mfxMemId mid,
+				     mfxFrameData *ptr)
 {
 	pthis; // To suppress warning for this unused parameter
 
@@ -620,7 +606,8 @@ mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr)
 	return MFX_ERR_NONE;
 }
 
-mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr)
+mfxStatus QSV_VPL_D3D11::simple_unlock(mfxHDL pthis, mfxMemId mid,
+				       mfxFrameData *ptr)
 {
 	pthis; // To suppress warning for this unused parameter
 
@@ -650,8 +637,9 @@ mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr)
 	return MFX_ERR_NONE;
 }
 
-mfxStatus simple_copytex(mfxHDL pthis, mfxMemId mid, mfxU32 tex_handle,
-			 mfxU64 lock_key, mfxU64 *next_key)
+mfxStatus QSV_VPL_D3D11::simple_copytex(mfxHDL pthis, mfxMemId mid,
+					mfxU32 tex_handle, mfxU64 lock_key,
+					mfxU64 *next_key)
 {
 	pthis; // To suppress warning for this unused parameter
 
@@ -694,7 +682,8 @@ mfxStatus simple_copytex(mfxHDL pthis, mfxMemId mid, mfxU32 tex_handle,
 	return MFX_ERR_NONE;
 }
 
-mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL *handle)
+mfxStatus QSV_VPL_D3D11::simple_gethdl(mfxHDL pthis, mfxMemId mid,
+				       mfxHDL *handle)
 {
 	pthis; // To suppress warning for this unused parameter
 
@@ -710,7 +699,7 @@ mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL *handle)
 	return MFX_ERR_NONE;
 }
 
-mfxStatus _simple_free(mfxFrameAllocResponse *response)
+mfxStatus QSV_VPL_D3D11::_simple_free(mfxFrameAllocResponse *response)
 {
 	CustomMemId *mid = 0;
 	ID3D11Texture2D *pSurface = 0;
@@ -740,7 +729,8 @@ mfxStatus _simple_free(mfxFrameAllocResponse *response)
 	return MFX_ERR_NONE;
 }
 
-mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse *response)
+mfxStatus QSV_VPL_D3D11::simple_free(mfxHDL pthis,
+				     mfxFrameAllocResponse *response)
 {
 	if (nullptr == response)
 		return MFX_ERR_NULL_PTR;

@@ -11,20 +11,20 @@ add_library(OBS::libvpl ALIAS libvpl)
 target_sources(
   obs-qsvonevpl
   PRIVATE # cmake-format: sortable
-	  obs-qsv-onevpl-plugin-main.c
-	  obs-qsv-onevpl-plugin-init.c
+	  obs-qsv-onevpl-plugin-main.cpp
+	  obs-qsv-onevpl-plugin-init.cpp
       obs-qsv-onevpl-encoder.cpp
-      obs-qsv-onevpl-encoder.h
+      obs-qsv-onevpl-encoder.hpp
 	  obs-qsv-onevpl-encoder-internal.cpp
-      obs-qsv-onevpl-encoder-internal.h
+      obs-qsv-onevpl-encoder-internal.hpp
       helpers/common_directx11.cpp
-      helpers/common_directx11.h
+      helpers/common_directx11.hpp
       helpers/common_utils.cpp
-      helpers/common_utils.h
+      helpers/common_utils.hpp
       helpers/common_utils_windows.cpp
-	  helpers/ext_buf_manager.h
-      bits/linux_defs.h
-      bits/windows_defs.h
+	  helpers/ext_buf_manager.hpp
+      bits/linux_defs.hpp
+      bits/windows_defs.hpp
 )
 
 target_link_libraries(obs-qsvonevpl PRIVATE OBS::libobs)
@@ -34,7 +34,7 @@ set_target_properties_obs(obs-qsvonevpl PROPERTIES FOLDER plugins/obs-qsvonevpl 
 # cmake-format: on
 
 if(OS_WINDOWS)
-  add_subdirectory(obs-qsvonevpl-test)
+
 
 target_sources(
   libvpl
@@ -76,6 +76,7 @@ target_sources(
 			libvpl/api/private/mfxenctools.h
 			libvpl/api/private/mfxplugin.h
 			libvpl/api/private/mfxpxp.h
+			libvpl/api/private/mfxddi.h
 			libvpl/api/legacy/mfxvideo++.h
       		libvpl/src/main.cpp
 			libvpl/src/mfx_critical_section.cpp
@@ -116,7 +117,7 @@ target_sources(
     obs-qsvonevpl
     PRIVATE # cmake-format: sortable
             helpers/common_directx11.cpp
-            helpers/common_directx11.h
+            helpers/common_directx11.hpp
             helpers/common_utils.cpp)
   
 target_link_libraries(obs-qsvonevpl PRIVATE OBS::libvpl d3d11 dxgi dxguid OBS::COMutils)

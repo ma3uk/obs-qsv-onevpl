@@ -1,16 +1,9 @@
 #ifndef __MFX_H__
 #include "mfx.h"
 #endif
-#include "obs-qsv-onevpl-encoder-internal.h"
-#include "helpers/brc_routines.h"
-//#include "obs-qsv-onevpl-encoder.h"
-#include <VersionHelpers.h>
-#include <obs-module.h>
-#include <memory>
-#include <vector>
-#include <atomic>
-#include <condition_variable>
-#include <thread>
+#include "obs-qsv-onevpl-encoder-internal.hpp"
+#include "helpers/brc_routines.hpp"
+#include "helpers/common_utils.hpp"
 
 //#include "helpers/brc_routines.h"
 #define do_log(level, format, ...) \
@@ -19,9 +12,6 @@
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
 #define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
 #define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
-
-mfxU16 mfx_OpenEncodersNum = 0;
-mfxHDL mfx_DX_Handle = nullptr;
 
 QSV_VPL_Encoder_Internal::QSV_VPL_Encoder_Internal(mfxVersion &version,
 						   bool isDGPU)
@@ -45,11 +35,10 @@ QSV_VPL_Encoder_Internal::QSV_VPL_Encoder_Internal(mfxVersion &version,
 	  n_FirstSyncTask(0),
 	  mfx_Bitstream(),
 	  b_isDGPU(isDGPU),
-	  //mfx_Ext_TuneQuality(),
 	  m_mfxEncParams(),
 	  m_mfxEncCtrlParams()
-//mfx_EncToolsConf()
 {
+#if defined(_WIN32) || defined(_WIN64)
 	mfxIMPL tempImpl = MFX_IMPL_VIA_D3D11;
 	mfx_Loader = MFXLoad();
 	mfxStatus sts = MFXCreateSession(mfx_Loader, 0, &mfx_Session);
@@ -73,6 +62,33 @@ QSV_VPL_Encoder_Internal::QSV_VPL_Encoder_Internal(mfxVersion &version,
 	} else {
 		blog(LOG_INFO, "\tImplementation: [ERROR]\n");
 	}
+#else
+
+	mfxIMPL tempImpl = MFX_IMPL_VIA_VAAPI;
+	mfx_Loader = MFXLoad();
+	mfxStatus sts = MFXCreateSession(mfx_Loader, 0, &mfx_Session);
+	blog(LOG_INFO, "Session init status: %d", sts);
+	if (sts == MFX_ERR_NONE) {
+		sts = MFXQueryVersion(mfx_Session, &version);
+		blog(LOG_INFO, "Version query status: %d", sts);
+		if (sts == MFX_ERR_NONE) {
+			mfx_Version = version;
+			sts = MFXQueryIMPL(mfx_Session, &tempImpl);
+			blog(LOG_INFO, "Impl query status: %d", sts);
+			if (sts == MFX_ERR_NONE) {
+				mfx_Impl = tempImpl;
+				blog(LOG_INFO,
+				     "\tImplementation:           VA-API\n"
+				     "\tsurf:           VA-API\n");
+			}
+		} else {
+			blog(LOG_INFO, "\tImplementation: [ERROR]\n");
+		}
+	} else {
+		blog(LOG_INFO, "\tImplementation: [ERROR]\n");
+	}
+
+#endif
 	MFXClose(mfx_Session);
 	MFXUnload(mfx_Loader);
 	return;
@@ -84,13 +100,10 @@ QSV_VPL_Encoder_Internal::~QSV_VPL_Encoder_Internal()
 		ClearData();
 	}
 }
-mfxStatus
-QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
+mfxStatus QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
 {
 
 	mfxStatus sts = MFX_ERR_NONE;
-
-	// If mfxFrameAllocator is provided it means we need to setup DirectX device and memory allocator
 
 	// Initialize VPL Session
 	mfx_Loader = MFXLoad();
@@ -119,6 +132,8 @@ QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
 			"mfxImplDescription.Impl.mfxImplType"),
 		mfx_LoaderVariant);
 
+#if defined(_WIN32) || defined(_WIN64)
+
 	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
 	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
 	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
@@ -130,11 +145,50 @@ QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
 
 	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
 	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxInitializationParam.AccelerationMode"),
+		mfx_LoaderVariant);
+
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
 	mfx_LoaderVariant.Data.U32 = MFX_HANDLE_D3D11_DEVICE;
 	MFXSetConfigFilterProperty(
 		mfx_LoaderConfig,
 		reinterpret_cast<const mfxU8 *>("mfxHandleType"),
 		mfx_LoaderVariant);
+
+#else
+
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_VAAPI;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxImplDescription.mfxAccelerationModeDescription.Mode"),
+		mfx_LoaderVariant);
+
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_VAAPI;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>(
+			"mfxInitializationParam.AccelerationMode"),
+		mfx_LoaderVariant);
+
+	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
+	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
+	mfx_LoaderVariant.Data.U32 = MFX_HANDLE_VA_DISPLAY;
+	MFXSetConfigFilterProperty(
+		mfx_LoaderConfig,
+		reinterpret_cast<const mfxU8 *>("mfxHandleType"),
+		mfx_LoaderVariant);
+
+#endif
 
 	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
 	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
@@ -157,15 +211,6 @@ QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
 	mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
 	MFXSetConfigFilterProperty(
 		mfx_LoaderConfig, reinterpret_cast<const mfxU8 *>("DeviceCopy"),
-		mfx_LoaderVariant);
-
-	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
-	mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
-	mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_D3D11;
-	MFXSetConfigFilterProperty(
-		mfx_LoaderConfig,
-		reinterpret_cast<const mfxU8 *>(
-			"mfxInitializationParam.AccelerationMode"),
 		mfx_LoaderVariant);
 
 	mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
@@ -200,6 +245,26 @@ QSV_VPL_Encoder_Internal::Initialize(int deviceNum)
 
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
+#if defined(_WIN32) || defined(_WIN64)
+
+	// Create DirectX device context
+	if (mfx_DX_Handle == nullptr) {
+		D3D11Device = new QSV_VPL_D3D11(mfx_Session);
+		sts = D3D11Device->CreateHWDevice(&mfx_DX_Handle);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	}
+
+	if (mfx_DX_Handle == nullptr)
+		return MFX_ERR_DEVICE_FAILED;
+
+	// Provide device manager to VPL
+
+	sts = MFXVideoCORE_SetHandle(mfx_Session, DEVICE_MGR_TYPE,
+				     mfx_DX_Handle);
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+#endif
+
 	MFXVideoCORE_QueryPlatform(mfx_Session, &mfx_Platform);
 	if (mfx_Platform.MediaAdapterType == MFX_MEDIA_DISCRETE) {
 		blog(LOG_INFO, "\tAdapter type: Discrete");
@@ -217,38 +282,35 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 {
 	mfxStatus sts = Initialize(pParams->nDeviceNum);
 	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	if (mfx_Session && mfx_Session != nullptr) {
 
-	mfx_VideoENC = new MFXVideoENCODE(mfx_Session);
+		mfx_VideoENC = new MFXVideoENCODE(mfx_Session);
 
-	sts = InitENCParams(pParams, codec);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+		sts = InitENCParams(pParams, codec);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	sts = InitENCCtrlParams(pParams, codec);
-	/*MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);*/
+		sts = InitENCCtrlParams(pParams, codec);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+		//sts = mfx_VideoENC->Query(&m_mfxEncParams, &m_mfxEncParams);
 
-	sts = mfx_VideoENC->Query(&m_mfxEncParams, &m_mfxEncParams);
-	MSDK_IGNORE_MFX_STS(sts, MFX_WRN_INCOMPATIBLE_VIDEO_PARAM);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+		//MSDK_IGNORE_MFX_STS(sts, MFX_WRN_INCOMPATIBLE_VIDEO_PARAM);
+		//MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+		sts = mfx_VideoENC->Init(&m_mfxEncParams);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	sts = mfx_VideoENC->Init(&m_mfxEncParams);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+		/*sts = mfx_VideoENC->GetVideoParam(&m_mfxEncParams);*/
+		sts = GetVideoParam(codec);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	sts = mfx_VideoENC->GetVideoParam(&m_mfxEncParams);
+		sts = InitBitstream();
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-	sts = GetVideoParam(codec);
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	sts = InitBitstream();
-	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-	if (sts >= MFX_ERR_NONE) {
-		mfx_OpenEncodersNum++;
-	} else {
-		blog(LOG_INFO, "\tOpen encoder: [ERROR]");
-		/*mfx_VideoENC->Close();
-		MFXClose(mfx_Session);
-		MFXUnload(mfx_Loader);*/
-		ClearData();
+		if (sts >= MFX_ERR_NONE) {
+			mfx_OpenEncodersNum++;
+		} else {
+			blog(LOG_INFO, "\tOpen encoder: [ERROR]");
+			ClearData();
+		}
 	}
 
 	return sts;
@@ -257,9 +319,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
 mfxStatus QSV_VPL_Encoder_Internal::InitENCCtrlParams(qsv_param_t *pParams,
 						      enum qsv_codec codec)
 {
-	auto CO2 = encCTRL.AddExtBuffer<mfxExtCodingOption2>();
-	CO2->LookAheadDepth = 100;
-	CO2->ExtBRC = MFX_CODINGOPTION_ON;
 	return MFX_ERR_NONE;
 }
 
@@ -629,26 +688,14 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			break;
 		}
 
-		//if (m_mfxEncParams.mfx.RateControlMethod ==
-		//	    MFX_RATECONTROL_ICQ ||
-		//    m_mfxEncParams.mfx.RateControlMethod ==
-		//	    MFX_RATECONTROL_CQP) {
-		//	mfx_Ext_CO.VuiVclHrdParameters = MFX_CODINGOPTION_OFF;
-		//	mfx_Ext_CO.VuiNalHrdParameters = MFX_CODINGOPTION_OFF;
-		//	mfx_Ext_CO.NalHrdConformance = MFX_CODINGOPTION_OFF;
-		//} else {
 		CO->VuiVclHrdParameters = MFX_CODINGOPTION_ON;
 		CO->VuiNalHrdParameters = MFX_CODINGOPTION_ON;
 		CO->NalHrdConformance = MFX_CODINGOPTION_ON;
-		//}
 	}
 
 	if (mfx_Ext_CO2_enable == 1) {
 		auto CO2 = m_mfxEncParams.AddExtBuffer<mfxExtCodingOption2>();
-		//CO2->SkipFrame = ;
-		//CO2->BufferingPeriodSEI = MFX_BPSEI_DEFAULT;
-		//CO2->EnableMAD = MFX_CODINGOPTION_OFF;
-		//CO2->DisableVUI = MFX_CODINGOPTION_ON;
+
 		CO2->RepeatPPS = MFX_CODINGOPTION_OFF;
 
 		switch ((int)pParams->bExtBRC) {
@@ -706,8 +753,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		}
 
 		if (pParams->bLookahead && pParams->nLADepth > 0) {
-			CO2->LookAheadDepth =
-				static_cast<mfxU16>(pParams->nLADepth);
+			CO2->LookAheadDepth = pParams->nLADepth;
+
 			blog(LOG_INFO, "\tLookahead set to: %d",
 			     pParams->nLADepth);
 		}
@@ -845,33 +892,25 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 
 		CO3->MBDisableSkipMap = MFX_CODINGOPTION_ON;
 		CO3->EnableQPOffset = MFX_CODINGOPTION_ON;
-		//CO3->QPOffset = ;
 		CO3->BitstreamRestriction = MFX_CODINGOPTION_ON;
-		//CO3->TimingInfoPresent = MFX_CODINGOPTION_OFF;
 
 		if (pParams->bIntraRefEncoding == 1) {
 			CO3->IntRefCycleDist = 0;
 		}
 
-		if (pParams->bExtBRC == 1 && pParams->bLookahead == true &&
-		    pParams->nLADepth > 0 && codec == QSV_CODEC_AVC) {
+		if (pParams->bExtBRC > 0 && pParams->bLookahead == true &&
+		    codec == QSV_CODEC_AVC) {
 			CO3->ScenarioInfo = MFX_SCENARIO_UNKNOWN;
-		} else if (pParams->bExtBRC == 2 &&
-			   pParams->bLookahead == true &&
-			   pParams->nLADepth > 0 && codec == QSV_CODEC_AVC) {
-			CO3->ScenarioInfo = MFX_SCENARIO_GAME_STREAMING;
-		} else if (pParams->bExtBRC > 0 &&
-			   pParams->bLookahead == true &&
-			   pParams->nLADepth > 0 && codec != QSV_CODEC_AVC) {
-			CO3->ScenarioInfo = MFX_SCENARIO_UNKNOWN;
+			blog(LOG_INFO, "\tScenario: UNKNOWN");
 		} else if (pParams->bExtBRC == 0 &&
-			   pParams->bLookahead == true &&
-			   pParams->nLADepth > 0) {
-			CO3->ScenarioInfo = MFX_SCENARIO_GAME_STREAMING;
-		} else {
+			   pParams->bLookahead == true) {
+			CO3->ScenarioInfo = MFX_SCENARIO_UNKNOWN;
+			blog(LOG_INFO, "\tScenario: UNKNOWN");
+		} else if (pParams->bLookahead == false) {
 			CO3->ScenarioInfo = MFX_SCENARIO_REMOTE_GAMING;
+			blog(LOG_INFO, "\tScenario: REMOTE GAMING");
 		}
-
+		//CO3->ScenarioInfo = MFX_SCENARIO_GAME_STREAMING;
 		if (m_mfxEncParams.mfx.RateControlMethod ==
 		    MFX_RATECONTROL_CQP) {
 			CO3->EnableMBQP = MFX_CODINGOPTION_ON;
@@ -1006,9 +1045,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 				break;
 			case 1:
 				CO3->AdaptiveLTR = MFX_CODINGOPTION_ON;
-				if (codec == QSV_CODEC_AVC)
-					CO3->ExtBrcAdaptiveLTR =
-						MFX_CODINGOPTION_ON;
 				blog(LOG_INFO, "\tAdaptiveLTR set: ON");
 				break;
 			default:
@@ -1134,56 +1170,18 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 		if (pParams->bExtBRC < 2) {
 			EncToolsParam->BRC =
 				MFX_CODINGOPTION_ON; //Включить обязательно
-			EncToolsParam->AdaptiveLTR =
-				pParams->bAdaptiveLTR == 1 ? MFX_CODINGOPTION_ON
-				: pParams->bAdaptiveLTR == 0
-					? MFX_CODINGOPTION_OFF
-					: MFX_CODINGOPTION_UNKNOWN;
-			EncToolsParam->AdaptiveRefP =
-				pParams->bAdaptiveRef == 1 ? MFX_CODINGOPTION_ON
-				: pParams->bAdaptiveRef == 0
-					? MFX_CODINGOPTION_OFF
-					: MFX_CODINGOPTION_UNKNOWN;
-			EncToolsParam->AdaptiveRefB =
-				pParams->bAdaptiveRef == 1 ? MFX_CODINGOPTION_ON
-				: pParams->bAdaptiveRef == 0
-					? MFX_CODINGOPTION_OFF
-					: MFX_CODINGOPTION_UNKNOWN;
+			EncToolsParam->BRCBufferHints =
+				MFX_CODINGOPTION_ON; //Включить обязательно
+			EncToolsParam->SceneChange =
+				MFX_CODINGOPTION_ON; //Включить обязательно
 		}
-		EncToolsParam->AdaptiveI =
-			pParams->bAdaptiveI == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveI == 0 ? MFX_CODINGOPTION_OFF
-						   : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveB =
-			pParams->bAdaptiveB == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveB == 0 ? MFX_CODINGOPTION_OFF
-						   : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->BRCBufferHints =
-			MFX_CODINGOPTION_ON; //Включить обязательно
-		EncToolsParam->SceneChange =
-			MFX_CODINGOPTION_ON; //Включить обязательно
-		EncToolsParam->AdaptiveQuantMatrices =
-			pParams->bAdaptiveCQM == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveCQM == 0 ? MFX_CODINGOPTION_OFF
-						     : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptiveMBQP = MFX_CODINGOPTION_ON;
-		EncToolsParam->AdaptivePyramidQuantP =
-			pParams->bAdaptiveCQM == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveCQM == 0 ? MFX_CODINGOPTION_OFF
-						     : MFX_CODINGOPTION_UNKNOWN;
-		EncToolsParam->AdaptivePyramidQuantB =
-			pParams->bAdaptiveCQM == 1   ? MFX_CODINGOPTION_ON
-			: pParams->bAdaptiveCQM == 0 ? MFX_CODINGOPTION_OFF
-						     : MFX_CODINGOPTION_UNKNOWN;
-
-		//EncToolsParam->SaliencyMapHint = MFX_CODINGOPTION_ON;
 	}
 
 	/*Don't touch it! Magic beyond the control of mere mortals takes place here*/
 	if (mfx_Ext_CO_DDI_enable == 1 && codec != QSV_CODEC_AV1) {
 		auto CODDI =
 			m_mfxEncParams.AddExtBuffer<mfxExtCodingOptionDDI>();
-		//CODDI->WriteIVFHeaders = MFX_CODINGOPTION_OFF;
+		CODDI->WriteIVFHeaders = MFX_CODINGOPTION_OFF;
 		CODDI->IBC = MFX_CODINGOPTION_ON;
 		CODDI->BRCPrecision = 3;
 		CODDI->BiDirSearch = MFX_CODINGOPTION_ON;
@@ -1274,8 +1272,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 	/*This is waiting for a driver with support*/
 	//if (mfx_Version.Major >= 2 && mfx_Version.Minor >= 9 &&
 	//    pParams->nTuneQualityMode != 0) {
-	//auto TuneQuality =
-	//	m_mfxEncParams.AddExtBuffer<mfxExtTuneEncodeQuality>();
+	//	auto TuneQuality =
+	//		m_mfxEncParams.AddExtBuffer<mfxExtTuneEncodeQuality>();
 
 	//	switch ((int)pParams->nTuneQualityMode) {
 	//	case 0:
@@ -1290,9 +1288,9 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 	//		blog(LOG_INFO, "\tTuneQualityMode set: SSIM");
 	//		break;
 	//	case 3:
-	//TuneQuality->TuneQuality = MFX_ENCODE_TUNE_MS_SSIM;
-	//blog(LOG_INFO, "\tTuneQualityMode set: MS SSIM");
-	//break;
+	//		TuneQuality->TuneQuality = MFX_ENCODE_TUNE_MS_SSIM;
+	//		blog(LOG_INFO, "\tTuneQualityMode set: MS SSIM");
+	//		break;
 	//	case 4:
 	//		TuneQuality->TuneQuality = MFX_ENCODE_TUNE_VMAF;
 	//		blog(LOG_INFO, "\tTuneQualityMode set: VMAF");
@@ -1491,7 +1489,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 			static_cast<mfxU16>(pParams->MatrixCoefficients);
 	}
 
-	if ((/*codec == QSV_CODEC_AVC || */ codec == QSV_CODEC_HEVC ||
+	if ((codec == QSV_CODEC_AVC || codec == QSV_CODEC_HEVC ||
 	     ((codec == QSV_CODEC_AV1 || codec == QSV_CODEC_VP9) &&
 	      (mfx_Version.Major >= 2 && mfx_Version.Minor >= 9))) &&
 	    pParams->MaxContentLightLevel > 0) {
@@ -1541,22 +1539,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(qsv_param_t *pParams,
 	blog(LOG_INFO, "Feature extended buffer size: %d",
 	     m_mfxEncParams.NumExtParam);
 
-	//if (pParams->bExtBRC == 2) {
-	//	auto ExplicitBRC = m_mfxEncParams.AddExtBuffer<mfxExtBRC>();
-
-	//	HEVCExtBRC::Create(*ExplicitBRC);
-	//	ExplicitBRC->pthis = new ExtBRC;
-	//	ExplicitBRC->Init = HEVCExtBRC::Init;
-	//	ExplicitBRC->GetFrameCtrl = HEVCExtBRC::GetFrameCtrl;
-	//	ExplicitBRC->Reset = HEVCExtBRC::Reset;
-	//	ExplicitBRC->Update = HEVCExtBRC::Update;
-	//	ExplicitBRC->Close = HEVCExtBRC::Close;
-	//	//HEVCExtBRC::Init(HB, &m_mfxEncParams);
-
-	//	//auto BB = new ExtBRC();
-	//	//BB->Init(&m_mfxEncParams);
-	//	/*	HEVCExtBRC::Init(&ExtBRC, &m_mfxEncParams);*/
-	//}
 	// We dont check what was valid or invalid here, just try changing lower power.
 	// Ensure set values are not overwritten so in case it wasnt lower power we fail
 	// during the parameter check.
@@ -1624,15 +1606,6 @@ mfxStatus QSV_VPL_Encoder_Internal::GetVideoParam(enum qsv_codec codec)
 	}
 
 	return sts;
-}
-
-void QSV_VPL_Encoder_Internal::GetSPSPPS(mfxU8 **pSPSBuf, mfxU8 **pPPSBuf,
-					 mfxU16 *pnSPSBuf, mfxU16 *pnPPSBuf)
-{
-	*pSPSBuf = SPS_Buffer;
-	*pPPSBuf = PPS_Buffer;
-	*pnSPSBuf = SPS_BufferSize;
-	*pnPPSBuf = PPS_BufferSize;
 }
 
 void QSV_VPL_Encoder_Internal::GetVPSSPSPPS(mfxU8 **pVPSBuf, mfxU8 **pSPSBuf,
@@ -1817,7 +1790,7 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 	mfxStatus sts = MFX_ERR_NONE;
 	*pBS = nullptr;
 	int n_TaskIdx = GetFreeTaskIndex(t_TaskPool, n_TaskNum);
-
+	static mfxSyncPoint BufferedSyncP = nullptr;
 	while (MFX_ERR_NOT_FOUND == n_TaskIdx) {
 		// No more free tasks or surfaces, need to sync
 		//sts = MFXVideoCORE_SyncOperation(
@@ -1873,15 +1846,24 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(uint64_t ts, uint8_t *pDataY,
 			sts = MFXVideoCORE_SyncOperation(
 				mfx_Session, t_TaskPool[n_TaskIdx].syncp,
 				static_cast<mfxU32>(INFINITE));
+			BufferedSyncP = t_TaskPool[n_TaskIdx].syncp;
 
 			break;
 		} else if (MFX_ERR_NONE < sts && !t_TaskPool[n_TaskIdx].syncp) {
 			// Repeat the call if warning and no output
 			if (MFX_WRN_DEVICE_BUSY == sts)
-				MSDK_SLEEP(
-					1); // Wait if device is busy, then repeat the same call
+				MFXVideoCORE_SyncOperation(
+					mfx_Session, BufferedSyncP,
+					static_cast<mfxU32>(
+						INFINITE)); // Wait if device is busy, then repeat the same call
+			break;
 		} else if (MFX_ERR_NONE < sts && t_TaskPool[n_TaskIdx].syncp) {
 			sts = MFX_ERR_NONE; // Ignore warnings if output is available
+			if (MFX_WRN_DEVICE_BUSY == sts)
+				MFXVideoCORE_SyncOperation(
+					mfx_Session,
+					t_TaskPool[n_TaskIdx].syncp,
+					static_cast<mfxU32>(INFINITE));
 			break;
 		} else if (MFX_ERR_NOT_ENOUGH_BUFFER == sts) {
 			// Allocate more bitstream buffer memory here if needed...
@@ -1950,11 +1932,18 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData()
 		mfx_OpenEncodersNum--;
 	}
 
+#if defined(_WIN32) || defined(_WIN64)
+
+	if (mfx_DX_Handle != nullptr) {
+		D3D11Device->CleanupHWDevice();
+		delete D3D11Device;
+	}
+
 	if (mfx_OpenEncodersNum <= 0) {
-		Release();
 		mfx_DX_Handle = nullptr;
 	}
 
+#endif
 	if (mfx_Session) {
 		MFXClose(mfx_Session);
 		MFXDispReleaseImplDescription(mfx_Loader, nullptr);

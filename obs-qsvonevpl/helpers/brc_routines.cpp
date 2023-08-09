@@ -17,7 +17,7 @@ The original version of this sample may be obtained from https://software.intel.
 or https://software.intel.com/en-us/media-client-solutions-support.
 \**********************************************************************************/
 #include <obs-module.h>
-#include "brc_routines.h"
+#include "brc_routines.hpp"
 
 #include <math.h>
 #include "mfxdefs.h"

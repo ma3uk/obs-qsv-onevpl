@@ -1,6 +1,6 @@
-#include "common_utils.h"
+#include "common_utils.hpp"
 
-#include "common_directx11.h"
+#include "common_directx11.hpp"
 
 #include <intrin.h>
 #include <wrl/client.h>
@@ -12,11 +12,6 @@
 void util_cpuid(int cpuinfo[4], int flags)
 {
 	return __cpuid(cpuinfo, flags);
-}
-
-void Release()
-{
-	CleanupHWDevice();
 }
 
 void mfxGetTime(mfxTime *timestamp)
