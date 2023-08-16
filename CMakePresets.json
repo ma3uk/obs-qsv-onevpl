@@ -1,0 +1,28 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "any-x64",
+      "displayName": "Any x64",
+      "description": "Default build",
+      "binaryDir": "${sourceDir}/build_x64",
+      "cacheVariables": {
+        "ENABLE_HEVC": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "any-x64",
+      "configurePreset": "any-x64",
+      "displayName": "Any 64-bit",
+      "description": "Any build 64-bit",
+      "configuration": "RelWithDebInfo"
+    }
+  ]
+}

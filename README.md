@@ -11,6 +11,8 @@ https://github.com/ma3uk/obs-qsv-onevpl/releases
 
 Place the file obs-qsvonevpl.dll to the OBS Studio installation folder *obs-studio directory*/obs-plugins/64bit. Success!
 
+Place the file obs-qsv-test.exe in *obs-studio directory*/bin/64bit with file replacement. This is necessary to fix the definition of available codecs and dGPUs.
+
 **Interface:**
 
 ![image](https://user-images.githubusercontent.com/2519070/236681088-24ff5b97-fc38-4216-b678-42fd3185265a.png)
