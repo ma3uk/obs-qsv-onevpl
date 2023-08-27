@@ -27,7 +27,7 @@ class QSV_VPL_D3D11 {
 public:
 	QSV_VPL_D3D11(mfxSession session);
 	~QSV_VPL_D3D11();
-	mfxStatus CreateHWDevice(mfxHDL *deviceHandle, uint32_t deviceNum);
+	mfxStatus CreateHWDevice(mfxHDL *deviceHandle, mfxU32 deviceNum);
 	void CleanupHWDevice();
 
 	mfxStatus simple_copytex(mfxHDL pthis, mfxMemId mid, mfxU32 tex_handle,

@@ -70,14 +70,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _STDINT_H_INCLUDED
 #endif
 
-#define do_log(level, format, ...)                 \
-	blog(level, "[qsv encoder: '%s'] " format, \
-	     obs_encoder_get_name(obsqsv->encoder), ##__VA_ARGS__)
-
-#define error(format, ...) do_log(LOG_ERROR, format, ##__VA_ARGS__)
-#define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
-#define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
-#define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
+//#define do_log(level, format, ...)                 \
+//	blog(level, "[qsv encoder: '%s'] " format, \
+//	     obs_encoder_get_name(obsqsv->encoder), ##__VA_ARGS__)
+//
+//#define error(format, ...) do_log(LOG_ERROR, format, ##__VA_ARGS__)
+//#define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
+//#define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
+//#define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
 
 #ifndef GS_INVALID_HANDLE
 #define GS_INVALID_HANDLE (uint32_t) - 1
@@ -371,7 +371,8 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_data_erase(settings, "lookahead_ds");
 	}
 
-	bVisible = astrcmpi(rate_control, "VBR") == 0;
+	bVisible = astrcmpi(rate_control, "VBR") == 0 ||
+		astrcmpi(rate_control, "CBR") == 0;
 	p = obs_properties_get(ppts, "winbrc_max_avg_size");
 	obs_property_set_visible(p, bVisible);
 	p = obs_properties_get(ppts, "winbrc_size");
@@ -1114,7 +1115,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings)
 	/* internal convenience parameter, overrides rate control param
 	 * XXX: Deprecated */
 	if (cbr_override) {
-		warn("\"cbr\" setting has been deprecated for all encoders!  "
+		blog(LOG_WARNING,"\"cbr\" setting has been deprecated for all encoders!  "
 		     "Please set \"rate_control\" to \"CBR\" instead.  "
 		     "Forcing CBR mode.  "
 		     "(Note to all: this is why you shouldn't use strings for "
@@ -1450,7 +1451,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings)
 		break;
 	}
 
-	info("settings:\n"
+	blog(LOG_INFO, "\tsettings:\n"
 	     "\tcodec:          %s\n"
 	     "\trate_control:   %s",
 	     codec, rate_control);
@@ -1478,7 +1479,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings)
 	     "\theight:         %d",
 	     voi->fps_num, voi->fps_den, width, height);
 
-	info("debug info:");
+	blog(LOG_INFO, "debug info:");
 }
 
 static bool update_settings(obs_qsv *obsqsv, obs_data_t *settings)
@@ -1575,7 +1576,7 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 			const char *const text =
 				obs_module_text("10bitUnsupportedAvc");
 			obs_encoder_set_last_error(encoder, text);
-			error("%s", text);
+			blog(LOG_ERROR, "%s", text);
 			delete obsqsv;
 			return nullptr;
 		}
@@ -1587,7 +1588,7 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 			const char *const text =
 				obs_module_text("8bitUnsupportedHdr");
 			obs_encoder_set_last_error(encoder, text);
-			error("%s", text);
+			blog(LOG_ERROR, "%s", text);
 			delete obsqsv;
 			return nullptr;
 		}
@@ -1599,14 +1600,14 @@ static void *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 		pthread_mutex_unlock(&g_QsvLock);
 
 		if (obsqsv->context == nullptr) {
-			warn("qsv failed to load");
+			blog(LOG_WARNING, "qsv failed to load");
 			delete obsqsv;
 			return nullptr;
 		} else {
 			load_headers(obsqsv);
 		}
 	} else {
-		warn("bad settings specified");
+		blog(LOG_WARNING, "bad settings specified");
 	}
 
 	qsv_encoder_version(&g_verMajor, &g_verMinor);
@@ -1948,7 +1949,7 @@ static bool obs_qsv_encode(void *data, encoder_frame *frame,
 	}
 	if (ret < 0) {
 
-		warn("encode failed");
+		blog(LOG_WARNING, "encode failed");
 		pthread_mutex_unlock(&g_QsvLock);
 		return false;
 	}

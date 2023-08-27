@@ -41,7 +41,9 @@ void check_adapters(struct adapter_info *adapters, size_t *adapter_count)
 
 	const char *error = NULL;
 
-	dstr_copy(&cmd, test_exe);
+	dstr_init_move_array(&cmd, test_exe);
+	dstr_insert_ch(&cmd, 0, '\"');
+	dstr_cat(&cmd, "\"");
 	enum_graphics_device_luids(enum_luids, &cmd);
 
 	pp_vpl = os_process_pipe_create(cmd.array, "r");
@@ -108,5 +110,4 @@ void check_adapters(struct adapter_info *adapters, size_t *adapter_count)
 	dstr_free(&caps_str);
 	dstr_free(&cmd);
 	os_process_pipe_destroy(pp_vpl);
-	bfree(test_exe);
 }
