@@ -17,6 +17,8 @@ target_sources(
   helpers/common_utils.cpp
   helpers/common_utils.hpp
   helpers/ext_buf_manager.hpp
+  helpers/bitstream_manager.hpp
+  helpers/qsv_params.hpp
 )
 
 target_link_libraries(obs-qsvonevpl PRIVATE VPL oneVPL-private OBS::libobs)

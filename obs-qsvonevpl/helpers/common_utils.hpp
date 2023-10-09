@@ -1,9 +1,62 @@
 #pragma once
+#ifndef __QSV_VPL_COMMON_UTILS_H__
+#define __QSV_VPL_COMMON_UTILS_H__
+#endif
+
+#ifndef __INTRIN_H_
+#include <intrin.h>
+#endif
+#ifndef _INC_STDIO
+#include <stdio.h>
+#endif
+#ifndef _CSTDIO_
 #include <cstdio>
-
+#endif
+#ifndef _CONDITION_VARIABLE_
+#include <condition_variable>
+#endif
+#ifndef _CSTDLIB_
+#include <cstdlib>
+#endif
+#ifndef _INC_STDLIB
+#include <stdlib.h>
+#endif
+#ifndef _MEMORY_
+#include <memory>
+#endif
+#ifndef _THREAD_
+#include <thread>
+#endif
+#ifndef _VECTOR_
+#include <vector>
+#endif
+#ifndef _BIT_
+#include <bit>
+#endif
+#ifndef _CSTDDEF_
+#include <cstddef>
+#endif
+#ifndef _CSTDINT_
+#include <cstdint>
+#endif
+#ifndef _ATOMIC_
+#include <atomic>
+#endif
+#ifndef _STRING_
+#include <string>
+#endif
+#ifndef _CINTTYPES_
+#include <cinttypes>
+#endif
+#ifndef _NEW_
+#include <new>
+#endif
+#ifndef __MFX_H__
+#include <vpl/mfx.h>
+#endif
+#ifndef __MFXVIDEOPLUSPLUS_H
 #include <vpl/mfxvideo++.h>
-
-
+#endif
 // =================================================================
 // OS-specific definitions of types, macro, etc...
 // The following should be defined:
@@ -16,90 +69,18 @@
 #include "../bits/linux_defs.h"
 #endif
 
-// =================================================================
-// Helper macro definitions...
-//#define MSDK_PRINT_RET_MSG(ERR)                          \
-//	{                                                \
-//		PrintErrString(ERR, __FILE__, __LINE__); \
-//	}
-//#define MSDK_CHECK_RESULT(P, X, ERR)             \
-//	{                                        \
-//		if ((X) > (P)) {                 \
-//			MSDK_PRINT_RET_MSG(ERR); \
-//			return ERR;              \
-//		}                                \
-//	}
-//#define MSDK_CHECK_POINTER(P, ERR)               \
-//	{                                        \
-//		if (!(P)) {                      \
-//			MSDK_PRINT_RET_MSG(ERR); \
-//			return ERR;              \
-//		}                                \
-//	}
-//#define MSDK_CHECK_ERROR(P, X, ERR)              \
-//	{                                        \
-//		if ((X) == (P)) {                \
-//			MSDK_PRINT_RET_MSG(ERR); \
-//			return ERR;              \
-//		}                                \
-//	}
-//#define MSDK_IGNORE_MFX_STS(P, X)         \
-//	{                                 \
-//		if ((X) == (P)) {         \
-//			P = MFX_ERR_NONE; \
-//		}                         \
-//	}
-//#define MSDK_BREAK_ON_ERROR(P)           \
-//	{                                \
-//		if (MFX_ERR_NONE != (P)) \
-//			break;           \
-//	}
-//#define MSDK_SAFE_DELETE_ARRAY(P)   \
-//	{                           \
-//		if (P) {            \
-//			delete[] P; \
-//			P = NULL;   \
-//		}                   \
-//	}
-//#define MSDK_ALIGN32(X) (((mfxU32)((X) + 31)) & (~(mfxU32)31))
-//#define MSDK_ALIGN16(value) (((value + 15) >> 4) << 4)
-//#define MSDK_SAFE_RELEASE(X)          \
-//	{                             \
-//		if (X) {              \
-//			X->Release(); \
-//			X = NULL;     \
-//		}                     \
-//	}
-//#define MSDK_MAX(A, B) (((A) > (B)) ? (A) : (B))
-//
-//#define INIT_MFX_EXT_BUFFER(x, id)               \
-//	{                                        \
-//		(x).Header.BufferId = (id);      \
-//		(x).Header.BufferSz = sizeof(x); \
-//	}
-
 #define INFINITE 0xFFFFFFFF // Infinite timeout
 
-void PrintErrString(int err, const char *filestr, int line);
-
-
-
-void Release();
-
-void mfxGetTime(mfxTime *timestamp);
-
-//void mfxInitTime();  might need this for Windows
-double TimeDiffMsec(mfxTime tfinish, mfxTime tstart);
 extern "C" void util_cpuid(int cpuinfo[4], int flags);
 
 void check_adapters(struct adapter_info *adapters, size_t *adapter_count);
 
 struct adapter_info {
-	bool is_intel;
-	bool is_dgpu;
-	bool supports_av1;
-	bool supports_hevc;
-	bool supports_vp9;
+  bool is_intel;
+  bool is_dgpu;
+  bool supports_av1;
+  bool supports_hevc;
+  bool supports_vp9;
 };
 
 #define MAX_ADAPTERS 10

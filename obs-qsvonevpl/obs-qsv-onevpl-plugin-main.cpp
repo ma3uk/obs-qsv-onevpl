@@ -53,66 +53,72 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#include <obs.h>
-#include <obs-module.h>
-#include <util/windows/device-enum.h>
-#include <util/config-file.h>
-#include <util/platform.h>
-#include <util/pipe.h>
-#include <util/dstr.h>
-#include "obs-qsv-onevpl-encoder.hpp"
 #include "helpers/common_utils.hpp"
+#include "obs-qsv-onevpl-encoder.hpp"
+#include <obs-module.h>
+#include <obs.h>
+#include <util/config-file.h>
+#include <util/dstr.h>
+#include <util/pipe.h>
+#include <util/platform.h>
+#include <util/windows/device-enum.h>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-qsvonevpl", "en-US");
-MODULE_EXPORT const char *obs_module_description(void)
-{
-	return "Intel Quick Sync Video support for Windows (oneVPL)";
+MODULE_EXPORT const char *obs_module_description(void) {
+  return "Intel Quick Sync Video support for Windows (oneVPL)";
 }
 
 extern obs_encoder_info obs_qsv_h264_encoder;
+extern obs_encoder_info obs_qsv_h264_encoder_tex;
 
 extern obs_encoder_info obs_qsv_av1_encoder;
+extern obs_encoder_info obs_qsv_av1_encoder_tex;
 
 extern obs_encoder_info obs_qsv_hevc_encoder;
+extern obs_encoder_info obs_qsv_hevc_encoder_tex;
 
 extern obs_encoder_info obs_qsv_vp9_encoder;
+extern obs_encoder_info obs_qsv_vp9_encoder_tex;
 
-bool obs_module_load(void)
-{
-	adapter_count = MAX_ADAPTERS;
-	check_adapters(adapters, &adapter_count);
+bool obs_module_load(void) {
+  adapter_count = MAX_ADAPTERS;
+  check_adapters(adapters, &adapter_count);
 
-	bool avc_supported = false;
-	bool av1_supported = false;
-	bool hevc_supported = false;
-	bool vp9_supported = false;
-	for (size_t i = 0; i < adapter_count; i++) {
-		struct adapter_info *adapter = &adapters[i];
-		avc_supported |= adapter->is_intel;
-		av1_supported |= adapter->supports_av1;
-		hevc_supported |= adapter->supports_hevc;
-		vp9_supported |= adapter->supports_vp9;
-	}
+  bool avc_supported = false;
+  bool av1_supported = false;
+  bool hevc_supported = false;
+  bool vp9_supported = false;
+  for (size_t i = 0; i < adapter_count; i++) {
+    struct adapter_info *adapter = &adapters[i];
+    avc_supported |= adapter->is_intel;
+    av1_supported |= adapter->supports_av1;
+    hevc_supported |= adapter->supports_hevc;
+    vp9_supported |= adapter->supports_vp9;
+  }
 
-	if (avc_supported) {
-		obs_register_encoder(&obs_qsv_h264_encoder);
-		blog(LOG_INFO, "QSV AVC support");
-	}
-	if (av1_supported) {
-		obs_register_encoder(&obs_qsv_av1_encoder);
-		blog(LOG_INFO, "QSV AV1 support");
-	}
-	if (vp9_supported) {
-		obs_register_encoder(&obs_qsv_vp9_encoder);
-		blog(LOG_INFO, "QSV VP9 support");
-	}
+  if (avc_supported) {
+    obs_register_encoder(&obs_qsv_h264_encoder);
+    //obs_register_encoder(&obs_qsv_h264_encoder_tex);
+    blog(LOG_INFO, "QSV AVC support");
+  }
+  if (av1_supported) {
+    obs_register_encoder(&obs_qsv_av1_encoder);
+    //obs_register_encoder(&obs_qsv_av1_encoder_tex);
+    blog(LOG_INFO, "QSV AV1 support");
+  }
+  if (vp9_supported) {
+    obs_register_encoder(&obs_qsv_vp9_encoder);
+    //obs_register_encoder(&obs_qsv_vp9_encoder_tex);
+    blog(LOG_INFO, "QSV VP9 support");
+  }
 #if ENABLE_HEVC
-	if (hevc_supported) {
-		obs_register_encoder(&obs_qsv_hevc_encoder);
-		blog(LOG_INFO, "QSV HEVC support");
-	}
+  if (hevc_supported) {
+    obs_register_encoder(&obs_qsv_hevc_encoder);
+    //obs_register_encoder(&obs_qsv_hevc_encoder_tex);
+    blog(LOG_INFO, "QSV HEVC support");
+  }
 #endif
 
-	return true;
+  return true;
 }
