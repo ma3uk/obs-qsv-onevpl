@@ -1,7 +1,7 @@
 # obs-qsv-onevpl
-## obs-qsv11 plugin with oneVPL support
+## Intel QSV encoder plugin for OBS Studio based on oneVPL library
 
-### Implementation of the obs-qsv11 plugin with oneVPL support for Intel Tiger Lake processors and higher, as well as discrete Arc Alchemist video cards.
+### Implementation of the QSV (Quick Sync Video) video encoder plugin for OBS Studio based on the Intel oneVPL library for Intel ARC Alchemist graphics cards and above, as well as integrated UHD graphics 7** and above.
 
 **Download:**
 
@@ -9,7 +9,7 @@ https://github.com/ma3uk/obs-qsv-onevpl/releases
 
 **How to install:**
 
-Place the file obs-qsv11.dll to the OBS Studio installation folder *obs-studio directory*/obs-plugins/64bit with file replacement. Success!
+Place the file obs-qsvonevpl.dll to the OBS Studio installation folder *obs-studio directory*/obs-plugins/64bit. Success!
 
 Place the file obs-qsv-test.exe in *obs-studio directory*/bin/64bit with file replacement. This is necessary to fix the definition of available codecs and dGPUs.
 
