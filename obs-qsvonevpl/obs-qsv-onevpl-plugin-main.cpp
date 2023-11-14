@@ -81,7 +81,7 @@ extern obs_encoder_info obs_qsv_hevc_encoder_tex;
 extern obs_encoder_info obs_qsv_vp9_encoder;
 extern obs_encoder_info obs_qsv_vp9_encoder_tex;
 
-bool obs_module_load(void) {
+bool obs_module_load([[maybe_unused]] void) {
   adapter_count = MAX_ADAPTERS;
   check_adapters(adapters, &adapter_count);
 

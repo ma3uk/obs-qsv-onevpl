@@ -15,18 +15,15 @@ void QSV_VPL_D3D11::SetSession(mfxSession mfxsession) { session = mfxsession; }
 mfxStatus QSV_VPL_D3D11::FillSCD(DXGI_SWAP_CHAIN_DESC &scd) {
   scd.BufferDesc.Width = 0; // Use automatic sizing.
   scd.BufferDesc.Height = 0;
-  scd.BufferDesc.Format = DXGI_FORMAT_UNKNOWN;
-  scd.SampleDesc.Count = 8; // Don't use multi-sampling.
+  scd.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  scd.SampleDesc.Count = 1; // Don't use multi-sampling.
   scd.SampleDesc.Quality = 0;
-  scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHARED |
-                    DXGI_CPU_ACCESS_READ_WRITE;
+  scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   scd.BufferCount = 2; // Use double buffering to minimize latency.
-  scd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-  scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-  scd.Flags = DXGI_SWAP_CHAIN_FLAG_NONPREROTATED |
-              DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH |
-              DXGI_SWAP_CHAIN_FLAG_FULLSCREEN_VIDEO;
-  scd.Windowed = false;
+  scd.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+  scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+  scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
   return MFX_ERR_NONE;
 }
 
@@ -47,8 +44,8 @@ IDXGIAdapter *QSV_VPL_D3D11::GetIntelDeviceAdapterHandle() {
     }
   }
 
-  HRESULT hres = CreateDXGIFactory1(__uuidof(IDXGIFactory2),
-                                    reinterpret_cast<void **>(&g_pDXGIFactory));
+  HRESULT hres =
+      CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void **)(&g_pDXGIFactory));
   if (FAILED(hres))
     return NULL;
 
@@ -66,9 +63,8 @@ mfxStatus QSV_VPL_D3D11::CreateHWDevice(mfxHDL *deviceHandle,
   HRESULT hres = S_OK;
 
   static D3D_FEATURE_LEVEL FeatureLevels[] = {
-      /*D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
-      D3D_FEATURE_LEVEL_10_0*/
-      D3D_FEATURE_LEVEL_12_2, D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_0};
+      D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
+      D3D_FEATURE_LEVEL_10_0};
   D3D_FEATURE_LEVEL pFeatureLevelsOut;
 
   g_pAdapter = GetIntelDeviceAdapterHandle();
@@ -76,11 +72,9 @@ mfxStatus QSV_VPL_D3D11::CreateHWDevice(mfxHDL *deviceHandle,
     return MFX_ERR_DEVICE_FAILED;
   }
 
-  UINT dxFlags =
-      D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT |
-      D3D11_CREATE_DEVICE_DISABLE_GPU_TIMEOUT |
-      D3D11_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS |
-      D3D10_CREATE_DEVICE_PREVENT_ALTERING_LAYER_SETTINGS_FROM_REGISTRY;
+  UINT dxFlags = D3D11_CREATE_DEVICE_VIDEO_SUPPORT |
+                 D3D11_CREATE_DEVICE_BGRA_SUPPORT |
+                 D3D11_CREATE_DEVICE_DISABLE_GPU_TIMEOUT;
 
   DXGI_SWAP_CHAIN_DESC swapChainDesc = {0};
   FillSCD(swapChainDesc);
@@ -88,13 +82,10 @@ mfxStatus QSV_VPL_D3D11::CreateHWDevice(mfxHDL *deviceHandle,
       g_pAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, dxFlags, FeatureLevels,
       _countof(FeatureLevels), D3D11_SDK_VERSION, &swapChainDesc, NULL,
       &g_pD3D11Device, &pFeatureLevelsOut, &g_pD3D11Ctx);
-  //g_pSwapChain->SetFullscreenState(true, NULL);
-  //FillSCD(swapChainDesc);
-
   if (FAILED(hres)) {
     return MFX_ERR_DEVICE_FAILED;
   }
-  
+
   DXGI_ADAPTER_DESC desc;
   g_pAdapter->GetDesc(&desc);
 
@@ -143,7 +134,9 @@ CComPtr<ID3D11DeviceContext> QSV_VPL_D3D11::GetHWDeviceContext() const {
 
 LUID QSV_VPL_D3D11::GetHWDeviceLUID() const { return g_devLUID; }
 
-std::wstring QSV_VPL_D3D11::GetHWDeviceName() const { return g_displayDeviceName; }
+std::wstring QSV_VPL_D3D11::GetHWDeviceName() const {
+  return g_displayDeviceName;
+}
 
 //
 // Intel Media SDK memory allocator entrypoints....
@@ -352,10 +345,8 @@ mfxStatus QSV_VPL_D3D11::simple_alloc(mfxHDL pthis,
   return sts;
 }
 
-mfxStatus QSV_VPL_D3D11::simple_lock(mfxHDL pthis, mfxMemId mid,
-                                     mfxFrameData *ptr) {
-  pthis; // To suppress warning for this unused parameter
-
+mfxStatus QSV_VPL_D3D11::simple_lock([[maybe_unused]] mfxHDL pthis,
+                                     mfxMemId mid, mfxFrameData *ptr) {
   HRESULT hRes = S_OK;
 
   D3D11_TEXTURE2D_DESC desc = {0};
@@ -487,10 +478,8 @@ mfxStatus QSV_VPL_D3D11::simple_lock(mfxHDL pthis, mfxMemId mid,
   return MFX_ERR_NONE;
 }
 
-mfxStatus QSV_VPL_D3D11::simple_unlock(mfxHDL pthis, mfxMemId mid,
-                                       mfxFrameData *ptr) {
-  pthis; // To suppress warning for this unused parameter
-
+mfxStatus QSV_VPL_D3D11::simple_unlock([[maybe_unused]] mfxHDL pthis,
+                                       mfxMemId mid, mfxFrameData *ptr) {
   CustomMemId *memId = static_cast<CustomMemId *>(mid);
   ID3D11Texture2D *pSurface = static_cast<ID3D11Texture2D *>(memId->memId);
   ID3D11Texture2D *pStage = static_cast<ID3D11Texture2D *>(memId->memIdStage);
@@ -515,11 +504,9 @@ mfxStatus QSV_VPL_D3D11::simple_unlock(mfxHDL pthis, mfxMemId mid,
   return MFX_ERR_NONE;
 }
 
-mfxStatus QSV_VPL_D3D11::simple_copytex(mfxHDL pthis, mfxMemId mid,
-                                        mfxU32 tex_handle, mfxU64 lock_key,
-                                        mfxU64 *next_key) {
-  pthis; // To suppress warning for this unused parameter
-
+mfxStatus QSV_VPL_D3D11::simple_copytex([[maybe_unused]] mfxHDL pthis,
+                                        mfxMemId mid, mfxU32 tex_handle,
+                                        mfxU64 lock_key, mfxU64 *next_key) {
   CustomMemId *memId = static_cast<CustomMemId *>(mid);
   ID3D11Texture2D *pSurface = static_cast<ID3D11Texture2D *>(memId->memId);
 
@@ -558,9 +545,8 @@ mfxStatus QSV_VPL_D3D11::simple_copytex(mfxHDL pthis, mfxMemId mid,
   return MFX_ERR_NONE;
 }
 
-mfxStatus QSV_VPL_D3D11::simple_gethdl(mfxHDL pthis, mfxMemId mid,
-                                       mfxHDL *handle) {
-  pthis; // To suppress warning for this unused parameter
+mfxStatus QSV_VPL_D3D11::simple_gethdl([[maybe_unused]] mfxHDL pthis,
+                                       mfxMemId mid, mfxHDL *handle) {
 
   if (nullptr == handle)
     return MFX_ERR_INVALID_HANDLE;

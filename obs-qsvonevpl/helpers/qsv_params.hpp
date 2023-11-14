@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef __QSV_VPL_ENCODER_PARAMS_H__
 #define __QSV_VPL_ENCODER_PARAMS_H__
 #endif
@@ -28,40 +30,55 @@ static const char *const qsv_ratecontrols_av1[] = {"CBR", "VBR", "CQP", "ICQ",
 
 static const char *const qsv_profile_names_h264[] = {
     "high", "main", "baseline", "extended", "high10", "high422", 0};
+
 static const char *const qsv_profile_names_av1[] = {"main", 0};
+
 static const char *const qsv_profile_names_hevc[] = {"main", "main10", "rext",
                                                      0};
+
 static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
+
 static const char *const qsv_usage_names[] = {
     "TU1 (Veryslow)", "TU2 (Slower)", "TU3 (Slow)",     "TU4 (Balanced)",
     "TU5 (Fast)",     "TU6 (Faster)", "TU7 (Veryfast)", 0};
+
 static const char *const qsv_latency_names[] = {"ultra-low", "low", "normal",
                                                 0};
+
 static const char *const qsv_params_condition[] = {"ON", "OFF", 0};
+
 static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
                                                             0};
+
 static const char *const qsv_params_condition_p_pyramid[] = {"SIMPLE",
                                                              "PYRAMID", 0};
+
 static const char *const qsv_params_condition_extbrc[] = {"ON", "OFF", 0};
-// static const char *const qsv_params_condition_gop[] = {"CLOSED", "OPEN", 0};
+
 static const char *const qsv_params_condition_intra_ref_encoding[] = {
     "VERTICAL", "HORIZONTAL", 0};
+
 static const char *const qsv_params_condition_mv_cost_scaling[] = {
     "DEFAULT", "1/2", "1/4", "1/8", "AUTO", 0};
+
 static const char *const qsv_params_condition_lookahead_mode[] = {
     "LOW POWER", "HIGH QUALITY", "OFF", 0};
+
 static const char *const qsv_params_condition_lookahead_latency[] = {
     "NORMAL", "HIGH", "LOW", "VERYLOW", 0};
+
 static const char *const qsv_params_condition_lookahead_ds[] = {
     "SLOW", "MEDIUM", "FAST", "AUTO", 0};
+
 static const char *const qsv_params_condition_trellis[] = {
     "OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0};
+
 static const char *const qsv_params_condition_hevc_sao[] = {
     "AUTO", "DISABLE", "LUMA", "CHROMA", "ALL", 0};
-// static const char *const qsv_params_condition_hevc_ctu[] = {"AUTO", "16",
-// "32", 							    "64", 0};
+
 static const char *const qsv_params_condition_tune_quality[] = {
     "DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", "OFF", 0};
+
 static const char *const qsv_params_condition_denoise_mode[] = {
     "DEFAULT",
     "AUTO | BDRATE | PRE ENCODE",
@@ -126,7 +143,6 @@ struct qsv_param_t {
   std::optional<bool> bAdaptiveLTR;
   std::optional<bool> bAdaptiveMaxFrameSize;
   std::optional<bool> bRDO;
-  std::optional<bool> bLowPower;
   std::optional<bool> bRawRef;
   std::optional<bool> bGPB;
   std::optional<bool> bDirectBiasAdjustment;
@@ -144,8 +160,8 @@ struct qsv_param_t {
   bool bEncTools;
   bool video_fmt_10bit;
   bool bResetAllowed;
+  bool bLowpower;
 
-  int nDeviceNum;
   std::optional<int> nTrellis;
   std::optional<int> nDenoiseMode;
   std::optional<int> nMVCostScalingFactor;
@@ -154,6 +170,8 @@ struct qsv_param_t {
   std::optional<int> nTuneQualityMode;
   std::optional<int> nNumRefFrameLayers;
   std::optional<int> nSAO;
+
+  int nDeviceNum;
 
   mfxU32 nFourCC;
   mfxU16 nChromaFormat;

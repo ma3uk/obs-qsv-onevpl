@@ -1,4 +1,16 @@
 #pragma once
+#include "common_utils.hpp"
+#include <vpl/mfxbrc.h>
+#include <vpl/mfxcommon.h>
+#include <vpl/mfxdefs.h>
+#include <vpl/mfxstructures.h>
+#include <vpl/mfxsurfacepool.h>
+#include <cstdint>
+#include <new>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <vector>
 
 #ifndef __QSV_VPL_EXT_BUF_MANAGER_H__
 #define __QSV_VPL_EXT_BUF_MANAGER_H__
@@ -175,9 +187,6 @@ template <> struct mfx_ext_buffer_id<mfxExtContentLightLevelInfo> {
 };
 template <> struct mfx_ext_buffer_id<mfxExtEncToolsConfig> {
   enum { id = MFX_EXTBUFF_ENCTOOLS_CONFIG };
-};
-template <> struct mfx_ext_buffer_id<mfxEncToolsBRCQuantControl> {
-  enum { id = MFX_EXTBUFF_ENCTOOLS_BRC_QUANT_CONTROL };
 };
 template <> struct mfx_ext_buffer_id<mfxExtAV1AuxData> {
   enum { id = MFX_EXTBUFF_AV1_AUXDATA };

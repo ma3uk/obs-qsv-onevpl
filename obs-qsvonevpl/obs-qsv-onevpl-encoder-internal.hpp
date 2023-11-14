@@ -7,6 +7,9 @@
 #if defined(_WIN32) || defined(_WIN64)
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
+#ifndef __QSV_VPL_D3D_COMMON_H__
+#include "helpers/common_directx11.hpp"
+#endif
 #elif __linux__
 #include <obs-nix-platform.h>
 #include <va/va_drm.h>
@@ -27,11 +30,6 @@
 #ifndef __QSV_VPL_BITSTREAM_H__
 #include "helpers/bitstream_manager.hpp"
 #endif
-#if defined(_WIN32) || defined(_WIN64)
-#ifndef __QSV_VPL_D3D_COMMON_H__
-#include "helpers/common_directx11.hpp"
-#endif
-#endif
 
 
 class QSV_VPL_Encoder_Internal {
@@ -42,9 +40,9 @@ public:
   mfxStatus Open(struct qsv_param_t *pParams, enum qsv_codec codec);
   void GetVPSSPSPPS(mfxU8 **pVPSBuf, mfxU8 **pSPSBuf, mfxU8 **pPPSBuf,
                     mfxU16 *pnVPSBuf, mfxU16 *pnSPSBuf, mfxU16 *pnPPSBuf);
-  mfxStatus Encode(uint64_t ts, uint8_t *pDataY, uint8_t *pDataUV,
+  mfxStatus Encode(mfxU64 ts, uint8_t *pDataY, uint8_t *pDataUV,
                    uint32_t strideY, uint32_t strideUV, mfxBitstream **pBS);
-  mfxStatus Encode_tex(uint64_t ts, uint32_t tex_handle, uint64_t lock_key,
+  mfxStatus Encode_tex(mfxU64 ts, uint32_t tex_handle, uint64_t lock_key,
                        uint64_t *next_key, mfxBitstream **pBS);
   mfxStatus ClearData();
   mfxStatus Initialize(int deviceNum);

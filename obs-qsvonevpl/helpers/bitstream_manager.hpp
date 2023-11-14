@@ -3,9 +3,15 @@
 #define __QSV_VPL_BITSTREAM_H__
 #endif
 
+#include <malloc.h>
+#include <cstdint>
+#include <utility>
+#include <vpl/mfxcommon.h>
+#include <vpl/mfxdefs.h>
 #ifndef __QSV_VPL_ENCODER_H__
 #include "obs-qsv-onevpl-encoder.hpp"
 #endif
+
 
 struct QSV_VPL_Bitstream {
 private:
@@ -140,7 +146,7 @@ public:
     auto datalength = mBitstream.DataLength;
     auto maxLength = mBitstream.MaxLength;
 
-    memcpy(&mBitstream, pBitstream, sizeof(pBitstream));
+    memcpy(&mBitstream, pBitstream, sizeof(*pBitstream));
 
     mBitstream.Data = ptr;
     mBitstream.DataLength = datalength;
