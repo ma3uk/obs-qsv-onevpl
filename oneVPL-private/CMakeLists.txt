@@ -1,6 +1,6 @@
-add_library(oneVPL-private INTERFACE)
+add_library(libvpl-private INTERFACE)
 
-target_include_directories(oneVPL-private
+target_include_directories(libvpl-private
   INTERFACE
   ${CMAKE_CURRENT_SOURCE_DIR}
 )

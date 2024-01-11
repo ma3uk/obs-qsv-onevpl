@@ -87,23 +87,6 @@ MFX_PACK_END()
 
 #define MFX_ENCTOOLS_CONFIG_VERSION MFX_STRUCT_VERSION(1, 0)
 
-MFX_PACK_BEGIN_USUAL_STRUCT()
-typedef struct {
-  mfxExtBuffer Header;
-  mfxStructVersion Version;
-  mfxU16 reserved[3];
-  mfxU32 QpY;          /* Frame-level Luma QP. Mandatory */
-  mfxU32 MaxFrameSize; /* Max frame size in bytes (used for rePak). Optional */
-  mfxU8
-      DeltaQP[8]; /* deltaQP[i] is added to QP value while ith-rePakOptional */
-  mfxU16 NumDeltaQP; /* Max number of rePaks to provide MaxFrameSize (from 0 to
-                        8) */
-  mfxU16 reserved2[5];
-} mfxEncToolsBRCQuantControl;
-MFX_PACK_END()
-
-#define MFX_ENCTOOLS_BRCQUANTCONTROL_VERSION MFX_STRUCT_VERSION(1, 0);
-
 #ifdef __cplusplus
 } /* extern "C" */
 #endif /* __cplusplus */
