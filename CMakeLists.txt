@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24...3.25)
 
 project(obs-qsv-onevpl
-  VERSION 1.1.0.0
+  VERSION 1.1.1.0
   LANGUAGES CXX
 )
 
@@ -17,10 +17,10 @@ endif()
 
 # VPL
 set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-add_subdirectory(oneVPL)
+add_subdirectory(libvpl)
 
 # VPL-private (experimental / hidden stuff)
-add_subdirectory(oneVPL-private)
+add_subdirectory(libvpl-private)
 
 # Actual plugin
 add_subdirectory(obs-qsvonevpl)
