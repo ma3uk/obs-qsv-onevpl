@@ -62,7 +62,7 @@ static const char *const qsv_params_condition_mv_cost_scaling[] = {
     "DEFAULT", "1/2", "1/4", "1/8", "AUTO", 0};
 
 static const char *const qsv_params_condition_lookahead_mode[] = {
-    "LOW POWER", "HIGH QUALITY", "OFF", 0};
+    "ON", "OFF", 0};
 
 static const char *const qsv_params_condition_lookahead_latency[] = {
     "NORMAL", "HIGH", "LOW", "VERYLOW", 0};
@@ -150,9 +150,9 @@ struct qsv_param_t {
   std::optional<bool> bWeightedPred;
   std::optional<bool> bWeightedBiPred;
   std::optional<bool> bGlobalMotionBiasAdjustment;
-  std::optional<bool> bLookaheadLP;
   std::optional<bool> bHRDConformance;
   
+  bool bLookahead;
   bool bPPyramid;
   bool bExtBRC;
   bool bIntraRefEncoding;

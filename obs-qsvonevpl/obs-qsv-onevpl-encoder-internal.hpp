@@ -7,16 +7,12 @@
 #if defined(_WIN32) || defined(_WIN64)
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
-#ifndef __QSV_VPL_D3D_COMMON_H__
-#include "helpers/common_directx11.hpp"
-#endif
 #elif __linux__
 #include <obs-nix-platform.h>
-#include <va/va_drm.h>
-#include <va/va_str.h>
-#include <va/va_wayland.h>
-#include <va/va_x11.h>
 #endif
+
+#include <thread>
+#include <chrono>
 
 #ifndef __QSV_VPL_ENCODER_PARAMS_H__
 #include "helpers/qsv_params.hpp"
@@ -169,9 +165,9 @@ protected:
       return 1;
     }
   }
-#if defined(_WIN32) || defined(_WIN64)
-  inline static QSV_VPL_D3D11 *D3D11Device;
-#endif
+//#if defined(_WIN32) || defined(_WIN64)
+//  inline static QSV_VPL_D3D11 *D3D11Device;
+//#endif
 
 private:
   mfxIMPL mfx_Impl;

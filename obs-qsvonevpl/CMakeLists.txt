@@ -21,7 +21,7 @@ target_sources(
   helpers/qsv_params.hpp
 )
 
-target_link_libraries(obs-qsvonevpl PRIVATE VPL oneVPL-private OBS::libobs)
+target_link_libraries(obs-qsvonevpl PRIVATE VPL libvpl-private OBS::libobs)
 
 # cmake-format: off
 set_target_properties(obs-qsvonevpl PROPERTIES
@@ -41,10 +41,11 @@ target_compile_definitions(
 
 # C++20 for C-like structs
 target_compile_features(obs-qsvonevpl PRIVATE cxx_std_20)
-
+if(WIN32)
 target_compile_options(obs-qsvonevpl PRIVATE "/Ox")  
 target_compile_options(obs-qsvonevpl PRIVATE "/Ot")
 target_compile_options(obs-qsvonevpl PRIVATE "/Oi")
+endif()
 
 # Windows
 if(WIN32)
