@@ -174,21 +174,25 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
   obs_property_set_visible(p, bLAVisible);
   if (bLAVisible) {
 
-    bool bLAOptVisible = astrcmpi(lookahead, "LOW POWER") == 0 ||
-                         astrcmpi(lookahead, "HIGH QUALITY") == 0;
+    bool bLAOptVisible = astrcmpi(lookahead, "ON") == 0;
     p = obs_properties_get(ppts, "lookahead_ds");
     obs_property_set_visible(p, (bLAOptVisible && bLAVisible));
 
     p = obs_properties_get(ppts, "lookahead_ds");
     obs_property_set_visible(p, (bLAOptVisible && bLAVisible));
 
-    if (astrcmpi(lookahead, "LOW POWER") == 0) {
-      obs_data_set_string(settings, "enctools", "ON");
+    if (astrcmpi(lookahead, "ON") == 0) {
+      obs_data_set_string(settings, "extbrc", "OFF");
     }
-    bool HQLA = astrcmpi(lookahead, "HIGH QUALITY") == 0;
+
+    const char *enctools = obs_data_get_string(settings, "enctools");
+    if (astrcmpi(enctools, "ON") == 0 && !(bLAOptVisible && bLAVisible)) {
+      obs_data_set_string(settings, "extbrc", "ON");
+    }
+
     p = obs_properties_get(ppts, "lookahead_latency");
-    obs_property_set_visible(p, HQLA);
-    if (HQLA == true) {
+    obs_property_set_visible(p, (bLAOptVisible && bLAVisible));
+    if ((bLAOptVisible && bLAVisible) == true) {
       obs_data_set_string(settings, "hrd_conformance", "OFF");
     }
   }
@@ -378,7 +382,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   }
 
   prop = obs_properties_add_int_slider(props, "gop_ref_dist", TEXT_GOP_REF_DIST,
-                                       1, (codec == QSV_CODEC_AV1) ? 16 : 8, 1);
+                                       1, (codec == QSV_CODEC_AV1) ? 32 : 16, 1);
   obs_property_set_long_description(prop,
                                     obs_module_text("GOPRefDist.Tooltip"));
   obs_property_long_description(prop);
@@ -857,17 +861,10 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     obsqsv->params.bGlobalMotionBiasAdjustment = 0;
   }
 
-  if (astrcmpi(lookahead, "LOW POWER") == 0) {
-    obsqsv->params.bLookaheadLP = true;
-    if ((gop_ref_dist != 1 && gop_ref_dist != 2 && gop_ref_dist != 4 &&
-         gop_ref_dist != 8 && gop_ref_dist != 16)) {
-      obsqsv->params.nLADepth = 4;
-    }
-    obsqsv->params.nLADepth =
-        gop_ref_dist > 8 ? 8 : static_cast<mfxU16>(gop_ref_dist);
-  } else if (astrcmpi(lookahead, "HIGH QUALITY") == 0) {
-    obsqsv->params.bLookaheadLP = false;
-    obsqsv->params.nLADepth = 100;
+  if (astrcmpi(lookahead, "ON") == 0) {
+    obsqsv->params.bLookahead = true;
+
+    obsqsv->params.nLADepth = 0;
     if (astrcmpi(lookahead_latency, "HIGH") == 0) {
       obsqsv->params.nLADepth = 100;
     } else if (astrcmpi(lookahead_latency, "NORMAL") == 0) {
@@ -877,12 +874,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     } else if (astrcmpi(lookahead_latency, "VERYLOW") == 0) {
       obsqsv->params.nLADepth = 20;
     }
-  } else {
-    obsqsv->params.nLADepth =
-        gop_ref_dist > 8 ? 8 : static_cast<mfxU16>(gop_ref_dist);
-  }
 
-  if (obsqsv->params.bLookaheadLP) {
     if (astrcmpi(lookahead_ds, "SLOW") == 0) {
       obsqsv->params.nLookAheadDS = 0;
     } else if (astrcmpi(lookahead_ds, "MEDIUM") == 0) {
@@ -890,6 +882,8 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     } else if (astrcmpi(lookahead_ds, "FAST") == 0) {
       obsqsv->params.nLookAheadDS = 2;
     }
+  } else {
+    obsqsv->params.bLookahead = false;
   }
 
   if (astrcmpi(intra_ref_encoding, "ON") == 0) {

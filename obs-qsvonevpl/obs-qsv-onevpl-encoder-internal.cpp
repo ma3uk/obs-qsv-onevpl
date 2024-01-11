@@ -100,14 +100,14 @@ mfxStatus QSV_VPL_Encoder_Internal::Initialize(int deviceNum) {
 
   mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
   mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
-  mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_OFF;
+  mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
   MFXSetConfigFilterProperty(
       mfx_LoaderConfig, reinterpret_cast<const mfxU8 *>("mfxInitParam.GPUCopy"),
       mfx_LoaderVariant);
 
   mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
   mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
-  mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_OFF;
+  mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
   MFXSetConfigFilterProperty(
       mfx_LoaderConfig,
       reinterpret_cast<const mfxU8 *>("mfxInitializationParam.DeviceCopy"),
@@ -115,7 +115,7 @@ mfxStatus QSV_VPL_Encoder_Internal::Initialize(int deviceNum) {
 
   mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
   mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
-  mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_OFF;
+  mfx_LoaderVariant.Data.U16 = MFX_GPUCOPY_ON;
   MFXSetConfigFilterProperty(mfx_LoaderConfig,
                              reinterpret_cast<const mfxU8 *>("DeviceCopy"),
                              mfx_LoaderVariant);
@@ -128,15 +128,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Initialize(int deviceNum) {
                                  "mfxInitializationParam.AccelerationMode"),
                              mfx_LoaderVariant);
 
-  // mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
-  // mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U16;
-  // mfx_LoaderVariant.Data.U16 = (mfxU16)64;
-  // MFXSetConfigFilterProperty(
-  //     mfx_LoaderConfig,
-  //     reinterpret_cast<const mfxU8 *>(
-  //         "mfxInitializationParam.mfxExtThreadsParam.NumThread"),
-  //     mfx_LoaderVariant);
-
   mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
   mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
   mfx_LoaderVariant.Data.U32 = MFX_PRIORITY_HIGH;
@@ -146,12 +137,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Initialize(int deviceNum) {
           "mfxInitializationParam.mfxExtThreadsParam.Priority"),
       mfx_LoaderVariant);
 
-  // mfx_LoaderConfig = MFXCreateConfig(mfx_Loader);
-  // mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
-  // mfx_LoaderVariant.Data.U32 = 32;
-  // MFXSetConfigFilterProperty(mfx_LoaderConfig,
-  //                            reinterpret_cast<const mfxU8 *>("NumThread"),
-  //                            mfx_LoaderVariant);
 #elif defined(__linux__)
   mfx_LoaderVariant.Type = MFX_VARIANT_TYPE_U32;
   mfx_LoaderVariant.Data.U32 = MFX_ACCEL_MODE_VIA_VAAPI_DRM_RENDER_NODE;
@@ -180,38 +165,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Initialize(int deviceNum) {
     return sts;
   }
 
-#if defined(_WIN32) || defined(_WIN64)
-
-  /*Create DirectX device context*/
-  if (mfx_DX_Handle == nullptr) {
-    D3D11Device = new QSV_VPL_D3D11();
-    D3D11Device->SetSession(mfx_Session);
-    sts = D3D11Device->CreateHWDevice(&mfx_DX_Handle, deviceNum);
-    if (sts < MFX_ERR_NONE) {
-      blog(LOG_WARNING, "CreateHWDevice error: %d", sts);
-      return sts;
-    }
-  }
-
-  if (mfx_DX_Handle == nullptr)
-    return MFX_ERR_DEVICE_FAILED;
-
-  // Provide device manager to VPL
-
-  sts = MFXVideoCORE_SetHandle(mfx_Session, MFX_HANDLE_D3D11_DEVICE,
-                               mfx_DX_Handle);
-
-#elif defined(__linux__)
-
-  int major;
-  int minor;
-  if (vaInitialize(vaDisplay, &major, &minor) != VA_STATUS_SUCCESS) {
-    vaTerminate(vaDisplay);
-    return MFX_ERR_DEVICE_FAILED;
-  }
-  sts = MFXVideoCORE_SetHandle(mfx_Session, MFX_HANDLE_VA_DISPLAY, vaDisplay);
-
-#endif
   if (sts < MFX_ERR_NONE) {
     blog(LOG_WARNING, "SetHandle error: %d", sts);
     return sts;
@@ -322,8 +275,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
   mfx_EncParams.mfx.FrameInfo.Width =
       static_cast<mfxU16>((((pParams->nWidth + 15) >> 4) << 4));
   blog(LOG_INFO, "\tWidth: %d", mfx_EncParams.mfx.FrameInfo.Width);
-  // mfx_EncParams.mfx.FrameInfo.Height =
-  //     static_cast<mfxU16>((((pParams->nHeight) + 31)) & (~(mfxU32)31));
+
   mfx_EncParams.mfx.FrameInfo.Height =
       static_cast<mfxU16>((((pParams->nHeight + 15) >> 4) << 4));
   blog(LOG_INFO, "\tHeight: %d", mfx_EncParams.mfx.FrameInfo.Height);
@@ -366,6 +318,13 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
       static_cast<mfxU16>(pParams->RateControl);
 
   if ((pParams->nNumRefFrame > 0) && (pParams->nNumRefFrame < 17)) {
+    if (codec == QSV_CODEC_AVC && pParams->bLookahead == true &&
+        (pParams->nNumRefFrame < pParams->nGOPRefDist - 1)) {
+      pParams->nNumRefFrame = pParams->nGOPRefDist;
+      blog(LOG_WARNING, "\tThe AVC codec using Lookahead may be unstable if "
+                        "NumRefFrame < GopRefDist. The NumRefFrame value is "
+                        "automatically set to the GopRefDist value");
+    }
     mfx_EncParams.mfx.NumRefFrame = static_cast<mfxU16>(pParams->nNumRefFrame);
     blog(LOG_INFO, "\tNumRefFrame set to: %d", pParams->nNumRefFrame);
   }
@@ -385,7 +344,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     mfx_EncParams.mfx.TargetKbps = static_cast<mfxU16>(pParams->nTargetBitRate);
 
     mfx_EncParams.mfx.BufferSizeInKB =
-        (pParams->bLookaheadLP)
+        (pParams->bLookahead == true)
             ? static_cast<mfxU16>(
                   (mfx_EncParams.mfx.TargetKbps / static_cast<float>(8)) /
                   (static_cast<float>(
@@ -411,7 +370,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     mfx_EncParams.mfx.TargetKbps = static_cast<mfxU16>(pParams->nTargetBitRate);
     mfx_EncParams.mfx.MaxKbps = static_cast<mfxU16>(pParams->nMaxBitRate);
     mfx_EncParams.mfx.BufferSizeInKB =
-        (pParams->bLookaheadLP)
+        (pParams->bLookahead == true)
             ? static_cast<mfxU16>(
                   (mfx_EncParams.mfx.TargetKbps / static_cast<float>(8)) /
                   (static_cast<float>(
@@ -471,39 +430,24 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     break;
   }
 
-  switch (codec) {
-  case QSV_CODEC_AV1:
-    mfx_EncParams.mfx.GopRefDist = pParams->nGOPRefDist;
-    if (mfx_EncParams.mfx.GopRefDist > 16) {
-      mfx_EncParams.mfx.GopRefDist = 16;
-    }
-    break;
-  default:
-    mfx_EncParams.mfx.GopRefDist = static_cast<mfxU16>(pParams->nGOPRefDist);
-    if (mfx_EncParams.mfx.GopRefDist > 8) {
-      mfx_EncParams.mfx.GopRefDist = 8;
-    }
-    break;
-  }
+  mfx_EncParams.mfx.GopRefDist = static_cast<mfxU16>(pParams->nGOPRefDist);
 
-  if (pParams->bEncTools == true &&
-      (pParams->bLookaheadLP && pParams->bLookaheadLP.value() == true) &&
+  if (codec == QSV_CODEC_AV1 && pParams->bLookahead == false &&
+      pParams->bEncTools == true &&
       (mfx_EncParams.mfx.GopRefDist != 1 && mfx_EncParams.mfx.GopRefDist != 2 &&
        mfx_EncParams.mfx.GopRefDist != 4 && mfx_EncParams.mfx.GopRefDist != 8 &&
        mfx_EncParams.mfx.GopRefDist != 16)) {
-    pParams->nLADepth = 4;
-    mfx_EncParams.mfx.GopRefDist = 4;
-    blog(LOG_INFO,
-         "\tLOW POWER Lookahead only works with GOPRefDist equal "
-         "to 1, 2, 4, 8, 16 (for AV1). GOPRefDist automaticaly set to 4.");
+    mfx_EncParams.mfx.GopRefDist = 8;
+    blog(LOG_WARNING,
+         "\tThe AV1 codec without Lookahead cannot be used with EncTools if "
+         "GopRefDist does not "
+         "match the values 1, 2, 4, 8, 16. GOPRefDist automaticaly set to 8.");
   }
   blog(LOG_INFO, "\tGOPRefDist set to: %d frames (%d b-frames)",
        (int)mfx_EncParams.mfx.GopRefDist,
        (int)(mfx_EncParams.mfx.GopRefDist == 0
                  ? 0
                  : mfx_EncParams.mfx.GopRefDist - 1));
-
-  mfx_EncParams.mfx.MaxDecFrameBuffering = static_cast<mfxU16>(0);
 
   if (mfx_Ext_CO_enable == 1 && codec != QSV_CODEC_VP9) {
     auto CO = mfx_EncParams.AddExtBuffer<mfxExtCodingOption>();
@@ -512,22 +456,19 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     CO->SingleSeiNalUnit = MFX_CODINGOPTION_ON;
     CO->RefPicMarkRep = MFX_CODINGOPTION_ON;
     CO->PicTimingSEI = MFX_CODINGOPTION_ON;
-    // CO->AUDelimiter = MFX_CODINGOPTION_OFF;
+    CO->AUDelimiter = MFX_CODINGOPTION_OFF;
 
-    CO->MaxDecFrameBuffering =
-        static_cast<mfxU16>((mfx_EncParams.mfx.FrameInfo.FrameRateExtN /
-                             mfx_EncParams.mfx.FrameInfo.FrameRateExtD) +
-                            pParams->nLADepth);
-
-    /* CO->ResetRefList = MFX_CODINGOPTION_ON;*/
-    CO->FieldOutput = MFX_CODINGOPTION_ON;
+    CO->ResetRefList = MFX_CODINGOPTION_ON;
+    //CO->FieldOutput = MFX_CODINGOPTION_ON;
     CO->IntraPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
     CO->InterPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
     CO->MVPrecision = MFX_MVPRECISION_QUARTERPEL;
     CO->MECostType = static_cast<mfxU16>(8);
     CO->MESearchType = static_cast<mfxU16>(16);
-    CO->MVSearchWindow.x = static_cast<mfxI16>(4);
-    CO->MVSearchWindow.y = static_cast<mfxI16>(4);
+    CO->MVSearchWindow.x = (codec == QSV_CODEC_AVC) ? static_cast<mfxI16>(16)
+                                                    : static_cast<mfxI16>(32);
+    CO->MVSearchWindow.y = (codec == QSV_CODEC_AVC) ? static_cast<mfxI16>(16)
+                                                    : static_cast<mfxI16>(32);
 
     if (pParams->bIntraRefEncoding == true) {
       CO->RecoveryPointSEI = MFX_CODINGOPTION_ON;
@@ -553,7 +494,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
       CO2->MaxFrameSize = (mfx_EncParams.mfx.TargetKbps *
                            mfx_EncParams.mfx.BRCParamMultiplier * 1000 /
                            (8 * (mfx_EncParams.mfx.FrameInfo.FrameRateExtN /
-                                 mfx_EncParams.mfx.FrameInfo.FrameRateExtD)));
+                                 mfx_EncParams.mfx.FrameInfo.FrameRateExtD))) *
+                          10;
     }
 
     CO2->ExtBRC = GetCodingOpt(pParams->bExtBRC);
@@ -577,34 +519,20 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
 
     if (mfx_Platform.CodeName < MFX_PLATFORM_DG2 &&
         mfx_Platform.MediaAdapterType == MFX_MEDIA_INTEGRATED &&
-        pParams->bLookaheadLP.has_value() && pParams->bLowpower == false) {
-      pParams->bLookaheadLP.reset();
+        pParams->bLookahead == true && pParams->bLowpower == false) {
+      pParams->bLookahead = false;
       pParams->nLADepth = 0;
       blog(LOG_INFO, "\tIntegrated graphics with Lowpower turned OFF does not "
                      "\tsupport Lookahead");
     }
 
-    if (pParams->bLookaheadLP.has_value() &&
-        (mfx_EncParams.mfx.RateControlMethod == MFX_RATECONTROL_CBR ||
-         mfx_EncParams.mfx.RateControlMethod == MFX_RATECONTROL_VBR)) {
-      if (pParams->bLookaheadLP.has_value() &&
-          mfx_Platform.CodeName >= MFX_PLATFORM_DG2) {
-        if (!pParams->bLookaheadLP.value()) {
-          CO2->LookAheadDepth = pParams->nLADepth;
-          blog(LOG_INFO, "\tLookahead mode set to: HIGH QUALITY");
-        } else {
-          CO2->LookAheadDepth = pParams->nLADepth;
-          blog(LOG_INFO, "\tLookahead mode set to: LOW POWER");
-        }
-      } else {
-        CO2->LookAheadDepth = 40;
-        pParams->bLookaheadLP.value() = false;
-        blog(LOG_INFO,
-             "\tIntegrated graphics does not support LOW POWER mode for "
-             "Lookahead, automatically switched to HIGH QUALITY mode");
-        blog(LOG_INFO, "\tLookahead mode set to: HIGH QUALITY");
+    if (mfx_EncParams.mfx.RateControlMethod == MFX_RATECONTROL_CBR ||
+        mfx_EncParams.mfx.RateControlMethod == MFX_RATECONTROL_VBR) {
+      if (pParams->bLookahead == true) {
+        CO2->LookAheadDepth = pParams->nLADepth;
+        blog(LOG_INFO, "\tLookahead set to: ON");
+        blog(LOG_INFO, "\tLookaheadDepth set to: %d", CO2->LookAheadDepth);
       }
-      blog(LOG_INFO, "\tLookahead set to: %d", CO2->LookAheadDepth);
     }
 
     if (codec != QSV_CODEC_VP9) {
@@ -666,10 +594,10 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     CO2->AdaptiveB = GetCodingOpt(pParams->bAdaptiveB);
     blog(LOG_INFO, "\tAdaptiveB set: %s", GetCodingOptStatus(CO2->AdaptiveB));
 
-    if (pParams->bLookaheadLP.has_value() &&
-        (pParams->RateControl == MFX_RATECONTROL_CBR ||
-         pParams->RateControl == MFX_RATECONTROL_VBR)) {
-      if (pParams->nLookAheadDS.has_value()) {
+    if (pParams->RateControl == MFX_RATECONTROL_CBR ||
+        pParams->RateControl == MFX_RATECONTROL_VBR) {
+      CO2->LookAheadDS = MFX_LOOKAHEAD_DS_OFF;
+      if (pParams->nLookAheadDS.has_value() == true) {
         switch (pParams->nLookAheadDS.value()) {
         case 0:
           CO2->LookAheadDS = MFX_LOOKAHEAD_DS_OFF;
@@ -687,8 +615,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
           blog(LOG_INFO, "\tLookAheadDS set: AUTO");
           break;
         }
-      } else {
-        blog(LOG_INFO, "\tLookAheadDS set: AUTO");
       }
     }
 
@@ -709,21 +635,20 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
                             mfx_EncParams.mfx.BRCParamMultiplier * 1000 /
                             (8 * (mfx_EncParams.mfx.FrameInfo.FrameRateExtN /
                                   mfx_EncParams.mfx.FrameInfo.FrameRateExtD))) *
-                           5;
+                           8;
       CO3->MaxFrameSizeP = (mfx_EncParams.mfx.TargetKbps *
                             mfx_EncParams.mfx.BRCParamMultiplier * 1000 /
                             (8 * (mfx_EncParams.mfx.FrameInfo.FrameRateExtN /
                                   mfx_EncParams.mfx.FrameInfo.FrameRateExtD))) *
-                           3;
+                           5;
     }
 
-    // CO3->CPUEncToolsProcessing = MFX_CODINGOPTION_ON;
     CO3->MBDisableSkipMap = MFX_CODINGOPTION_ON;
     CO3->EnableQPOffset = MFX_CODINGOPTION_ON;
     CO3->BitstreamRestriction = MFX_CODINGOPTION_ON;
 
-    CO3->WeightedPred = MFX_WEIGHTED_PRED_IMPLICIT;
-    CO3->WeightedBiPred = MFX_WEIGHTED_PRED_IMPLICIT;
+    CO3->WeightedPred = MFX_WEIGHTED_PRED_DEFAULT;
+    CO3->WeightedBiPred = MFX_WEIGHTED_PRED_DEFAULT;
 
     if (pParams->bIntraRefEncoding == true) {
       CO3->IntRefCycleDist = 0;
@@ -731,24 +656,24 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
 
     CO3->ContentInfo = MFX_CONTENT_NOISY_VIDEO;
 
-    if ((pParams->bLookaheadLP.has_value() &&
-         pParams->bLookaheadLP.value() == true) ||
-        !pParams->bLookaheadLP) {
-      CO3->ScenarioInfo = MFX_SCENARIO_REMOTE_GAMING;
-      blog(LOG_INFO, "\tScenario: REMOTE GAMING");
-    } else if (pParams->bLookaheadLP &&
-               pParams->bLookaheadLP.value() == false) {
+    if ((codec == QSV_CODEC_AVC || codec == QSV_CODEC_AV1) &&
+        pParams->bLookahead == true) {
       CO3->ScenarioInfo = MFX_SCENARIO_GAME_STREAMING;
       blog(LOG_INFO, "\tScenario: GAME STREAMING");
+
+    } else if (pParams->bLookahead == false ||
+               (codec == QSV_CODEC_HEVC && pParams->bLookahead == true)) {
+      CO3->ScenarioInfo = MFX_SCENARIO_REMOTE_GAMING;
+      blog(LOG_INFO, "\tScenario: REMOTE GAMING");
     }
 
-    // if (mfx_EncParams.mfx.RateControlMethod == MFX_RATECONTROL_CQP) {
-    CO3->EnableMBQP = MFX_CODINGOPTION_ON;
-    //}
+    if (mfx_EncParams.mfx.RateControlMethod == MFX_RATECONTROL_CQP) {
+      CO3->EnableMBQP = MFX_CODINGOPTION_ON;
+    }
 
-    /*This parameter sets active references for frames. This is fucking magic,
-       it may work with LookAhead, or it may not work, it seems to depend on the
-       IDE and compiler. If you get frame drops, delete it.*/
+    /*This parameter sets active references for frames. This is fucking
+       magic, it may work with LookAhead, or it may not work, it seems to
+       depend on the IDE and compiler. If you get frame drops, delete it.*/
     if (codec == QSV_CODEC_HEVC) {
       if (pParams->nNumRefFrameLayers > 0) {
 
@@ -866,7 +791,6 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     auto EncToolsParam = mfx_EncParams.AddExtBuffer<mfxExtEncToolsConfig>();
     switch (codec) {
     case QSV_CODEC_AVC:
-      EncToolsParam->BRC = MFX_CODINGOPTION_ON;
       EncToolsParam->AdaptiveLTR = MFX_CODINGOPTION_OFF;
       EncToolsParam->BRC = (pParams->RateControl == MFX_RATECONTROL_CBR ||
                             pParams->RateControl == MFX_RATECONTROL_VBR)
@@ -892,7 +816,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
       EncToolsParam->AdaptiveI = GetCodingOpt(pParams->bAdaptiveI);
       EncToolsParam->SaliencyMapHint = MFX_CODINGOPTION_OFF;
 
-      if (pParams->bLookaheadLP && pParams->bLookaheadLP.value() == false) {
+      if (pParams->bLookahead == true) {
         EncToolsParam->BRC = MFX_CODINGOPTION_OFF;
       }
       break;
@@ -901,7 +825,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
                             pParams->RateControl == MFX_RATECONTROL_VBR)
                                ? MFX_CODINGOPTION_ON
                                : MFX_CODINGOPTION_OFF;
-      EncToolsParam->AdaptiveLTR = GetCodingOpt(pParams->bAdaptiveLTR);
+      EncToolsParam->AdaptiveLTR = MFX_CODINGOPTION_OFF;
       EncToolsParam->AdaptiveRefB = GetCodingOpt(pParams->bAdaptiveRef);
       EncToolsParam->AdaptiveRefP = GetCodingOpt(pParams->bAdaptiveRef);
       EncToolsParam->AdaptivePyramidQuantB =
@@ -944,7 +868,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
       EncToolsParam->AdaptiveI = GetCodingOpt(pParams->bAdaptiveI);
       EncToolsParam->SaliencyMapHint = MFX_CODINGOPTION_ON;
 
-      if (pParams->bLookaheadLP && pParams->bLookaheadLP.value() == true) {
+      if (pParams->bLookahead == true) {
         EncToolsParam->BRC = MFX_CODINGOPTION_UNKNOWN;
         EncToolsParam->AdaptiveLTR = MFX_CODINGOPTION_UNKNOWN;
         EncToolsParam->AdaptiveRefB = MFX_CODINGOPTION_UNKNOWN;
@@ -958,7 +882,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
         EncToolsParam->AdaptiveI = MFX_CODINGOPTION_UNKNOWN;
       }
 
-      if (pParams->bLookaheadLP && pParams->bLookaheadLP.value() == false) {
+      if (pParams->bLookahead == true) {
         EncToolsParam->BRC = MFX_CODINGOPTION_OFF;
         EncToolsParam->AdaptiveLTR = MFX_CODINGOPTION_OFF;
         EncToolsParam->AdaptiveRefB = MFX_CODINGOPTION_OFF;
@@ -976,7 +900,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     blog(LOG_INFO, "\tEncTools set: ON");
   }
 
-  /*Don't touch it! Magic beyond the control of mere mortals takes place here*/
+  /*Don't touch it! Magic beyond the control of mere mortals takes place
+   * here*/
   if (mfx_Ext_CO_DDI_enable == 1 && codec != QSV_CODEC_AV1) {
     auto CODDI = mfx_EncParams.AddExtBuffer<mfxExtCodingOptionDDI>();
     CODDI->WriteIVFHeaders = MFX_CODINGOPTION_OFF;
@@ -1012,14 +937,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     CODDI->RefreshFrameContext = MFX_CODINGOPTION_ON;
     CODDI->ChangeFrameContextIdxForTS = MFX_CODINGOPTION_ON;
     CODDI->SuperFrameForTS = MFX_CODINGOPTION_ON;
-    /*if (codec == QSV_CODEC_AVC &&
-        ((pParams->bLookaheadLP.has_value() &&
-          pParams->bLookaheadLP.value() != true) ||
-         !pParams->bLookaheadLP.has_value()) &&
-        pParams->bHRDConformance.has_value() &&
-        pParams->bHRDConformance == false) {
-      CODDI->NumActiveRefP = static_cast<mfxU16>(pParams->nGOPRefDist - 1);
-    } else */
+
     if (codec == QSV_CODEC_HEVC) {
       CODDI->NumActiveRefP = static_cast<mfxU16>(HEVCGetMaxNumRefActivePL0(
           mfx_EncParams.mfx.TargetUsage, mfx_EncParams.mfx.LowPower,
@@ -1037,7 +955,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
     /*You can touch it, this is the LookAHead setting,
             here you can adjust its strength,
             range of quality and dependence.*/
-    if (pParams->bLookaheadLP == true && pParams->nLADepth >= 10) {
+    if (pParams->bLookahead == true && pParams->nLADepth >= 10) {
       CODDI->StrengthN = 1000;
       CODDI->QpUpdateRange = 30;
       CODDI->LaScaleFactor = 1;
@@ -1148,39 +1066,8 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
         AV1TileParam->NumTileColumns = 1;
         AV1TileParam->NumTileRows = 1;
       }
-
-#if defined(_WIN32) || defined(_WIN64)
-      auto AV1AuxParam = mfx_EncParams.AddExtBuffer<mfxExtAV1AuxData>();
-      // AV1AuxParam->EnableCdef = MFX_CODINGOPTION_ON;
-      // AV1AuxParam->Cdef.CdefBits = 3;
-      AV1AuxParam->DisableFrameEndUpdateCdf = MFX_CODINGOPTION_OFF;
-      AV1AuxParam->DisableCdfUpdate = MFX_CODINGOPTION_OFF;
-
-      AV1AuxParam->EnableSuperres = MFX_CODINGOPTION_ON;
-      AV1AuxParam->SuperresScaleDenominator = 10;
-
-      AV1AuxParam->InterpFilter = MFX_CODINGOPTION_ON;
-
-      AV1AuxParam->UniformTileSpacing = MFX_CODINGOPTION_ON;
-      AV1AuxParam->SwitchInterval = 0;
-
-      // AV1AuxParam->EnableLoopFilter = MFX_CODINGOPTION_ON;
-      // AV1AuxParam->LoopFilter.ModeRefDeltaEnabled = 1;
-      // AV1AuxParam->LoopFilter.ModeRefDeltaUpdate = 1;
-      // AV1AuxParam->LoopFilterSharpness = 7;
-
-      AV1AuxParam->EnableOrderHint = MFX_CODINGOPTION_ON;
-      AV1AuxParam->OrderHintBits = 8;
-
-      AV1AuxParam->Palette = MFX_CODINGOPTION_ON;
-      AV1AuxParam->SegmentTemporalUpdate = MFX_CODINGOPTION_ON;
-      AV1AuxParam->IBC = MFX_CODINGOPTION_ON;
-      AV1AuxParam->PackOBUFrame = MFX_CODINGOPTION_ON;
-
-      AV1AuxParam->UseAnnexB = MFX_CODINGOPTION_ON;
-      AV1AuxParam->InsertTemporalDelimiter = MFX_CODINGOPTION_ON;
-#endif
     }
+
     if (mfx_Version.Major >= 2 && mfx_Version.Minor >= 9 &&
         pParams->nTuneQualityMode.has_value()) {
       auto TuneQuality = mfx_EncParams.AddExtBuffer<mfxExtTuneEncodeQuality>();
@@ -1188,8 +1075,7 @@ mfxStatus QSV_VPL_Encoder_Internal::InitENCParams(struct qsv_param_t *pParams,
       switch ((int)pParams->nTuneQualityMode.value()) {
       default:
       case 0:
-        TuneQuality->TuneQuality =
-            /*MFX_ENCODE_TUNE_DEFAULT*/ MFX_ENCODE_TUNE_OFF;
+        TuneQuality->TuneQuality = MFX_ENCODE_TUNE_OFF;
         blog(LOG_INFO, "\tTuneQualityMode set: DEFAULT");
         break;
       case 1:
@@ -1540,9 +1426,11 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode_tex(mfxU64 ts, uint32_t tex_handle,
     return sts;
   }
 
-  sts = D3D11Device->simple_copytex(mfx_DX_Handle,
-                                    (mfxMemId *)mfx_EncodeSurface->Data.MemId,
-                                    tex_handle, lock_key, (mfxU64 *)next_key);
+  // sts = D3D11Device->simple_copytex(mfx_DX_Handle,
+  //                                   (mfxMemId
+  //                                   *)mfx_EncodeSurface->Data.MemId,
+  //                                   tex_handle, lock_key, (mfxU64
+  //                                   *)next_key);
   mfx_EncodeSurface->Data.TimeStamp = ts;
 
   auto TryCounter = 0;
@@ -1614,7 +1502,7 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode_tex(mfxU64 ts, uint32_t tex_handle,
         } while (sync_sts == MFX_WRN_IN_EXECUTION);
       } else {
         /*Or, if there is no buffered successful SyncPoint, then we sleep*/
-        Sleep(100);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
       }
       break;
     case MFX_ERR_MORE_BITSTREAM:
@@ -1754,7 +1642,7 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t *pDataY,
         } while (sync_sts == MFX_WRN_IN_EXECUTION);
       } else {
         /*Or, if there is no buffered successful SyncPoint, then we sleep*/
-        Sleep(100);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
       }
       break;
     case MFX_ERR_MORE_BITSTREAM:
@@ -1799,8 +1687,6 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t *pDataY,
   if (release_sts < MFX_ERR_NONE) {
     blog(LOG_WARNING, "Surface release error: %d", release_sts);
   }
-  // memset(pBS, 0, 0);
-  // pBS = nullptr;
 
   return sts;
 }
@@ -1853,14 +1739,7 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData() {
   if (sts >= MFX_ERR_NONE) {
     mfx_OpenEncodersNum--;
   }
-#if defined(_WIN32) || defined(_WIN64)
-  if (D3D11Device != nullptr || mfx_DX_Handle != nullptr) {
-    D3D11Device->CleanupHWDevice();
-    delete D3D11Device;
-    D3D11Device = nullptr;
-    mfx_DX_Handle = nullptr;
-  }
-#endif
+
   if (mfx_OpenEncodersNum <= 0) {
     mfx_DX_Handle = nullptr;
   }
