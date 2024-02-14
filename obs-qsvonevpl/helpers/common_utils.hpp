@@ -3,8 +3,14 @@
 #define __QSV_VPL_COMMON_UTILS_H__
 #endif
 
+#if defined(_WIN32) || defined(_WIN64)
 #ifndef __INTRIN_H_
 #include <intrin.h>
+#endif
+#elif defined(__linux__)
+#ifndef __X86INTRIN_H
+#include <x86intrin.h>
+#endif
 #endif
 #ifndef _INC_STDIO
 #include <stdio.h>
@@ -69,7 +75,25 @@
 #include "../bits/linux_defs.h"
 #endif
 
+#define do_log(level, format, ...)                                             \
+  blog(level, "[QSV encoder: '%s'] " format, "libvpl", ##__VA_ARGS__);
+
+#define error(format, ...) do_log(LOG_ERROR, format, ##__VA_ARGS__)
+#define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
+#define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
+#define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
+
+#define error_hr(msg) warn("%s: %s: 0x%08lX", __FUNCTION__, msg, (uint32_t)hr);
+
 #define INFINITE 0xFFFFFFFF // Infinite timeout
+
+#define CHECK_STS(X, ERR_TEXT)                                                 \
+  {                                                                            \
+    if ((X) < MFX_ERR_NONE) {                                                  \
+      warn(TEXT);                                                              \
+      return X;                                                                \
+    }                                                                          \
+  }
 
 extern "C" void util_cpuid(int cpuinfo[4], int flags);
 
@@ -86,3 +110,32 @@ struct adapter_info {
 #define MAX_ADAPTERS 10
 extern struct adapter_info adapters[MAX_ADAPTERS];
 extern size_t adapter_count;
+
+enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
+
+// Usage of the following two macros are only required for certain Windows
+// DirectX11 use cases
+#define WILL_READ 0x1000
+#define WILL_WRITE 0x2000
+
+// =================================================================
+// Intel VPL memory allocator entrypoints....
+// Implementation of this functions is OS/Memory type specific.
+// mfxStatus _allocate_tex(mfxFrameAllocRequest *request,
+//                        mfxFrameAllocResponse *response);
+mfxStatus allocate_tex(mfxHDL pthis, mfxFrameAllocRequest *request,
+                       mfxFrameAllocResponse *response);
+// mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr);
+// mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData *ptr);
+mfxStatus copy_tex(mfxMemId mid, mfxU32 tex_handle, mfxU64 lock_key,
+                   mfxU64 *next_key);
+mfxStatus gethdl_tex(mfxMemId mid, mfxHDL *handle);
+// mfxStatus _free_tex(mfxFrameAllocResponse *response);
+mfxStatus free_tex(mfxFrameAllocResponse *response);
+
+void Release();
+void ReleaseSessionData(void *);
+
+mfxStatus Initialize(mfxSession *mfx_Session, mfxHDL *mfx_GFXHandle,
+                     int deviceNum, bool mfx_UseTexAlloc, enum qsv_codec codec,
+                     void **data);

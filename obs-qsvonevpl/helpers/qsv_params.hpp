@@ -53,6 +53,21 @@ static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
 static const char *const qsv_params_condition_p_pyramid[] = {"SIMPLE",
                                                              "PYRAMID", 0};
 
+static const char *const qsv_params_condition_vpp[] = {"PRE ENC", "POST ENC", "PRE ENC | POST ENC",
+                                                                  0};
+
+static const char *const qsv_params_condition_scaling_mode[] = {
+    "OFF",
+    "QUALITY | ADVANCED",
+    "VEBOX | ADVANCED",
+    "LOWPOWER | NEAREST NEIGHBOR",
+    "LOWPOWER | ADVANCED",
+    "AUTO",
+    0};
+
+static const char *const qsv_params_condition_image_stab_mode[] = {
+    "OFF", "UPSCALE", "BOXING", "AUTO", 0};
+
 static const char *const qsv_params_condition_extbrc[] = {"ON", "OFF", 0};
 
 static const char *const qsv_params_condition_intra_ref_encoding[] = {
@@ -61,8 +76,8 @@ static const char *const qsv_params_condition_intra_ref_encoding[] = {
 static const char *const qsv_params_condition_mv_cost_scaling[] = {
     "DEFAULT", "1/2", "1/4", "1/8", "AUTO", 0};
 
-static const char *const qsv_params_condition_lookahead_mode[] = {
-    "ON", "OFF", 0};
+static const char *const qsv_params_condition_lookahead_mode[] = {"HQ", "LP",
+                                                                  "OFF", 0};
 
 static const char *const qsv_params_condition_lookahead_latency[] = {
     "NORMAL", "HIGH", "LOW", "VERYLOW", 0};
@@ -88,6 +103,13 @@ static const char *const qsv_params_condition_denoise_mode[] = {
     "MANUAL | POST ENCODE",
     "OFF",
     0};
+
+struct vpp_param {
+  bool bPreEnc;
+  bool bPostEnc;
+
+  bool Enable;
+};
 
 struct qsv_param_t {
   mfxU16 nTargetUsage; /* 1 through 7, 1 being best quality and 7
@@ -151,8 +173,9 @@ struct qsv_param_t {
   std::optional<bool> bWeightedBiPred;
   std::optional<bool> bGlobalMotionBiasAdjustment;
   std::optional<bool> bHRDConformance;
-  
+
   bool bLookahead;
+  bool bLookaheadLP;
   bool bPPyramid;
   bool bExtBRC;
   bool bIntraRefEncoding;
@@ -161,12 +184,17 @@ struct qsv_param_t {
   bool video_fmt_10bit;
   bool bResetAllowed;
   bool bLowpower;
+  bool bPercEncPrefilter;
+  bool bVPPEnable;
 
   std::optional<int> nTrellis;
-  std::optional<int> nDenoiseMode;
+  std::optional<int> nVPPDenoiseMode;
+  std::optional<int> nVPPScalingMode;
+  std::optional<int> nVPPImageStabMode;
+  std::optional<int> nVPPDetail;
   std::optional<int> nMVCostScalingFactor;
   std::optional<int> nLookAheadDS;
-  std::optional<int> nMotionVectorsOverPicBoundaries;
+  std::optional<bool> nMotionVectorsOverPicBoundaries;
   std::optional<int> nTuneQualityMode;
   std::optional<int> nNumRefFrameLayers;
   std::optional<int> nSAO;
@@ -188,8 +216,9 @@ static inline T GetTriState(const std::optional<bool> &Value,
 }
 
 static inline mfxU16 GetCodingOpt(const std::optional<bool> &value) {
-  return (mfxU16)GetTriState(value, MFX_CODINGOPTION_UNKNOWN,
-                             MFX_CODINGOPTION_ON, MFX_CODINGOPTION_OFF);
+  return static_cast<mfxU16>(GetTriState(value, MFX_CODINGOPTION_UNKNOWN,
+                                         MFX_CODINGOPTION_ON,
+                                         MFX_CODINGOPTION_OFF));
 }
 
 static inline std::string GetCodingOptStatus(const mfxU16 &value) {

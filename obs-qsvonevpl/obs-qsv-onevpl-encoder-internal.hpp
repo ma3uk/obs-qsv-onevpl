@@ -7,26 +7,22 @@
 #if defined(_WIN32) || defined(_WIN64)
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
-#elif __linux__
+#include "helpers/common_directx11.hpp"
+#elif defined(__linux__)
 #include <obs-nix-platform.h>
+#include <va/va_wayland.h>
+#include <va/va_x11.h>
 #endif
 
-#include <thread>
 #include <chrono>
+#include <thread>
 
-#ifndef __QSV_VPL_ENCODER_PARAMS_H__
-#include "helpers/qsv_params.hpp"
-#endif
-#ifndef __QSV_VPL_COMMON_UTILS_H__
+#include "obs-qsv-onevpl-encoder.hpp"
+// #include "helpers/bitstream_manager.hpp"
 #include "helpers/common_utils.hpp"
-#endif
-#ifndef __QSV_VPL_EXT_BUF_MANAGER_H__
 #include "helpers/ext_buf_manager.hpp"
-#endif
-#ifndef __QSV_VPL_BITSTREAM_H__
-#include "helpers/bitstream_manager.hpp"
-#endif
-
+// #include "helpers/task_manager.hpp"
+#include "helpers/qsv_params.hpp"
 
 class QSV_VPL_Encoder_Internal {
 public:
@@ -36,39 +32,52 @@ public:
   mfxStatus Open(struct qsv_param_t *pParams, enum qsv_codec codec);
   void GetVPSSPSPPS(mfxU8 **pVPSBuf, mfxU8 **pSPSBuf, mfxU8 **pPPSBuf,
                     mfxU16 *pnVPSBuf, mfxU16 *pnSPSBuf, mfxU16 *pnPPSBuf);
-  mfxStatus Encode(mfxU64 ts, uint8_t *pDataY, uint8_t *pDataUV,
-                   uint32_t strideY, uint32_t strideUV, mfxBitstream **pBS);
+  mfxStatus Encode(mfxU64 ts, uint8_t **frame_data, uint32_t *frame_linesize,
+                   mfxBitstream **pBS);
   mfxStatus Encode_tex(mfxU64 ts, uint32_t tex_handle, uint64_t lock_key,
                        uint64_t *next_key, mfxBitstream **pBS);
   mfxStatus ClearData();
-  mfxStatus Initialize(int deviceNum);
   mfxStatus Reset(struct qsv_param_t *pParams, enum qsv_codec codec);
   mfxStatus GetCurrentFourCC(mfxU32 &fourCC);
   mfxStatus ReconfigureEncoder();
+  void AddROI(mfxU32 left, mfxU32 top, mfxU32 right, mfxU32 bottom,
+              mfxI16 delta);
+  void ClearROI();
   bool UpdateParams(struct qsv_param_t *pParams);
 
   bool IsDGPU() const { return b_isDGPU; }
 
+  // mfxStatus AllocateVPPSurfaces();
+
 protected:
-  struct Task {
-    mfxBitstream *mfxBS;
+  typedef struct {
+    mfxBitstream mfxBS;
     mfxSyncPoint syncp;
-  };
-  mfxStatus InitENCCtrlParams(struct qsv_param_t *pParams,
-                              enum qsv_codec codec);
-  mfxStatus InitENCParams(struct qsv_param_t *pParams, enum qsv_codec codec);
+  } Task;
+  mfxStatus InitVPPParams(struct qsv_param_t *pParams, enum qsv_codec codec);
+  mfxStatus InitEncParams(struct qsv_param_t *pParams, enum qsv_codec codec);
+  mfxStatus InitDecParams(struct qsv_param_t *pParams, enum qsv_codec codec);
+
   mfxStatus GetVideoParam(enum qsv_codec codec);
-  mfxStatus LoadNV12(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
-                     uint8_t *pDataUV, uint32_t strideY, uint32_t strideUV);
-  mfxStatus LoadP010(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
-                     uint8_t *pDataUV, uint32_t strideY, uint32_t strideUV);
-  mfxStatus LoadBGRA(mfxFrameSurface1 *pSurface, uint8_t *pDataY,
-                     uint32_t strideY);
+  mfxStatus AllocateTextures();
+  mfxStatus InitBitstream();
+  void ReleaseBitstream();
+  mfxStatus InitTaskPool();
+  void ReleaseTask(int TaskID);
+  void ReleaseTaskPool();
+  mfxStatus ChangeBitstreamSize(mfxU32 NewSize);
+  mfxStatus GetFreeTaskIndex(int *TaskID);
+
+  void LoadFrameData(mfxFrameSurface1 *surface, uint8_t **frame_data,
+                     uint32_t *frame_linesize);
+
   mfxStatus Drain();
   // int GetFreeTaskIndex(std::vector<Task> &pTaskPool, mfxU16 &nPoolSize);
 
-  static inline mfxU16 AVCGetMaxNumRefActivePL0(mfxU16 targetUsage, mfxU16 isLowPower,
-                                  bool lookAHead, const mfxFrameInfo &info) {
+  static inline mfxU16 AVCGetMaxNumRefActivePL0(mfxU16 targetUsage,
+                                                mfxU16 isLowPower,
+                                                bool lookAHead,
+                                                const mfxFrameInfo &info) {
 
     constexpr mfxU16 DEFAULT_BY_TU[][8] = {
         {0, 8, 6, 3, 3, 3, 1, 1}, // VME progressive < 4k or interlaced
@@ -85,13 +94,13 @@ protected:
         return DEFAULT_BY_TU[1][targetUsage];
       }
     } else {
-        return DEFAULT_BY_TU[2][targetUsage];
+      return DEFAULT_BY_TU[2][targetUsage];
     }
   }
 
   static inline mfxU16 AVCGetMaxNumRefActiveBL0(mfxU16 targetUsage,
-                                               mfxU16 isLowPower,
-                                  bool lookAHead) {
+                                                mfxU16 isLowPower,
+                                                bool lookAHead) {
     constexpr mfxU16 DEFAULT_BY_TU[][8] = {{0, 4, 4, 2, 2, 2, 1, 1},
                                            {0, 2, 2, 2, 2, 2, 1, 1}};
     if (isLowPower == MFX_CODINGOPTION_OFF) {
@@ -107,7 +116,8 @@ protected:
 
   static inline mfxU16 AVCGetMaxNumRefActiveBL1(mfxU16 targetUsage,
                                                 mfxU16 isLowPower,
-                                  bool lookAHead, const mfxFrameInfo &info) {
+                                                bool lookAHead,
+                                                const mfxFrameInfo &info) {
     constexpr mfxU16 DEFAULT_BY_TU[] = {0, 2, 2, 2, 2, 2, 1, 1};
     if (info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE &&
         isLowPower == MFX_CODINGOPTION_OFF) {
@@ -123,7 +133,7 @@ protected:
 
   static inline mfxU16 HEVCGetMaxNumRefActivePL0(mfxU16 targetUsage,
                                                  mfxU16 isLowPower,
-                                   const mfxFrameInfo &info) {
+                                                 const mfxFrameInfo &info) {
 
     constexpr mfxU16 DEFAULT_BY_TU[][8] = {
         {0, 4, 4, 3, 3, 1, 1, 1}, // VME progressive < 4k or interlaced
@@ -145,7 +155,7 @@ protected:
   }
 
   static inline mfxU16 HEVCGetMaxNumRefActiveBL0(mfxU16 targetUsage,
-                                                mfxU16 isLowPower) {
+                                                 mfxU16 isLowPower) {
     if (isLowPower == MFX_CODINGOPTION_OFF) {
       constexpr mfxU16 DEFAULT_BY_TU[][8] = {{0, 4, 4, 3, 3, 3, 1, 1}};
       return DEFAULT_BY_TU[0][targetUsage];
@@ -155,8 +165,8 @@ protected:
   }
 
   static inline mfxU16 HEVCGetMaxNumRefActiveBL1(mfxU16 targetUsage,
-                                                mfxU16 isLowPower,
-                                   const mfxFrameInfo &info) {
+                                                 mfxU16 isLowPower,
+                                                 const mfxFrameInfo &info) {
     if (info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE &&
         isLowPower == MFX_CODINGOPTION_OFF) {
       constexpr mfxU16 DEFAULT_BY_TU[] = {0, 2, 2, 1, 1, 1, 1, 1};
@@ -165,9 +175,6 @@ protected:
       return 1;
     }
   }
-//#if defined(_WIN32) || defined(_WIN64)
-//  inline static QSV_VPL_D3D11 *D3D11Device;
-//#endif
 
 private:
   mfxIMPL mfx_Impl;
@@ -177,31 +184,47 @@ private:
   mfxConfig mfx_LoaderConfig;
   mfxVariant mfx_LoaderVariant;
   mfxSession mfx_Session;
-  mfxFrameSurface1 *mfx_EncodeSurface;
-  MFXVideoENCODE *mfx_VideoENC;
-  mfxU8 VPS_Buffer[128];
-  mfxU8 SPS_Buffer[512];
-  mfxU8 PPS_Buffer[128];
+  void *mfx_SessionData;
+  // mfxFrameSurface1 *mfx_DecodeSurface;
+
+  mfxFrameSurface1 *mfx_Surface;
+  mfxFrameSurface1 *mfx_VPPInSurface;
+  mfxFrameSurface1 *mfx_VPPOutSurface;
+  MFXVideoENCODE *mfx_VideoEnc;
+  MFXVideoVPP *mfx_VideoVPP;
+  // MFXVideoDECODE *mfx_VideoDec;
+  mfxU8 VPS_Buffer[2048];
+  mfxU8 SPS_Buffer[2048];
+  mfxU8 PPS_Buffer[2048];
   mfxU16 VPS_BufferSize;
   mfxU16 SPS_BufferSize;
   mfxU16 PPS_BufferSize;
-  // mfxBitstream *mfx_Bitstream;
 
-  QSV_VPL_Bitstream mfx_Bitstream;
-
-
+  mfxBitstream mfx_Bitstream;
+  mfxU16 mfx_TaskPoolSize;
+  Task *mfx_TaskPool;
+  int mfx_SyncTaskID;
 
   mfxVideoParam mfx_ResetParams;
   bool ResetParamChanged;
+
   mfx_VideoParam mfx_EncParams;
-  mfx_EncodeCtrl encCTRL;
+  mfx_VideoParam mfx_VPPParams;
+  mfx_EncodeCtrl mfx_EncCtrlParams;
 
-  mfxSyncPoint mfx_SyncPoint;
-  mfxSyncPoint mfx_BufferedSyncPoint;
+  static mfxU16 mfx_OpenEncodersNum;
+  static mfxHDL mfx_GFXHandle;
 
-  inline static mfxU16 mfx_OpenEncodersNum;
-  inline static mfxHDL mfx_DX_Handle;
+  //mfxFrameSurface1 **mfx_SurfacePool;
+  mfxFrameAllocRequest mfx_AllocRequest;
+  mfxFrameAllocResponse mfx_AllocResponse;
 
-  bool isD3D11;
+  bool mfx_UseD3D11;
+  bool mfx_UseTexAlloc;
+  mfxMemoryInterface *mfx_MemoryInterface;
+  mfxSurfaceD3D11Tex2D mfx_TextureInfo;
+  int mfx_TextureCounter;
   bool b_isDGPU;
+
+  bool mfx_VPP;
 };

@@ -50,9 +50,18 @@ struct obs_qsv {
   size_t sei_size;
 
   os_performance_token_t *performance_token;
+
+  uint32_t roi_increment;
 };
 
-enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
+struct CustomMemId {
+  mfxMemId memId;
+  mfxMemId memIdStage;
+  mfxU16 rw;
+};
+//
+// enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9
+// };
 
 static inline pthread_mutex_t g_QsvLock = PTHREAD_MUTEX_INITIALIZER;
 static unsigned short g_verMajor;
@@ -80,21 +89,17 @@ void load_headers(obs_qsv *obsqsv);
 
 bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size);
 
-void parse_packet_h264(obs_qsv *obsqsv, encoder_packet *packet,
-                       mfxBitstream *pBS, const video_output_info *voi,
-                       bool *received_packet);
+void static parse_packet(obs_qsv *obsqsv, encoder_packet *packet,
+                         mfxBitstream *pBS, const video_output_info *voi,
+                         bool *received_packet);
 
-void parse_packet_av1(obs_qsv *obsqsv, encoder_packet *packet,
-                      mfxBitstream *pBS, const video_output_info *voi,
-                      bool *received_packet);
+void qsv_encoder_add_roi(qsv_t *, const struct obs_encoder_roi *roi);
 
-void parse_packet_hevc(obs_qsv *obsqsv, encoder_packet *packet,
-                       mfxBitstream *pBS, const video_output_info *voi,
-                       bool *received_packet);
+void qsv_encoder_clear_roi(qsv_t *pContext);
 
-void parse_packet_vp9(obs_qsv *obsqsv, encoder_packet *packet,
-                      mfxBitstream *pBS, const video_output_info *voi,
-                      bool *received_packet);
+static void roi_cb(void *param, obs_encoder_roi *roi);
+
+static void obs_qsv_setup_rois(obs_qsv *obsqsv);
 
 bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
                         uint64_t lock_key, uint64_t *next_key,
