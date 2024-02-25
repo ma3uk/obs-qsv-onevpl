@@ -17,7 +17,6 @@ target_sources(
   helpers/common_utils.cpp
   helpers/common_utils.hpp
   helpers/ext_buf_manager.hpp
-  helpers/bitstream_manager.hpp
   helpers/qsv_params.hpp
 )
 
@@ -42,9 +41,13 @@ target_compile_definitions(
 # C++20 for C-like structs
 target_compile_features(obs-qsvonevpl PRIVATE cxx_std_20)
 if(WIN32)
-target_compile_options(obs-qsvonevpl PRIVATE "/Ox")  
+target_compile_options(obs-qsvonevpl PRIVATE "/O2")  
 target_compile_options(obs-qsvonevpl PRIVATE "/Ot")
 target_compile_options(obs-qsvonevpl PRIVATE "/Oi")
+target_compile_options(obs-qsvonevpl PRIVATE "/MP")
+target_compile_options(obs-qsvonevpl PRIVATE "/Qpar")
+target_compile_options(obs-qsvonevpl PRIVATE "/GL")
+target_compile_options(obs-qsvonevpl PRIVATE "/Gy")
 endif()
 
 # Windows
@@ -55,8 +58,8 @@ if(WIN32)
     obs-qsvonevpl
     PRIVATE # cmake-format: sortable
     bits/windows_defs.h
-    helpers/common_directx11.cpp
-    helpers/common_directx11.hpp
+    helpers/hw_d3d11.cpp
+    helpers/hw_d3d11.hpp
     helpers/common_utils_windows.cpp)
 
   target_link_libraries(obs-qsvonevpl PRIVATE d3d11 dxgi dxguid)
@@ -93,5 +96,12 @@ elseif(UNIX AND NOT APPLE)
     bits/linux_defs.h
     helpers/common_utils_linux.cpp)
 
-  target_link_libraries(obs-qsvonevpl PRIVATE va va-drm va-wayland)
+  target_link_libraries(obs-qsvonevpl PRIVATE va va-drm va-wayland va-x11)
+
+  # pkg-config is used to find other libraries
+  find_package(PkgConfig REQUIRED)
+
+  # Find and link to wayland-client
+  pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
+  target_link_libraries(obs-qsvonevpl PRIVATE PkgConfig::WAYLAND_CLIENT)
 endif()

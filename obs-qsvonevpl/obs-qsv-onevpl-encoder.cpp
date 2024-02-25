@@ -75,9 +75,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vpl/mfxdefs.h>
 #include <vpl/mfxstructures.h>
 
-#define do_log(level, format, ...)                                             \
-  blog(level, "[qsv encoder: '%s'] " format, "msdk_impl", ##__VA_ARGS__);
-
 mfxIMPL impl = MFX_IMPL_HARDWARE_ANY;
 mfxVersion ver = {{0, 1}}; // for backward compatibility
 std::atomic<bool> is_active{false};
@@ -108,7 +105,7 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec) {
       }
     }
   }
-  blog(LOG_INFO, "Selected adapter: %d", adapter_idx);
+  info("\tSelected adapter: %d", adapter_idx);
   isDGPU = adapters[adapter_idx].is_dgpu;
   mfxStatus sts;
 
@@ -195,12 +192,6 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec) {
   return (qsv_t *)pEncoder;
 }
 
-// bool qsv_encoder_is_dgpu(qsv_t *pContext) {
-//   QSV_VPL_Encoder_Internal *pEncoder =
-//   reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext); return
-//   pEncoder->IsDGPU();
-// }
-
 void obs_qsv_destroy(void *data) {
   obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
@@ -257,7 +248,7 @@ bool obs_qsv_update(void *data, obs_data_t *settings) {
   mfxStatus sts = pEncoder->ReconfigureEncoder();
 
   if (sts < MFX_ERR_NONE) {
-    blog(LOG_WARNING, "Failed to reconfigure \nReset status: %d", sts);
+    warn("Failed to reconfigure \nReset status: %d", sts);
     return false;
   }
 
@@ -271,7 +262,7 @@ int qsv_encoder_reconfig(qsv_t *pContext, qsv_param_t *pParams) {
   mfxStatus sts = pEncoder->ReconfigureEncoder();
 
   if (sts < MFX_ERR_NONE) {
-    
+
     return false;
   }
   return true;
@@ -290,7 +281,6 @@ enum video_format qsv_encoder_get_video_format(qsv_t *pContext) {
   case MFX_FOURCC_NV12:
     return VIDEO_FORMAT_NV12;
   case MFX_FOURCC_BGR4:
-    return VIDEO_FORMAT_RGBA;
   case MFX_FOURCC_RGB4:
     return VIDEO_FORMAT_RGBA;
   case MFX_FOURCC_P010:
@@ -357,33 +347,20 @@ bool obs_qsv_sei(void *data, uint8_t **sei, size_t *size) {
 void obs_qsv_video_info(void *data, video_scale_info *info) {
   obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
   auto pref_format = obs_encoder_get_preferred_video_format(obsqsv->encoder);
-
-  if (!(pref_format == VIDEO_FORMAT_NV12 || pref_format == VIDEO_FORMAT_RGBA ||
-        pref_format == VIDEO_FORMAT_BGRA)) {
-    pref_format =
-        (info->format == VIDEO_FORMAT_NV12 ||
-         info->format == VIDEO_FORMAT_RGBA || info->format == VIDEO_FORMAT_BGRA)
-            ? info->format
-            : VIDEO_FORMAT_NV12;
+  if (obsqsv->codec == QSV_CODEC_AVC) {
+    if (!(pref_format == VIDEO_FORMAT_NV12)) {
+      pref_format = (info->format == VIDEO_FORMAT_NV12) ? info->format
+                                                        : VIDEO_FORMAT_NV12;
+    }
+  } else {
+    if (!(pref_format == VIDEO_FORMAT_NV12 ||
+          pref_format == VIDEO_FORMAT_P010)) {
+      pref_format = (info->format == VIDEO_FORMAT_NV12 ||
+                     info->format == VIDEO_FORMAT_P010)
+                        ? info->format
+                        : VIDEO_FORMAT_NV12;
+    }
   }
-
-  info->format = pref_format;
-}
-
-void obs_qsv_video_plus_hdr_info(void *data, video_scale_info *info) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
-  auto pref_format = obs_encoder_get_preferred_video_format(obsqsv->encoder);
-
-  if (!(pref_format == VIDEO_FORMAT_NV12 || pref_format == VIDEO_FORMAT_RGBA ||
-        pref_format == VIDEO_FORMAT_P010 || pref_format == VIDEO_FORMAT_BGRA)) {
-    pref_format =
-        (info->format == VIDEO_FORMAT_NV12 ||
-         info->format == VIDEO_FORMAT_RGBA ||
-         info->format == VIDEO_FORMAT_P010 || info->format == VIDEO_FORMAT_BGRA)
-            ? info->format
-            : VIDEO_FORMAT_NV12;
-  }
-
   info->format = pref_format;
 }
 
@@ -395,9 +372,9 @@ int64_t ts_mfx_to_obs(mfxI64 ts, const video_output_info *voi) {
   return voi->fps_num * ts / 90000;
 }
 
-void parse_packet_h264(obs_qsv *obsqsv, encoder_packet *packet,
-                       mfxBitstream *pBS, const video_output_info *voi,
-                       bool *received_packet) {
+void static parse_packet(obs_qsv *obsqsv, encoder_packet *packet,
+                         mfxBitstream *pBS, const video_output_info *voi,
+                         bool *received_packet) {
   if (pBS == nullptr || pBS->DataLength == 0) {
     *received_packet = false;
     return;
@@ -411,169 +388,92 @@ void parse_packet_h264(obs_qsv *obsqsv, encoder_packet *packet,
   packet->size = obsqsv->packet_data.num;
   packet->type = OBS_ENCODER_VIDEO;
   packet->pts = ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi);
-  packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_I) ||
-                     (pBS->FrameType & MFX_FRAMETYPE_IDR);
+  packet->dts =
+      (obsqsv->codec == QSV_CODEC_VP9 || obsqsv->codec == QSV_CODEC_AV1)
+          ? packet->pts
+          : ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
+  packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_I) ||
+                      (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
+                      (pBS->FrameType & MFX_FRAMETYPE_S) ||
+                      (pBS->FrameType & MFX_FRAMETYPE_xI) ||
+                      (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
+                      (pBS->FrameType & MFX_FRAMETYPE_xS));
 
-  auto frameType = pBS->FrameType;
-  auto priority = -1;
-  if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_IDR)) {
-    priority = OBS_NAL_PRIORITY_HIGHEST;
-  } else if ((frameType & MFX_FRAMETYPE_I)) {
-    priority = OBS_NAL_PRIORITY_HIGH;
-  } else if ((frameType & MFX_FRAMETYPE_P)) {
-    priority = OBS_NAL_PRIORITY_LOW;
+  if ((pBS->FrameType & MFX_FRAMETYPE_I) ||
+      (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
+      (pBS->FrameType & MFX_FRAMETYPE_S) ||
+      (pBS->FrameType & MFX_FRAMETYPE_xI) ||
+      (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
+      (pBS->FrameType & MFX_FRAMETYPE_xS)) {
+    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_HIGHEST);
+  } else if ((pBS->FrameType & MFX_FRAMETYPE_REF) ||
+             (pBS->FrameType & MFX_FRAMETYPE_xREF)) {
+    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
+  } else if ((pBS->FrameType & MFX_FRAMETYPE_P) ||
+             (pBS->FrameType & MFX_FRAMETYPE_xP)) {
+    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_LOW);
   } else {
-    priority = OBS_NAL_PRIORITY_DISPOSABLE;
+    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_DISPOSABLE);
   }
-
-  packet->priority = static_cast<int>(priority);
-
-  packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
 
   *received_packet = true;
 
   *pBS->Data = 0;
   pBS->DataLength = 0;
   pBS->DataOffset = 0;
-  memset(&pBS->DataLength, 0, sizeof(pBS->DataLength));
-  memset(&pBS->DataOffset, 0, sizeof(pBS->DataOffset));
 }
 
-void parse_packet_av1(obs_qsv *obsqsv, encoder_packet *packet,
-                      mfxBitstream *pBS, const video_output_info *voi,
-                      bool *received_packet) {
-  if (pBS == nullptr || pBS->DataLength == 0) {
-    *received_packet = false;
-    return;
-  }
-
-  da_resize(obsqsv->packet_data, 0);
-  da_push_back_array(obsqsv->packet_data, *(&pBS->Data + *(&pBS->DataOffset)),
-                     *(&pBS->DataLength));
-
-  packet->data = obsqsv->packet_data.array;
-  packet->size = obsqsv->packet_data.num;
-  packet->type = OBS_ENCODER_VIDEO;
-  packet->pts = ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi);
-  packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_I);
-
-  auto frameType = pBS->FrameType;
-  auto priority = -1;
-  if ((frameType & MFX_FRAMETYPE_IDR)) {
-    priority = OBS_NAL_PRIORITY_HIGHEST;
-  } else if ((frameType & MFX_FRAMETYPE_I)) {
-    priority = OBS_NAL_PRIORITY_HIGH;
-  } else if ((frameType & MFX_FRAMETYPE_P)) {
-    priority = OBS_NAL_PRIORITY_LOW;
-  } else {
-    priority = OBS_NAL_PRIORITY_DISPOSABLE;
-  }
-
-  packet->priority = static_cast<int>(priority);
-
-  packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
-
-  *received_packet = true;
-  *pBS->Data = 0;
-  pBS->DataLength = 0;
-  pBS->DataOffset = 0;
-  memset(&pBS->DataLength, 0, sizeof(pBS->DataLength));
-  memset(&pBS->DataOffset, 0, sizeof(pBS->DataOffset));
-}
-
-void parse_packet_hevc(obs_qsv *obsqsv, encoder_packet *packet,
-                       mfxBitstream *pBS, const video_output_info *voi,
-                       bool *received_packet) {
-  if (pBS == nullptr || pBS->DataLength == 0) {
-    *received_packet = false;
-    return;
-  }
-
-  da_resize(obsqsv->packet_data, 0);
-  da_push_back_array(obsqsv->packet_data, *(&pBS->Data + *(&pBS->DataOffset)),
-                     *(&pBS->DataLength));
-
-  packet->data = obsqsv->packet_data.array;
-  packet->size = obsqsv->packet_data.num;
-  packet->type = OBS_ENCODER_VIDEO;
-  packet->pts = ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi);
-  packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_I) ||
-                     (pBS->FrameType & MFX_FRAMETYPE_IDR);
-
-  auto frameType = pBS->FrameType;
-  auto priority = -1;
-  if ((frameType & MFX_FRAMETYPE_I) || (frameType & MFX_FRAMETYPE_IDR)) {
-    priority = OBS_NAL_PRIORITY_HIGHEST;
-  } else if ((frameType & MFX_FRAMETYPE_I)) {
-    priority = OBS_NAL_PRIORITY_HIGH;
-  } else if ((frameType & MFX_FRAMETYPE_P)) {
-    priority = OBS_NAL_PRIORITY_LOW;
-  } else {
-    priority = OBS_NAL_PRIORITY_DISPOSABLE;
-  }
-
-  packet->priority = static_cast<int>(priority);
-
-  packet->dts = ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
-
-  *received_packet = true;
-
-  *pBS->Data = 0;
-  pBS->DataLength = 0;
-  pBS->DataOffset = 0;
-  memset(&pBS->DataLength, 0, sizeof(pBS->DataLength));
-  memset(&pBS->DataOffset, 0, sizeof(pBS->DataOffset));
-}
-
-void parse_packet_vp9(obs_qsv *obsqsv, encoder_packet *packet,
-                      mfxBitstream *pBS, const video_output_info *voi,
-                      bool *received_packet) {
-  if (pBS == NULL || pBS->DataLength == 0) {
-    *received_packet = false;
-    return;
-  }
-
-  da_resize(obsqsv->packet_data, 0);
-  da_push_back_array(obsqsv->packet_data, *(&pBS->Data + *(&pBS->DataOffset)),
-                     *(&pBS->DataLength));
-
-  packet->data = obsqsv->packet_data.array;
-  packet->size = obsqsv->packet_data.num;
-  packet->type = OBS_ENCODER_VIDEO;
-  packet->pts = ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi);
-  packet->keyframe = (pBS->FrameType & MFX_FRAMETYPE_I);
-
-  auto frameType = pBS->FrameType;
-  auto priority = -1;
-  if ((frameType & MFX_FRAMETYPE_IDR) || (frameType & MFX_FRAMETYPE_I)) {
-    priority = OBS_NAL_PRIORITY_HIGHEST;
-  } else if ((frameType & MFX_FRAMETYPE_REF)) {
-    priority = OBS_NAL_PRIORITY_HIGH;
-  } else if ((frameType & MFX_FRAMETYPE_P)) {
-    priority = OBS_NAL_PRIORITY_LOW;
-  } else {
-    priority = OBS_NAL_PRIORITY_DISPOSABLE;
-  }
-
-  packet->priority = priority;
-
-  packet->dts = packet->pts;
-
-  *received_packet = true;
-  *pBS->Data = 0;
-  pBS->DataLength = 0;
-  pBS->DataOffset = 0;
-  memset(&pBS->DataLength, 0, sizeof(pBS->DataLength));
-  memset(&pBS->DataOffset, 0, sizeof(pBS->DataOffset));
-}
+// void qsv_encoder_add_roi(qsv_t *pContext, const obs_encoder_roi *roi) {
+//   QSV_VPL_Encoder_Internal *pEncoder =
+//       static_cast<QSV_VPL_Encoder_Internal *>(pContext);
+//
+//   /* QP value is range 0..51 */
+//   // ToDo figure out if this is different for AV1
+//   mfxI16 delta = static_cast<mfxI16>(-51.0f * roi->priority);
+//   pEncoder->AddROI(roi->left, roi->top, roi->right, roi->bottom, delta);
+// }
+//
+// void qsv_encoder_clear_roi(qsv_t *pContext) {
+//   QSV_VPL_Encoder_Internal *pEncoder =
+//       static_cast<QSV_VPL_Encoder_Internal *>(pContext);
+//   pEncoder->ClearROI();
+// }
+//
+// static void roi_cb(void *param, struct obs_encoder_roi *roi) {
+//   struct darray *da = static_cast<darray *>(param);
+//   darray_push_back(sizeof(struct obs_encoder_roi), da, roi);
+// }
+//
+// static void obs_qsv_setup_rois(struct obs_qsv *obsqsv) {
+//   const uint32_t increment = obs_encoder_get_roi_increment(obsqsv->encoder);
+//   if (obsqsv->roi_increment == increment)
+//     return;
+//
+//   qsv_encoder_clear_roi(obsqsv->context);
+//   /* Because we pass-through the ROIs more or less directly we need to
+//    * pass them in reverse order, so make a temporary copy and then use
+//    * that instead. */
+//   DARRAY(struct obs_encoder_roi) rois;
+//   da_init(rois);
+//
+//   obs_encoder_enum_roi(obsqsv->encoder, roi_cb, &rois);
+//
+//   size_t idx = rois.num;
+//   while (idx)
+//     qsv_encoder_add_roi(obsqsv->context, &rois.array[--idx]);
+//
+//   da_free(rois);
+//
+//   obsqsv->roi_increment = increment;
+// }
 
 bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
                         uint64_t lock_key, uint64_t *next_key,
                         struct encoder_packet *packet, bool *received_packet) {
   obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
-  if (handle == GS_INVALID_HANDLE) {
-    blog(LOG_WARNING, "Encode failed: bad texture handle");
+  if (handle == GS_INVALID_HANDLE || !handle) {
+    warn("Encode failed: bad texture handle");
     *next_key = lock_key;
     return false;
   }
@@ -590,6 +490,9 @@ bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
 
   mfxU64 qsvPTS = ts_obs_to_mfx(pts, voi);
 
+  // if (obs_encoder_has_roi(obsqsv->encoder))
+  //   obs_qsv_setup_rois(obsqsv);
+
   QSV_VPL_Encoder_Internal *pEncoder =
       reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
 
@@ -597,20 +500,12 @@ bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
       pEncoder->Encode_tex(qsvPTS, handle, lock_key, next_key, &pBS);
 
   if (sts < MFX_ERR_NONE && sts != MFX_ERR_MORE_DATA) {
-    blog(LOG_WARNING, "encode failed");
+    warn("encode failed");
     pthread_mutex_unlock(&g_QsvLock);
     return false;
   }
 
-  if (obsqsv->codec == QSV_CODEC_AVC) {
-    parse_packet_h264(obsqsv, packet, pBS, voi, received_packet);
-  } else if (obsqsv->codec == QSV_CODEC_AV1) {
-    parse_packet_av1(obsqsv, packet, pBS, voi, received_packet);
-  } else if (obsqsv->codec == QSV_CODEC_HEVC) {
-    parse_packet_hevc(obsqsv, packet, pBS, voi, received_packet);
-  } else if (obsqsv->codec == QSV_CODEC_VP9) {
-    parse_packet_vp9(obsqsv, packet, pBS, voi, received_packet);
-  }
+  parse_packet(obsqsv, packet, pBS, voi, received_packet);
 
   pthread_mutex_unlock(&g_QsvLock);
 
@@ -630,36 +525,31 @@ bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
   auto *video = obs_encoder_video(obsqsv->encoder);
   auto *voi = video_output_get_info(video);
 
-  auto ret = 0;
-
   auto *pBS = static_cast<mfxBitstream *>(nullptr);
 
   mfxU64 qsvPTS = ts_obs_to_mfx(frame->pts, voi);
+
+  // if (obs_encoder_has_roi(obsqsv->encoder))
+  //   obs_qsv_setup_rois(obsqsv);
+
   QSV_VPL_Encoder_Internal *pEncoder =
       reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
+
   mfxStatus sts = MFX_ERR_NONE;
-  if (frame) {
-    sts = pEncoder->Encode(qsvPTS, frame->data[0], frame->data[1],
-                           frame->linesize[0], frame->linesize[1], &pBS);
+
+  if (frame->data[0]) {
+    sts = pEncoder->Encode(qsvPTS, frame->data, frame->linesize, &pBS);
   } else {
-    sts = pEncoder->Encode(qsvPTS, nullptr, nullptr, 0, 0, &pBS);
+    sts = pEncoder->Encode(qsvPTS, nullptr, 0, &pBS);
   }
 
   if (sts < MFX_ERR_NONE && sts != MFX_ERR_MORE_DATA) {
-    blog(LOG_WARNING, "encode failed");
+    warn("encode failed");
     pthread_mutex_unlock(&g_QsvLock);
     return false;
   }
 
-  if (obsqsv->codec == QSV_CODEC_AVC) {
-    parse_packet_h264(obsqsv, packet, pBS, voi, received_packet);
-  } else if (obsqsv->codec == QSV_CODEC_AV1) {
-    parse_packet_av1(obsqsv, packet, pBS, voi, received_packet);
-  } else if (obsqsv->codec == QSV_CODEC_HEVC) {
-    parse_packet_hevc(obsqsv, packet, pBS, voi, received_packet);
-  } else if (obsqsv->codec == QSV_CODEC_VP9) {
-    parse_packet_vp9(obsqsv, packet, pBS, voi, received_packet);
-  }
+  parse_packet(obsqsv, packet, pBS, voi, received_packet);
 
   pthread_mutex_unlock(&g_QsvLock);
 

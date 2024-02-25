@@ -99,24 +99,24 @@ bool obs_module_load([[maybe_unused]] void) {
 
   if (avc_supported) {
     obs_register_encoder(&obs_qsv_h264_encoder);
-    //obs_register_encoder(&obs_qsv_h264_encoder_tex);
-    blog(LOG_INFO, "QSV AVC support");
+    obs_register_encoder(&obs_qsv_h264_encoder_tex);
+    info( "QSV AVC support");
   }
   if (av1_supported) {
     obs_register_encoder(&obs_qsv_av1_encoder);
-    //obs_register_encoder(&obs_qsv_av1_encoder_tex);
-    blog(LOG_INFO, "QSV AV1 support");
+    obs_register_encoder(&obs_qsv_av1_encoder_tex);
+    info( "QSV AV1 support");
   }
   if (vp9_supported) {
     obs_register_encoder(&obs_qsv_vp9_encoder);
-    //obs_register_encoder(&obs_qsv_vp9_encoder_tex);
-    blog(LOG_INFO, "QSV VP9 support");
+    obs_register_encoder(&obs_qsv_vp9_encoder_tex);
+    info( "QSV VP9 support");
   }
 #if ENABLE_HEVC
   if (hevc_supported) {
     obs_register_encoder(&obs_qsv_hevc_encoder);
-    //obs_register_encoder(&obs_qsv_hevc_encoder_tex);
-    blog(LOG_INFO, "QSV HEVC support");
+    obs_register_encoder(&obs_qsv_hevc_encoder_tex);
+    info( "QSV HEVC support");
   }
 #endif
 

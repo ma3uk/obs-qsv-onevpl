@@ -24,7 +24,6 @@ auto TEXT_KEYINT_SEC = obs_module_text("KeyframeIntervalSec");
 auto TEXT_GOP_REF_DIST = obs_module_text("GOPRefDist");
 auto TEXT_MBBRC = obs_module_text("MBBRC");
 auto TEXT_NUM_REF_FRAME = obs_module_text("NumRefFrame");
-auto TEXT_NUM_REF_FRAME_LAYERS = obs_module_text("NumRefFrameLayers");
 auto TEXT_LA_DS = obs_module_text("LookaheadDownSampling");
 auto TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT =
     obs_module_text("GlobalMotionBiasAdjustment");
@@ -54,9 +53,17 @@ auto TEXT_TUNE_QUALITY_MODE = obs_module_text("TuneQualityMode");
 auto TEXT_EXT_BRC = obs_module_text("ExtBRC");
 auto TEXT_ENC_TOOLS = obs_module_text("EncTools");
 auto TEXT_DEVICE_NUM = obs_module_text("Select GPU");
+auto TEXT_LOW_POWER = obs_module_text("LowPower mode");
+
+auto TEXT_VPP = obs_module_text("Video processing filters");
+auto TEXT_VPP_MODE = obs_module_text("Video processing mode");
 auto TEXT_DENOISE_STRENGTH = obs_module_text("Denoise strength");
 auto TEXT_DENOISE_MODE = obs_module_text("Denoise mode");
-auto TEXT_LOW_POWER = obs_module_text("LowPower mode");
+auto TEXT_SCALING_MODE = obs_module_text("Scaling mode");
+auto TEXT_IMAGE_STAB_MODE = obs_module_text("ImageStab mode");
+auto TEXT_DETAIL = obs_module_text("Detail");
+auto TEXT_DETAIL_FACTOR = obs_module_text("Detail factor");
+auto TEXT_PERC_ENC_PREFILTER = obs_module_text("PercEncPrefilter");
 
 auto TEXT_INTRA_REF_ENCODING = obs_module_text("IntraRefEncoding");
 auto TEXT_INTRA_REF_CYCLE_SIZE = obs_module_text("IntraRefCycleSize");
@@ -86,8 +93,6 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
   obs_data_set_default_int(settings, "keyint_sec", 4);
   obs_data_set_default_int(settings, "gop_ref_dist", 4);
   obs_data_set_default_int(settings, "async_depth", 4);
-  obs_data_set_default_string(settings, "denoise_mode", "OFF");
-  obs_data_set_default_int(settings, "denoise_strength", 50);
 
   obs_data_set_default_string(settings, "tune_quality", "OFF");
   obs_data_set_default_string(settings, "adaptive_i", "AUTO");
@@ -119,6 +124,16 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
   obs_data_set_default_string(settings, "intra_ref_type", "VERTICAL");
   obs_data_set_default_int(settings, "intra_ref_cycle_size", 2);
   obs_data_set_default_int(settings, "intra_ref_qp_delta", 0);
+
+  obs_data_set_default_string(settings, "vpp", "OFF");
+  obs_data_set_default_string(settings, "vpp_mode", "PRE ENC");
+  obs_data_set_default_string(settings, "denoise_mode", "OFF");
+  obs_data_set_default_int(settings, "denoise_strength", 50);
+  obs_data_set_default_string(settings, "detail", "OFF");
+  obs_data_set_default_int(settings, "detail_factor", 50);
+  obs_data_set_default_string(settings, "image_stab_mode", "OFF");
+  obs_data_set_default_string(settings, "scaling_mode", "OFF");
+  obs_data_set_default_string(settings, "perc_enc_prefilter", "OFF");
 }
 
 static inline void add_strings(obs_property_t *list,
@@ -174,25 +189,20 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
   obs_property_set_visible(p, bLAVisible);
   if (bLAVisible) {
 
-    bool bLAOptVisible = astrcmpi(lookahead, "ON") == 0;
+    bool bLAOptVisibleHQ = astrcmpi(lookahead, "HQ") == 0;
+    bool bLAOptVisibleLP = astrcmpi(lookahead, "LP") == 0;
     p = obs_properties_get(ppts, "lookahead_ds");
-    obs_property_set_visible(p, (bLAOptVisible && bLAVisible));
+    obs_property_set_visible(
+        p, ((bLAOptVisibleHQ || bLAOptVisibleLP) && bLAVisible));
 
-    p = obs_properties_get(ppts, "lookahead_ds");
-    obs_property_set_visible(p, (bLAOptVisible && bLAVisible));
-
-    if (astrcmpi(lookahead, "ON") == 0) {
+    if ((bLAOptVisibleHQ /* || bLAOptVisibleLP*/)) {
       obs_data_set_string(settings, "extbrc", "OFF");
     }
 
-    const char *enctools = obs_data_get_string(settings, "enctools");
-    if (astrcmpi(enctools, "ON") == 0 && !(bLAOptVisible && bLAVisible)) {
-      obs_data_set_string(settings, "extbrc", "ON");
-    }
-
     p = obs_properties_get(ppts, "lookahead_latency");
-    obs_property_set_visible(p, (bLAOptVisible && bLAVisible));
-    if ((bLAOptVisible && bLAVisible) == true) {
+    obs_property_set_visible(p, (bLAOptVisibleHQ && bLAVisible));
+
+    if ((bLAOptVisibleHQ && bLAVisible)) {
       obs_data_set_string(settings, "hrd_conformance", "OFF");
     }
   }
@@ -236,11 +246,31 @@ static bool visible_modified(obs_properties_t *ppts, obs_property_t *p,
     obs_data_erase(settings, "mv_costscaling_factor");
   }
 
+  const char *vpp = obs_data_get_string(settings, "vpp");
+  bool bVisibleVPP = astrcmpi(vpp, "ON") == 0;
+  p = obs_properties_get(ppts, "vpp_mode");
+  obs_property_set_visible(p, bVisibleVPP);
+  p = obs_properties_get(ppts, "detail");
+  obs_property_set_visible(p, bVisibleVPP);
+  p = obs_properties_get(ppts, "image_stab_mode");
+  obs_property_set_visible(p, bVisibleVPP);
+  p = obs_properties_get(ppts, "perc_enc_prefilter");
+  obs_property_set_visible(p, bVisibleVPP);
+  p = obs_properties_get(ppts, "denoise_mode");
+  obs_property_set_visible(p, bVisibleVPP);
+  p = obs_properties_get(ppts, "scaling_mode");
+  obs_property_set_visible(p, bVisibleVPP);
+
   const char *denoise_mode = obs_data_get_string(settings, "denoise_mode");
   bVisible = astrcmpi(denoise_mode, "MANUAL | PRE ENCODE") == 0 ||
              astrcmpi(denoise_mode, "MANUAL | POST ENCODE") == 0;
   p = obs_properties_get(ppts, "denoise_strength");
-  obs_property_set_visible(p, bVisible);
+  obs_property_set_visible(p, bVisible && bVisibleVPP);
+
+  const char *detail = obs_data_get_string(settings, "detail");
+  bVisible = astrcmpi(detail, "ON") == 0;
+  p = obs_properties_get(ppts, "detail_factor");
+  obs_property_set_visible(p, bVisible && bVisibleVPP);
 
   const char *intra_ref_encoding =
       obs_data_get_string(settings, "intra_ref_encoding");
@@ -347,6 +377,9 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   obs_property_set_long_description(prop,
                                     obs_module_text("WinBrcSize.ToolTip"));
 
+  prop = obs_properties_add_int(props, "dts_offset",
+                                obs_module_text("DTSOffset"), 0, 10000000, 0);
+
   prop = obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
                                 10000000, 50);
   obs_property_int_set_suffix(prop, " Kbps");
@@ -356,23 +389,12 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
 
   obs_properties_add_int(props, "icq_quality", TEXT_ICQ_QUALITY, 1, 51, 1);
 
-  // prop = obs_properties_add_list(props, "gop_opt_flag", TEXT_GOP_OPT_FLAG,
-  //			       OBS_COMBO_TYPE_LIST,
-  //			       OBS_COMBO_FORMAT_STRING);
-  // add_strings(prop, qsv_params_condition_gop);
-  // obs_property_set_long_description(
-  //	prop, obs_module_text("GOPOptFlag.ToolTip"));
-
   prop = obs_properties_add_int(props, "keyint_sec", TEXT_KEYINT_SEC, 0, 20, 1);
   obs_property_int_set_suffix(prop, " s");
 
   obs_properties_add_int_slider(props, "num_ref_frame", TEXT_NUM_REF_FRAME, 0,
                                 (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
 
-  if (codec != QSV_CODEC_AVC) {
-    obs_properties_add_int_slider(props, "num_ref_frame_layers",
-                                  TEXT_NUM_REF_FRAME_LAYERS, 1, 9, 1);
-  }
   if (codec == QSV_CODEC_HEVC) {
     prop =
         obs_properties_add_list(props, "hevc_gpb", TEXT_HEVC_GPB,
@@ -381,8 +403,9 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
     obs_property_set_long_description(prop, obs_module_text("GPB.ToolTip"));
   }
 
-  prop = obs_properties_add_int_slider(props, "gop_ref_dist", TEXT_GOP_REF_DIST,
-                                       1, (codec == QSV_CODEC_AV1) ? 32 : 16, 1);
+  prop =
+      obs_properties_add_int_slider(props, "gop_ref_dist", TEXT_GOP_REF_DIST, 1,
+                                    (codec == QSV_CODEC_AV1) ? 32 : 16, 1);
   obs_property_set_long_description(prop,
                                     obs_module_text("GOPRefDist.Tooltip"));
   obs_property_long_description(prop);
@@ -500,18 +523,51 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   obs_property_set_long_description(
       prop, obs_module_text("LookaheadLatency.ToolTip"));
 
-  if (codec == QSV_CODEC_AVC) {
-    prop =
-        obs_properties_add_list(props, "denoise_mode", TEXT_DENOISE_MODE,
-                                OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-    add_strings(prop, qsv_params_condition_denoise_mode);
-    obs_property_set_long_description(prop,
-                                      obs_module_text("DenoiseMode.ToolTip"));
-    obs_property_set_modified_callback(prop, visible_modified);
+  prop = obs_properties_add_list(props, "vpp", TEXT_VPP, OBS_COMBO_TYPE_LIST,
+                                 OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition);
+  obs_property_set_long_description(prop, obs_module_text("VPP.ToolTip"));
+  obs_property_set_modified_callback(prop, visible_modified);
 
-    obs_properties_add_int_slider(props, "denoise_strength",
-                                  TEXT_DENOISE_STRENGTH, 1, 100, 1);
-  }
+  prop = obs_properties_add_list(props, "denoise_mode", TEXT_DENOISE_MODE,
+                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition_denoise_mode);
+  obs_property_set_long_description(prop,
+                                    obs_module_text("DenoiseMode.ToolTip"));
+  obs_property_set_modified_callback(prop, visible_modified);
+
+  obs_properties_add_int_slider(props, "denoise_strength",
+                                TEXT_DENOISE_STRENGTH, 1, 100, 1);
+
+  prop = obs_properties_add_list(props, "scaling_mode", TEXT_SCALING_MODE,
+                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition_scaling_mode);
+  obs_property_set_long_description(prop,
+                                    obs_module_text("ScalingMode.ToolTip"));
+  obs_property_set_modified_callback(prop, visible_modified);
+
+  prop = obs_properties_add_list(props, "detail", TEXT_DETAIL,
+                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition);
+  obs_property_set_long_description(prop, obs_module_text("Detail.ToolTip"));
+  obs_property_set_modified_callback(prop, visible_modified);
+
+  obs_properties_add_int_slider(props, "detail_factor", TEXT_DETAIL_FACTOR, 1,
+                                100, 1);
+
+  prop = obs_properties_add_list(props, "image_stab_mode", TEXT_IMAGE_STAB_MODE,
+                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition_image_stab_mode);
+  obs_property_set_long_description(prop, obs_module_text("ImageStab.ToolTip"));
+  obs_property_set_modified_callback(prop, visible_modified);
+
+  prop = obs_properties_add_list(props, "perc_enc_prefilter",
+                                 TEXT_PERC_ENC_PREFILTER, OBS_COMBO_TYPE_LIST,
+                                 OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition);
+  obs_property_set_long_description(
+      prop, obs_module_text("PercPreEncFilter.ToolTip"));
+  obs_property_set_modified_callback(prop, visible_modified);
 
   prop = obs_properties_add_list(props, "low_power", TEXT_LOW_POWER,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -564,6 +620,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   int target_bitrate = static_cast<int>(obs_data_get_int(settings, "bitrate"));
   bool custom_buffer_size = obs_data_get_bool(settings, "custom_buffer_size");
   int buffer_size = static_cast<int>(obs_data_get_int(settings, "buffer_size"));
+  int dts_offset = static_cast<int>(obs_data_get_int(settings, "dts_offset"));
   int max_bitrate = static_cast<int>(obs_data_get_int(settings, "max_bitrate"));
   int cqp = static_cast<int>(obs_data_get_int(settings, "cqp"));
   // int ver = (int)obs_data_get_int(settings, "__ver");
@@ -582,21 +639,14 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   const char *adaptive_cqm = obs_data_get_string(settings, "adaptive_cqm");
   const char *adaptive_ltr = obs_data_get_string(settings, "adaptive_ltr");
   const char *low_power = obs_data_get_string(settings, "low_power");
-  // const char *gop_opt_flag =
-  //	obs_data_get_string(settings, "gop_opt_flag");
   const char *use_raw_ref = obs_data_get_string(settings, "use_raw_ref");
   int winbrc_max_avg_size =
       static_cast<int>(obs_data_get_int(settings, "winbrc_max_avg_size"));
   int winbrc_size = static_cast<int>(obs_data_get_int(settings, "winbrc_size"));
-  int denoise_strength =
-      static_cast<int>(obs_data_get_int(settings, "denoise_strength"));
-  const char *denoise_mode = obs_data_get_string(settings, "denoise_mode");
   const char *rdo = obs_data_get_string(settings, "rdo");
   const char *trellis = obs_data_get_string(settings, "trellis");
   int num_ref_frame =
       static_cast<int>(obs_data_get_int(settings, "num_ref_frame"));
-  int num_ref_frame_layers =
-      static_cast<int>(obs_data_get_int(settings, "num_ref_frame_layers"));
   const char *globalmotionbias_adjustment =
       obs_data_get_string(settings, "globalmotionbias_adjustment");
   const char *mv_costscaling_factor =
@@ -610,11 +660,9 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   const char *mv_overpic_boundaries =
       obs_data_get_string(settings, "mv_overpic_boundaries");
   const char *hevc_sao = obs_data_get_string(settings, "hevc_sao");
-  // const char *hevc_ctu = obs_data_get_string(settings, "hevc_ctu");
   const char *hevc_gpb = obs_data_get_string(settings, "hevc_gpb");
   const char *tune_quality = obs_data_get_string(settings, "tune_quality");
   const char *p_pyramid = obs_data_get_string(settings, "p_pyramid");
-  // const char *deblocking = obs_data_get_string(settings, "deblocking");
   const char *extbrc = obs_data_get_string(settings, "extbrc");
   const char *enctools = obs_data_get_string(settings, "enctools");
   const char *intra_ref_encoding =
@@ -627,27 +675,42 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   int width = static_cast<int>(obs_encoder_get_width(obsqsv->encoder));
   int height = static_cast<int>(obs_encoder_get_height(obsqsv->encoder));
 
+  const char *vpp = obs_data_get_string(settings, "vpp");
+  int denoise_strength =
+      static_cast<int>(obs_data_get_int(settings, "denoise_strength"));
+  const char *denoise_mode = obs_data_get_string(settings, "denoise_mode");
+  const char *detail = obs_data_get_string(settings, "detail");
+  int detail_factor =
+      static_cast<int>(obs_data_get_int(settings, "detail_factor"));
+  const char *scaling_mode = obs_data_get_string(settings, "scaling_mode");
+  const char *image_stab_mode =
+      obs_data_get_string(settings, "image_stab_mode");
+  const char *perc_enc_prefilter =
+      obs_data_get_string(settings, "perc_enc_prefilter");
+
+  obsqsv->params.DTSOffset = dts_offset;
+
   if (astrcmpi(target_usage, "TU1 (Veryslow)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_1;
-    blog(LOG_INFO, "Target usage set: TU1 (Veryslow)");
+    info("\tTarget usage set: TU1 (Veryslow)");
   } else if (astrcmpi(target_usage, "TU2 (Slower)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_2;
-    blog(LOG_INFO, "Target usage set: TU2 (Slower)");
+    info("\tTarget usage set: TU2 (Slower)");
   } else if (astrcmpi(target_usage, "TU3 (Slow)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_3;
-    blog(LOG_INFO, "Target usage set: TU3 (Slow)");
+    info("\tTarget usage set: TU3 (Slow)");
   } else if (astrcmpi(target_usage, "TU4 (Balanced)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_4;
-    blog(LOG_INFO, "Target usage set: TU4 (Balanced)");
+    info("\tTarget usage set: TU4 (Balanced)");
   } else if (astrcmpi(target_usage, "TU5 (Fast)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_5;
-    blog(LOG_INFO, "Target usage set: TU5 (Fast)");
+    info("\tTarget usage set: TU5 (Fast)");
   } else if (astrcmpi(target_usage, "TU6 (Faster)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_6;
-    blog(LOG_INFO, "Target usage set: TU6 (Faster)");
+    info("\tTarget usage set: TU6 (Faster)");
   } else if (astrcmpi(target_usage, "TU7 (Veryfast)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_7;
-    blog(LOG_INFO, "Target usage set: TU7 (Veryfast)");
+    info("\tTarget usage set: TU7 (Veryfast)");
   }
 
   if (astrcmpi(tune_quality, "PSNR") == 0) {
@@ -697,9 +760,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
       obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_MAIN10;
     } else if (astrcmpi(profile, "rext") == 0) {
       obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_REXT;
-    } /* else if (astrcmpi(profile, "scc") == 0) {
-            obsqsv->params.CodecProfile = MFX_PROFILE_HEVC_SCC;
-    }*/
+    }
 
     if (astrcmpi(hevc_tier, "main") == 0) {
       obsqsv->params.HEVCTier = MFX_TIER_HEVC_MAIN;
@@ -800,9 +861,9 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   }
 
   if (astrcmpi(mv_overpic_boundaries, "ON") == 0) {
-    obsqsv->params.nMotionVectorsOverPicBoundaries = 1;
+    obsqsv->params.nMotionVectorsOverPicBoundaries = true;
   } else if (astrcmpi(mv_overpic_boundaries, "OFF") == 0) {
-    obsqsv->params.nMotionVectorsOverPicBoundaries = 0;
+    obsqsv->params.nMotionVectorsOverPicBoundaries = false;
   }
 
   if (astrcmpi(hrd_conformance, "ON") == 0) {
@@ -861,7 +922,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     obsqsv->params.bGlobalMotionBiasAdjustment = 0;
   }
 
-  if (astrcmpi(lookahead, "ON") == 0) {
+  if (astrcmpi(lookahead, "HQ") == 0) {
     obsqsv->params.bLookahead = true;
 
     obsqsv->params.nLADepth = 0;
@@ -881,6 +942,16 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
       obsqsv->params.nLookAheadDS = 1;
     } else if (astrcmpi(lookahead_ds, "FAST") == 0) {
       obsqsv->params.nLookAheadDS = 2;
+    }
+  } else if (astrcmpi(lookahead, "LP") == 0) {
+    if (gop_ref_dist > 0 && gop_ref_dist < 17) {
+      obsqsv->params.bLookahead = true;
+      obsqsv->params.bLookaheadLP = true;
+      if (gop_ref_dist > 8) {
+        obsqsv->params.nLADepth = 8;
+      } else {
+        obsqsv->params.nLADepth = gop_ref_dist;
+      }
     }
   } else {
     obsqsv->params.bLookahead = false;
@@ -950,22 +1021,6 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     obsqsv->params.nTrellis = 7;
   }
 
-  if (astrcmpi(denoise_mode, "DEFAULT") == 0) {
-    obsqsv->params.nDenoiseMode = 0;
-  } else if (astrcmpi(denoise_mode, "AUTO | BDRATE | PRE ENCODE") == 0) {
-    obsqsv->params.nDenoiseMode = 1;
-  } else if (astrcmpi(denoise_mode, "AUTO | ADJUST | POST ENCODE") == 0) {
-    obsqsv->params.nDenoiseMode = 2;
-  } else if (astrcmpi(denoise_mode, "AUTO | SUBJECTIVE | PRE ENCODE") == 0) {
-    obsqsv->params.nDenoiseMode = 3;
-  } else if (astrcmpi(denoise_mode, "MANUAL | PRE ENCODE") == 0) {
-    obsqsv->params.nDenoiseMode = 4;
-    obsqsv->params.nDenoiseStrength = static_cast<mfxU16>(denoise_strength);
-  } else if (astrcmpi(denoise_mode, "MANUAL | POST ENCODE") == 0) {
-    obsqsv->params.nDenoiseMode = 5;
-    obsqsv->params.nDenoiseStrength = static_cast<mfxU16>(denoise_strength);
-  }
-
   if (astrcmpi(hevc_sao, "DISABLE") == 0) {
     obsqsv->params.nSAO = 0;
   } else if (astrcmpi(hevc_sao, "LUMA") == 0) {
@@ -992,6 +1047,54 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     obsqsv->params.RateControl = MFX_RATECONTROL_ICQ;
   } else if (astrcmpi(rate_control, "LA_EXT_ICQ") == 0) {
     obsqsv->params.RateControl = MFX_RATECONTROL_ICQ;
+  }
+
+  if (astrcmpi(denoise_mode, "DEFAULT") == 0) {
+    obsqsv->params.nVPPDenoiseMode = 0;
+  } else if (astrcmpi(denoise_mode, "AUTO | BDRATE | PRE ENCODE") == 0) {
+    obsqsv->params.nVPPDenoiseMode = 1;
+  } else if (astrcmpi(denoise_mode, "AUTO | ADJUST | POST ENCODE") == 0) {
+    obsqsv->params.nVPPDenoiseMode = 2;
+  } else if (astrcmpi(denoise_mode, "AUTO | SUBJECTIVE | PRE ENCODE") == 0) {
+    obsqsv->params.nVPPDenoiseMode = 3;
+  } else if (astrcmpi(denoise_mode, "MANUAL | PRE ENCODE") == 0) {
+    obsqsv->params.nVPPDenoiseMode = 4;
+    obsqsv->params.nDenoiseStrength = static_cast<mfxU16>(denoise_strength);
+  } else if (astrcmpi(denoise_mode, "MANUAL | POST ENCODE") == 0) {
+    obsqsv->params.nVPPDenoiseMode = 5;
+    obsqsv->params.nDenoiseStrength = static_cast<mfxU16>(denoise_strength);
+  }
+
+  if (astrcmpi(scaling_mode, "QUALITY | ADVANCED") == 0) {
+    obsqsv->params.nVPPScalingMode = 1;
+  } else if (astrcmpi(scaling_mode, "VEBOX | ADVANCED") == 0) {
+    obsqsv->params.nVPPScalingMode = 2;
+  } else if (astrcmpi(scaling_mode, "LOWPOWER | NEAREST NEIGHBOR") == 0) {
+    obsqsv->params.nVPPScalingMode = 3;
+  } else if (astrcmpi(scaling_mode, "LOWPOWER | ADVANCED") == 0) {
+    obsqsv->params.nVPPScalingMode = 4;
+  } else if (astrcmpi(scaling_mode, "AUTO") == 0) {
+    obsqsv->params.nVPPScalingMode = 0;
+  }
+
+  if (astrcmpi(image_stab_mode, "UPSCALE") == 0) {
+    obsqsv->params.nVPPImageStabMode = 1;
+  } else if (astrcmpi(image_stab_mode, "BOXING") == 0) {
+    obsqsv->params.nVPPImageStabMode = 2;
+  } else if (astrcmpi(image_stab_mode, "AUTO") == 0) {
+    obsqsv->params.nVPPScalingMode = 0;
+  }
+
+  if (astrcmpi(detail, "ON") == 0) {
+    obsqsv->params.nVPPDetail = detail_factor;
+  } else if (astrcmpi(detail, "OFF") == 0) {
+    obsqsv->params.nVPPDetail = 0;
+  }
+
+  if (astrcmpi(perc_enc_prefilter, "ON") == 0) {
+    obsqsv->params.bPercEncPrefilter = 1;
+  } else if (astrcmpi(perc_enc_prefilter, "OFF") == 0) {
+    obsqsv->params.bPercEncPrefilter = 0;
   }
 
   obsqsv->params.nAsyncDepth =
@@ -1021,7 +1124,6 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   obsqsv->params.nKeyIntSec = static_cast<mfxU16>(keyint_sec);
   obsqsv->params.nICQQuality = static_cast<mfxU16>(icq_quality);
   obsqsv->params.nNumRefFrame = static_cast<mfxU16>(num_ref_frame);
-  obsqsv->params.nNumRefFrameLayers = static_cast<mfxU16>(num_ref_frame_layers);
   obsqsv->params.nWinBRCMaxAvgSize =
       static_cast<mfxU16>(winbrc_max_avg_size / 100);
   obsqsv->params.nWinBRCSize = static_cast<mfxU16>(winbrc_size);
@@ -1029,9 +1131,24 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   obsqsv->params.nIntraRefCycleSize = static_cast<mfxU16>(intra_ref_cycle_size);
   obsqsv->params.nIntraRefQPDelta = static_cast<mfxU16>(intra_ref_qp_delta);
 
+  obsqsv->params.bVPPEnable = false;
+  if ((obsqsv->params.nVPPDenoiseMode.has_value() ||
+       obsqsv->params.nVPPDetail.has_value() ||
+       obsqsv->params.nVPPScalingMode.has_value() ||
+       obsqsv->params.nVPPImageStabMode.has_value() ||
+       obsqsv->params.bPercEncPrefilter == true) &&
+      astrcmpi(vpp, "ON") == 0) {
+    if (voi->format == VIDEO_FORMAT_NV12) {
+      obsqsv->params.bVPPEnable = true;
+    } else {
+      warn("VPP is only available with NV12 color format");
+    }
+  }
+
   switch (voi->format) {
   default:
   case VIDEO_FORMAT_NV12:
+  case VIDEO_FORMAT_I420:
     obsqsv->params.nFourCC = MFX_FOURCC_NV12;
     obsqsv->params.nChromaFormat = MFX_CHROMAFORMAT_YUV420;
     break;
@@ -1039,40 +1156,28 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     obsqsv->params.nFourCC = MFX_FOURCC_P010;
     obsqsv->params.nChromaFormat = MFX_CHROMAFORMAT_YUV420;
     break;
-  case VIDEO_FORMAT_RGBA:
-  case VIDEO_FORMAT_BGRA:
-    obsqsv->params.nFourCC = MFX_FOURCC_RGB4;
-    obsqsv->params.nChromaFormat = MFX_CHROMAFORMAT_YUV444;
-    break;
   }
-
-  blog(LOG_INFO,
-       "\tsettings:\n"
-       "\tcodec:          %s\n"
-       "\trate_control:   %s",
-       codec, rate_control);
+  info("\tDebug info:");
+  info("\tCodec: %s", codec);
+  info("\tRate control: %s\n", rate_control);
 
   if (obsqsv->params.RateControl != MFX_RATECONTROL_ICQ &&
       obsqsv->params.RateControl != MFX_RATECONTROL_CQP)
-    blog(LOG_INFO, "\ttarget_bitrate: %d", obsqsv->params.nTargetBitRate * 100);
+    info("\tTarget bitrate: %d", obsqsv->params.nTargetBitRate * 100);
 
   if (obsqsv->params.RateControl == MFX_RATECONTROL_VBR)
-    blog(LOG_INFO, "\tmax_bitrate:    %d", obsqsv->params.nMaxBitRate * 100);
+    info("\tMax bitrate: %d", obsqsv->params.nMaxBitRate * 100);
 
   if (obsqsv->params.RateControl == MFX_RATECONTROL_ICQ)
-    blog(LOG_INFO, "\tICQ Quality:    %d", obsqsv->params.nICQQuality);
+    info("\tICQ Quality: %d", obsqsv->params.nICQQuality);
 
   if (obsqsv->params.RateControl == MFX_RATECONTROL_CQP)
-    blog(LOG_INFO, "\tCQP:            %d\n", actual_cqp);
+    info("\tCQP: %d", actual_cqp);
 
-  blog(LOG_INFO,
-       "\tfps_num:        %d\n"
-       "\tfps_den:        %d\n"
-       "\twidth:          %d\n"
-       "\theight:         %d",
-       voi->fps_num, voi->fps_den, width, height);
-
-  blog(LOG_INFO, "debug info:");
+  info("\tFPS numerator: %d", voi->fps_num);
+  info("\tFPS denominator: %d", voi->fps_den);
+  info("\tOutput width: %d", width);
+  info("\tOutput height: %d", height);
 }
 
 static bool update_settings(obs_qsv *obsqsv, obs_data_t *settings) {
@@ -1151,10 +1256,7 @@ static obs_qsv *obs_qsv_create(enum qsv_codec codec, obs_data_t *settings,
 
   qsv_encoder_version(&g_verMajor, &g_verMinor);
 
-  blog(LOG_INFO,
-       "\tmajor:          %d\n"
-       "\tminor:          %d",
-       g_verMajor, g_verMinor);
+  info("\tLibVPL version: %d.%d", g_verMajor, g_verMinor);
 
   if (!obsqsv->context) {
     bfree(obsqsv);
@@ -1183,10 +1285,8 @@ static void *obs_qsv_create_vp9(obs_data_t *settings, obs_encoder_t *encoder) {
 }
 
 static bool obs_qsv_encode_texture_available(video_scale_info *info) {
-  return (
-      info->format == VIDEO_FORMAT_NV12 || /*info->format == VIDEO_FORMAT_RGBA
-      || info->format == VIDEO_FORMAT_BGRA ||*/ info->format ==
-                                               VIDEO_FORMAT_P010);
+  return (info->format == VIDEO_FORMAT_NV12 ||
+          info->format == VIDEO_FORMAT_P010);
 }
 
 static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
@@ -1196,16 +1296,16 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
   obs_get_video_info(&ovi);
 
   if (!adapters[ovi.adapter].is_intel) {
-    blog(LOG_INFO, ">>> app not on intel GPU, fall back to old qsv encoder");
-    return obs_encoder_create_rerouted(
-        encoder, reinterpret_cast<const char *>(fallback_id));
+    info(">>> app not on intel GPU, fall back to old qsv encoder");
+    return obs_encoder_create_rerouted(encoder,
+                                       static_cast<const char *>(fallback_id));
   }
 
   if (codec == QSV_CODEC_AV1 && !adapters[ovi.adapter].supports_av1) {
-    blog(LOG_INFO, ">>> cap on different device, fall back to non-texture "
-                   "sharing AV1 qsv encoder");
-    return obs_encoder_create_rerouted(
-        encoder, reinterpret_cast<const char *>(fallback_id));
+    info(">>> cap on different device, fall back to non-texture "
+         "sharing AV1 qsv encoder");
+    return obs_encoder_create_rerouted(encoder,
+                                       static_cast<const char *>(fallback_id));
   }
 
   bool gpu_texture_active = obs_nv12_tex_active();
@@ -1214,22 +1314,21 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
     gpu_texture_active = gpu_texture_active || obs_p010_tex_active();
 
   if (!gpu_texture_active) {
-    blog(LOG_INFO, ">>> gpu tex not active, fall back to old qsv encoder");
-    return obs_encoder_create_rerouted(
-        encoder, reinterpret_cast<const char *>(fallback_id));
+    info(">>> gpu tex not active, fall back to old qsv encoder");
+    return obs_encoder_create_rerouted(encoder,
+                                       static_cast<const char *>(fallback_id));
   }
 
   if (obs_encoder_scaling_enabled(encoder)) {
     if (!obs_encoder_gpu_scaling_enabled(encoder)) {
-      blog(LOG_INFO,
-           ">>> encoder CPU scaling active, fall back to old qsv encoder");
+      info(">>> encoder CPU scaling active, fall back to old qsv encoder");
       return obs_encoder_create_rerouted(
-          encoder, reinterpret_cast<const char *>(fallback_id));
+          encoder, static_cast<const char *>(fallback_id));
     }
-    blog(LOG_INFO, ">>> encoder GPU scaling active");
+    info(">>> encoder GPU scaling active");
   }
 
-  blog(LOG_INFO, ">>> new qsv encoder");
+  info(">>> new qsv encoder");
   return obs_qsv_create(codec, settings, encoder);
 }
 
@@ -1302,116 +1401,128 @@ obs_encoder_info obs_qsv_h264_encoder = {.id = "obs_qsv_vpl_h264",
                                          .get_extra_data = obs_qsv_extra_data,
                                          .get_sei_data = obs_qsv_sei,
                                          .get_video_info = obs_qsv_video_info,
-                                         .caps = OBS_ENCODER_CAP_DYN_BITRATE};
+                                         .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL/* |
+                                                 OBS_ENCODER_CAP_ROI*/};
 
-obs_encoder_info obs_qsv_h264_encoder_tex = {
-    .id = "obs_qsv_vpl_h264_tex",
-    .type = OBS_ENCODER_VIDEO,
-    .codec = "h264",
-    .get_name = obs_qsv_getname_h264,
-    .create = obs_qsv_create_tex_h264,
-    .destroy = obs_qsv_destroy,
-    .get_defaults = obs_qsv_defaults_h264,
-    .get_properties = obs_qsv_props_h264,
-    .update = obs_qsv_update,
-    .get_extra_data = obs_qsv_extra_data,
-    .get_sei_data = obs_qsv_sei,
-    .get_video_info = obs_qsv_video_info,
-    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-    .encode_texture = obs_qsv_encode_tex};
+obs_encoder_info
+    obs_qsv_h264_encoder_tex = {.id = "obs_qsv_vpl_h264_tex",
+                                .type = OBS_ENCODER_VIDEO,
+                                .codec = "h264",
+                                .get_name = obs_qsv_getname_h264,
+                                .create = obs_qsv_create_tex_h264,
+                                .destroy = obs_qsv_destroy,
+                                .get_defaults = obs_qsv_defaults_h264,
+                                .get_properties = obs_qsv_props_h264,
+                                .update = obs_qsv_update,
+                                .get_extra_data = obs_qsv_extra_data,
+                                .get_sei_data = obs_qsv_sei,
+                                .get_video_info = obs_qsv_video_info,
+                                .caps = OBS_ENCODER_CAP_DYN_BITRATE |
+                                        OBS_ENCODER_CAP_PASS_TEXTURE /* |
+           OBS_ENCODER_CAP_ROI*/,
+                                .encode_texture = obs_qsv_encode_tex};
 
-obs_encoder_info obs_qsv_av1_encoder = {.id = "obs_qsv_vpl_av1",
-                                        .type = OBS_ENCODER_VIDEO,
-                                        .codec = "av1",
-                                        .get_name = obs_qsv_getname_av1,
-                                        .create = obs_qsv_create_av1,
-                                        .destroy = obs_qsv_destroy,
-                                        .encode = obs_qsv_encode,
-                                        .get_defaults = obs_qsv_defaults_av1,
-                                        .get_properties = obs_qsv_props_av1,
-                                        .update = obs_qsv_update,
-                                        .get_extra_data = obs_qsv_extra_data,
-                                        //.get_sei_data = obs_qsv_sei,
-                                        .get_video_info =
-                                            obs_qsv_video_plus_hdr_info,
-                                        .caps = OBS_ENCODER_CAP_DYN_BITRATE};
-
-obs_encoder_info obs_qsv_av1_encoder_tex = {
-    .id = "obs_qsv_vpl_av1_tex",
+obs_encoder_info obs_qsv_av1_encoder = {
+    .id = "obs_qsv_vpl_av1",
     .type = OBS_ENCODER_VIDEO,
     .codec = "av1",
     .get_name = obs_qsv_getname_av1,
-    .create = obs_qsv_create_tex_av1,
+    .create = obs_qsv_create_av1,
     .destroy = obs_qsv_destroy,
+    .encode = obs_qsv_encode,
     .get_defaults = obs_qsv_defaults_av1,
     .get_properties = obs_qsv_props_av1,
     .update = obs_qsv_update,
     .get_extra_data = obs_qsv_extra_data,
-    //.get_sei_data = obs_qsv_sei,
-    .get_video_info = obs_qsv_video_plus_hdr_info,
-    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-    .encode_texture = obs_qsv_encode_tex};
+    .get_sei_data = obs_qsv_sei,
+    .get_video_info = obs_qsv_video_info,
+    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL
+    /* | OBS_ENCODER_CAP_ROI*/};
 
-obs_encoder_info obs_qsv_hevc_encoder = {.id = "obs_qsv_vpl_hevc",
-                                         .type = OBS_ENCODER_VIDEO,
-                                         .codec = "hevc",
-                                         .get_name = obs_qsv_getname_hevc,
-                                         .create = obs_qsv_create_hevc,
-                                         .destroy = obs_qsv_destroy,
-                                         .encode = obs_qsv_encode,
-                                         .get_defaults = obs_qsv_defaults_hevc,
-                                         .get_properties = obs_qsv_props_hevc,
-                                         .update = obs_qsv_update,
-                                         .get_extra_data = obs_qsv_extra_data,
-                                         .get_sei_data = obs_qsv_sei,
-                                         .get_video_info =
-                                             obs_qsv_video_plus_hdr_info,
-                                         .caps = OBS_ENCODER_CAP_DYN_BITRATE};
+obs_encoder_info
+    obs_qsv_av1_encoder_tex = {.id = "obs_qsv_vpl_av1_tex",
+                               .type = OBS_ENCODER_VIDEO,
+                               .codec = "av1",
+                               .get_name = obs_qsv_getname_av1,
+                               .create = obs_qsv_create_tex_av1,
+                               .destroy = obs_qsv_destroy,
+                               .get_defaults = obs_qsv_defaults_av1,
+                               .get_properties = obs_qsv_props_av1,
+                               .update = obs_qsv_update,
+                               .get_extra_data = obs_qsv_extra_data,
+                               .get_sei_data = obs_qsv_sei,
+                               .get_video_info = obs_qsv_video_info,
+                               .caps = OBS_ENCODER_CAP_DYN_BITRATE |
+                                       OBS_ENCODER_CAP_PASS_TEXTURE /* |
+          OBS_ENCODER_CAP_ROI*/,
+                               .encode_texture = obs_qsv_encode_tex};
 
-obs_encoder_info obs_qsv_hevc_encoder_tex = {
-    .id = "obs_qsv_vpl_hevc_tex",
+obs_encoder_info obs_qsv_hevc_encoder = {
+    .id = "obs_qsv_vpl_hevc",
     .type = OBS_ENCODER_VIDEO,
     .codec = "hevc",
     .get_name = obs_qsv_getname_hevc,
-    .create = obs_qsv_create_tex_hevc,
+    .create = obs_qsv_create_hevc,
     .destroy = obs_qsv_destroy,
+    .encode = obs_qsv_encode,
     .get_defaults = obs_qsv_defaults_hevc,
     .get_properties = obs_qsv_props_hevc,
     .update = obs_qsv_update,
     .get_extra_data = obs_qsv_extra_data,
     .get_sei_data = obs_qsv_sei,
-    .get_video_info = obs_qsv_video_plus_hdr_info,
-    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-    .encode_texture = obs_qsv_encode_tex};
+    .get_video_info = obs_qsv_video_info,
+    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL
+    /* | OBS_ENCODER_CAP_ROI*/};
 
-obs_encoder_info obs_qsv_vp9_encoder = {.id = "obs_qsv_vpl_vp9",
-                                        .type = OBS_ENCODER_VIDEO,
-                                        .codec = "vp9",
-                                        .get_name = obs_qsv_getname_vp9,
-                                        .create = obs_qsv_create_vp9,
-                                        .destroy = obs_qsv_destroy,
-                                        .encode = obs_qsv_encode,
-                                        .get_defaults = obs_qsv_defaults_vp9,
-                                        .get_properties = obs_qsv_props_vp9,
-                                        .update = obs_qsv_update,
-                                        .get_extra_data = obs_qsv_extra_data,
-                                        //.get_sei_data = obs_qsv_sei,
-                                        .get_video_info =
-                                            obs_qsv_video_plus_hdr_info,
-                                        .caps = OBS_ENCODER_CAP_DYN_BITRATE};
+obs_encoder_info
+    obs_qsv_hevc_encoder_tex = {.id = "obs_qsv_vpl_hevc_tex",
+                                .type = OBS_ENCODER_VIDEO,
+                                .codec = "hevc",
+                                .get_name = obs_qsv_getname_hevc,
+                                .create = obs_qsv_create_tex_hevc,
+                                .destroy = obs_qsv_destroy,
+                                .get_defaults = obs_qsv_defaults_hevc,
+                                .get_properties = obs_qsv_props_hevc,
+                                .update = obs_qsv_update,
+                                .get_extra_data = obs_qsv_extra_data,
+                                .get_sei_data = obs_qsv_sei,
+                                .get_video_info = obs_qsv_video_info,
+                                .caps = OBS_ENCODER_CAP_DYN_BITRATE |
+                                        OBS_ENCODER_CAP_PASS_TEXTURE /* |
+           OBS_ENCODER_CAP_ROI*/,
+                                .encode_texture = obs_qsv_encode_tex};
 
-obs_encoder_info obs_qsv_vp9_encoder_tex = {
-    .id = "obs_qsv_vpl_vp9_tex",
+obs_encoder_info obs_qsv_vp9_encoder = {
+    .id = "obs_qsv_vpl_vp9",
     .type = OBS_ENCODER_VIDEO,
     .codec = "vp9",
     .get_name = obs_qsv_getname_vp9,
-    .create = obs_qsv_create_tex_vp9,
+    .create = obs_qsv_create_vp9,
     .destroy = obs_qsv_destroy,
+    .encode = obs_qsv_encode,
     .get_defaults = obs_qsv_defaults_vp9,
     .get_properties = obs_qsv_props_vp9,
     .update = obs_qsv_update,
     .get_extra_data = obs_qsv_extra_data,
-    //.get_sei_data = obs_qsv_sei,
-    .get_video_info = obs_qsv_video_plus_hdr_info,
-    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_PASS_TEXTURE,
-    .encode_texture = obs_qsv_encode_tex};
+    .get_sei_data = obs_qsv_sei,
+    .get_video_info = obs_qsv_video_info,
+    .caps = OBS_ENCODER_CAP_DYN_BITRATE | OBS_ENCODER_CAP_INTERNAL
+    /* | OBS_ENCODER_CAP_ROI*/};
+
+obs_encoder_info
+    obs_qsv_vp9_encoder_tex = {.id = "obs_qsv_vpl_vp9_tex",
+                               .type = OBS_ENCODER_VIDEO,
+                               .codec = "vp9",
+                               .get_name = obs_qsv_getname_vp9,
+                               .create = obs_qsv_create_tex_vp9,
+                               .destroy = obs_qsv_destroy,
+                               .get_defaults = obs_qsv_defaults_vp9,
+                               .get_properties = obs_qsv_props_vp9,
+                               .update = obs_qsv_update,
+                               .get_extra_data = obs_qsv_extra_data,
+                               .get_sei_data = obs_qsv_sei,
+                               .get_video_info = obs_qsv_video_info,
+                               .caps = OBS_ENCODER_CAP_DYN_BITRATE |
+                                       OBS_ENCODER_CAP_PASS_TEXTURE /* |
+          OBS_ENCODER_CAP_ROI*/,
+                               .encode_texture = obs_qsv_encode_tex};
