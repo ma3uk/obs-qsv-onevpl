@@ -377,9 +377,6 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   obs_property_set_long_description(prop,
                                     obs_module_text("WinBrcSize.ToolTip"));
 
-  prop = obs_properties_add_int(props, "dts_offset",
-                                obs_module_text("DTSOffset"), 0, 10000000, 0);
-
   prop = obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
                                 10000000, 50);
   obs_property_int_set_suffix(prop, " Kbps");
@@ -620,7 +617,6 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   int target_bitrate = static_cast<int>(obs_data_get_int(settings, "bitrate"));
   bool custom_buffer_size = obs_data_get_bool(settings, "custom_buffer_size");
   int buffer_size = static_cast<int>(obs_data_get_int(settings, "buffer_size"));
-  int dts_offset = static_cast<int>(obs_data_get_int(settings, "dts_offset"));
   int max_bitrate = static_cast<int>(obs_data_get_int(settings, "max_bitrate"));
   int cqp = static_cast<int>(obs_data_get_int(settings, "cqp"));
   // int ver = (int)obs_data_get_int(settings, "__ver");
@@ -687,8 +683,6 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
       obs_data_get_string(settings, "image_stab_mode");
   const char *perc_enc_prefilter =
       obs_data_get_string(settings, "perc_enc_prefilter");
-
-  obsqsv->params.DTSOffset = dts_offset;
 
   if (astrcmpi(target_usage, "TU1 (Veryslow)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_1;

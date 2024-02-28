@@ -203,8 +203,6 @@ struct qsv_param_t {
 
   mfxU32 nFourCC;
   mfxU16 nChromaFormat;
-
-  int64_t DTSOffset;
 };
 
 template <typename T>

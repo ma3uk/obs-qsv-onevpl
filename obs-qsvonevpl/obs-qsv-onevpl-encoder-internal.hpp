@@ -114,7 +114,7 @@ private:
   mfx_VideoParam mfx_VPPParams;
   mfx_EncodeCtrl mfx_EncCtrlParams;
 
-  std::vector<mfxFrameSurface1 *> mfx_SurfacePool;
+  //std::vector<mfxFrameSurface1 *> mfx_SurfacePool;
   mfxFrameAllocRequest mfx_AllocRequest;
   mfxFrameAllocResponse mfx_AllocResponse;
 

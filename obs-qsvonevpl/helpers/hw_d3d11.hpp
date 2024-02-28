@@ -11,6 +11,7 @@
 #include <d3d11_1.h>
 #include <d3d10_1.h>
 #include <d3dcommon.h>
+#include <dxgitype.h>
 #include <vector>
 
 #define DEVICE_MGR_TYPE MFX_HANDLE_D3D11_DEVICE
