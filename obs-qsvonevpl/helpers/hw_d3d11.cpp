@@ -41,15 +41,15 @@ IDXGIAdapter *hw_handle::GetIntelDeviceAdapterHandle() {
 }
 
 // Create HW device context
-mfxStatus hw_handle::create_device(mfxSession input_session, int deviceNum) {
-  session = input_session;
+mfxStatus hw_handle::create_device(mfxSession input_session) {
+  session = std::move(input_session);
   if (encoder_counter == 0) {
 
     HRESULT hr = S_OK;
 
     static D3D_FEATURE_LEVEL FeatureLevels[] = {
-      D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
-      D3D_FEATURE_LEVEL_10_0};
+        D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL pFeatureLevelsOut;
 
     hw_adapter = GetIntelDeviceAdapterHandle();
@@ -58,14 +58,14 @@ mfxStatus hw_handle::create_device(mfxSession input_session, int deviceNum) {
     }
 
     UINT dxFlags = 0;
-    //UINT dxFlags = D3D11_CREATE_DEVICE_DEBUG;
+    // UINT dxFlags = D3D11_CREATE_DEVICE_DEBUG;
 
     hr = D3D11CreateDevice(
         hw_adapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, dxFlags, FeatureLevels,
         (sizeof(FeatureLevels) / sizeof(FeatureLevels[0])), D3D11_SDK_VERSION,
         &hw_device, &pFeatureLevelsOut, &hw_context);
     if (FAILED(hr)) {
-      // error_hr("D3D11CreateDevice error");
+      error_hr("D3D11CreateDevice error");
       return MFX_ERR_DEVICE_FAILED;
     }
 
@@ -145,7 +145,7 @@ mfxStatus hw_handle::allocate_tex(mfxFrameAllocRequest *request) {
   desc.BindFlags = (D3D11_BIND_DECODER | D3D11_BIND_VIDEO_ENCODER |
                     D3D11_BIND_SHADER_RESOURCE);
   desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-  
+
   ID3D11Texture2D *pTexture2D = nullptr;
   // Create textures
   tex_pool.reserve(request->NumFrameSuggested);
@@ -154,40 +154,43 @@ mfxStatus hw_handle::allocate_tex(mfxFrameAllocRequest *request) {
     hr = hw_device->CreateTexture2D(&desc, nullptr, &pTexture2D);
 
     if (FAILED(hr)) {
-      // error_hr("CreateTexture2D error");
+      error_hr("CreateTexture2D error");
       return MFX_ERR_MEMORY_ALLOC;
     }
     pTexture2D->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
-    tex_pool.push_back(pTexture2D);
+    tex_pool.push_back(std::move(pTexture2D));
   }
 
   return sts;
 }
 
-mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, mfxU32 tex_handle,
+mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
                               mfxU64 lock_key, mfxU64 *next_key) {
 
   IDXGIKeyedMutex *km = nullptr;
   ID3D11Texture2D *input_tex = nullptr;
   HRESULT hr = S_OK;
 
+  struct encoder_texture *tex =
+      std::move(static_cast<struct encoder_texture *>(tex_handle));
+
   for (size_t i = 0; i < handled_tex_pool.size(); i++) {
-    struct handled_texture *ht = &handled_tex_pool[i];
-    if (ht->handle == tex_handle) {
+    struct handled_texture *ht = std::move(&handled_tex_pool[i]);
+    if (ht->handle == tex->handle) {
       input_tex = ht->texture;
       km = ht->km;
       break;
     }
   }
 
-  if (!input_tex || input_tex == nullptr) {
+  if (!input_tex) {
 
     hr = hw_device->OpenSharedResource(
-        reinterpret_cast<HANDLE>(static_cast<uintptr_t>(tex_handle)),
+        reinterpret_cast<HANDLE>(static_cast<uintptr_t>(tex->handle)),
         IID_ID3D11Texture2D, reinterpret_cast<void **>(&input_tex));
     if (FAILED(hr)) {
-      // error_hr("OpenSharedResource error");
+      error_hr("OpenSharedResource error");
       return MFX_ERR_INVALID_HANDLE;
     }
 
@@ -195,14 +198,14 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, mfxU32 tex_handle,
                                    reinterpret_cast<void **>(&km));
     if (FAILED(hr)) {
       input_tex->Release();
-      // error_hr("QueryInterface error");
+      error_hr("QueryInterface error");
       return MFX_ERR_INVALID_HANDLE;
     }
 
     input_tex->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
-    struct handled_texture new_ht = {tex_handle, input_tex, km};
-    handled_tex_pool.push_back(new_ht);
+    struct handled_texture new_ht = {std::move(tex->handle), input_tex, km};
+    handled_tex_pool.push_back(std::move(new_ht));
   }
   // warn("Handled size: %d, Tex size: %d", handled_tex_pool.size(),
   //      tex_pool.size());
@@ -216,7 +219,7 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, mfxU32 tex_handle,
                                     input_tex, 0, &SrcBox);
   km->ReleaseSync(*next_key);
 
-  out_tex.texture2D = tex_pool[tex_counter];
+  out_tex.texture2D = std::move(tex_pool[tex_counter]);
 
   if (++tex_counter == tex_pool.size()) {
     tex_counter = 0;
@@ -228,7 +231,7 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, mfxU32 tex_handle,
 mfxStatus hw_handle::free_tex() {
   if (!tex_pool.empty()) {
     for (mfxU32 i = 0; i < tex_pool.size(); i++) {
-      if (tex_pool[i] && tex_pool[i] != nullptr) {
+      if (tex_pool[i]) {
         tex_pool[i]->Release();
       }
     }
@@ -242,8 +245,8 @@ mfxStatus hw_handle::free_tex() {
 mfxStatus hw_handle::free_handled_tex() {
   if (!handled_tex_pool.empty()) {
     for (mfxU32 i = 0; i < handled_tex_pool.size(); i++) {
-      struct handled_texture *ht = &handled_tex_pool[i];
-      if (ht->texture && ht->texture != nullptr) {
+      struct handled_texture *ht = std::move(&handled_tex_pool[i]);
+      if (ht->texture) {
         ht->km->Release();
         ht->texture->Release();
       }

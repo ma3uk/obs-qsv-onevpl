@@ -14,19 +14,14 @@
 #include <va/va_x11.h>
 #endif
 
-#include <chrono>
-#include <thread>
-
 #include "obs-qsv-onevpl-encoder.hpp"
-// #include "helpers/bitstream_manager.hpp"
 #include "helpers/common_utils.hpp"
 #include "helpers/ext_buf_manager.hpp"
-// #include "helpers/task_manager.hpp"
 #include "helpers/qsv_params.hpp"
 
 class QSV_VPL_Encoder_Internal {
 public:
-  QSV_VPL_Encoder_Internal(mfxVersion &version, bool isDGPU);
+  QSV_VPL_Encoder_Internal(mfxVersion &version, bool useTexAlloc);
   ~QSV_VPL_Encoder_Internal();
 
   mfxStatus Open(struct qsv_param_t *pParams, enum qsv_codec codec);
@@ -34,7 +29,7 @@ public:
                     mfxU16 *pnVPSBuf, mfxU16 *pnSPSBuf, mfxU16 *pnPPSBuf);
   mfxStatus Encode(mfxU64 ts, uint8_t **frame_data, uint32_t *frame_linesize,
                    mfxBitstream **pBS);
-  mfxStatus Encode_tex(mfxU64 ts, uint32_t tex_handle, uint64_t lock_key,
+  mfxStatus Encode_tex(mfxU64 ts, void* tex_handle, uint64_t lock_key,
                        uint64_t *next_key, mfxBitstream **pBS);
   mfxStatus ClearData();
   mfxStatus Reset(struct qsv_param_t *pParams, enum qsv_codec codec);
@@ -45,17 +40,13 @@ public:
   void ClearROI();
   bool UpdateParams(struct qsv_param_t *pParams);
 
-  bool IsDGPU() const { return b_isDGPU; }
-
-  // mfxStatus AllocateVPPSurfaces();
-
 protected:
   typedef struct {
     mfxBitstream mfxBS;
     mfxSyncPoint syncp;
   } Task;
 
-  mfxStatus Initialize(int deviceNum, [[maybe_unused]] enum qsv_codec codec,
+  mfxStatus Initialize(enum qsv_codec codec,
                        [[maybe_unused]] void **data);
 
   mfxStatus InitVPPParams(struct qsv_param_t *pParams, enum qsv_codec codec);
@@ -70,10 +61,9 @@ protected:
   void ReleaseTaskPool();
   mfxStatus ChangeBitstreamSize(mfxU32 NewSize);
   mfxStatus GetFreeTaskIndex(int *TaskID);
-  mfxStatus GetFreeSurfaceIndex(int *SurfaceID);
 
   void LoadFrameData(mfxFrameSurface1 *&surface, uint8_t **frame_data,
-                     uint32_t *frame_linesize);
+                    uint32_t *frame_linesize);
 
   mfxStatus Drain();
 
@@ -82,8 +72,8 @@ private:
   mfxPlatform mfx_Platform;
   mfxVersion mfx_Version;
   mfxLoader mfx_Loader;
-  mfxConfig mfx_LoaderConfig[7];
-  mfxVariant mfx_LoaderVariant[7];
+  mfxConfig mfx_LoaderConfig[8];
+  mfxVariant mfx_LoaderVariant[8];
   mfxSession mfx_Session;
   void *mfx_SessionData;
 
@@ -114,11 +104,9 @@ private:
   mfx_VideoParam mfx_VPPParams;
   mfx_EncodeCtrl mfx_EncCtrlParams;
 
-  //std::vector<mfxFrameSurface1 *> mfx_SurfacePool;
   mfxFrameAllocRequest mfx_AllocRequest;
   mfxFrameAllocResponse mfx_AllocResponse;
 
-  bool mfx_UseD3D11;
   bool mfx_UseTexAlloc;
   mfxMemoryInterface *mfx_MemoryInterface;
 #if defined(_WIN32) || defined(_WIN64)
@@ -127,7 +115,6 @@ private:
   mfxSurfaceVAAPI mfx_TextureInfo;
 #endif
   int mfx_TextureCounter;
-  bool b_isDGPU;
 
   std::shared_ptr<hw_handle> hw;
 

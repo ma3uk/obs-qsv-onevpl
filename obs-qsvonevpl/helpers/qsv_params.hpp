@@ -199,8 +199,6 @@ struct qsv_param_t {
   std::optional<int> nNumRefFrameLayers;
   std::optional<int> nSAO;
 
-  int nDeviceNum;
-
   mfxU32 nFourCC;
   mfxU16 nChromaFormat;
 };

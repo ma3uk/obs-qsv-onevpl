@@ -65,8 +65,8 @@
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
-#include "hw_d3d11.hpp"
 #include "../bits/windows_defs.h"
+#include "hw_d3d11.hpp"
 #elif defined(__linux__)
 #include "../bits/linux_defs.h"
 #endif
@@ -117,41 +117,44 @@ enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
 void Release();
 void ReleaseSessionData(void *);
 
-static void avx2_memcpy(uint8_t* dst, const uint8_t* src, unsigned long long size) {
-    if (size < 128) {
-        for (int i = 0; i < size; i++)
-            dst[i] = src[i];
-        return;
-    }
-    uint8_t* dst_fin = dst + size;
-    uint8_t* dst_aligned_fin = (uint8_t*)(((size_t)(dst_fin + 31) & ~31) - 128);
-    __m256i y0, y1, y2, y3;
-    const int start_align_diff = (int)((size_t)dst & 31);
-    if (start_align_diff) {
-        y0 = _mm256_loadu_si256((const __m256i*)src);
-        _mm256_storeu_si256((__m256i*)dst, y0);
-        dst += 32 - start_align_diff;
-        src += 32 - start_align_diff;
-    }
-    for (; dst < dst_aligned_fin; dst += 128, src += 128) {
-        y0 = _mm256_loadu_si256((const __m256i*)(src + 0));
-        y1 = _mm256_loadu_si256((const __m256i*)(src + 32));
-        y2 = _mm256_loadu_si256((const __m256i*)(src + 64));
-        y3 = _mm256_loadu_si256((const __m256i*)(src + 96));
-        _mm256_stream_si256((__m256i*)(dst + 0), y0);
-        _mm256_stream_si256((__m256i*)(dst + 32), y1);
-        _mm256_stream_si256((__m256i*)(dst + 64), y2);
-        _mm256_stream_si256((__m256i*)(dst + 96), y3);
-    }
-    uint8_t* dst_tmp = dst_fin - 128;
-    src -= (dst - dst_tmp);
-    y0 = _mm256_loadu_si256((const __m256i*)(src + 0));
-    y1 = _mm256_loadu_si256((const __m256i*)(src + 32));
-    y2 = _mm256_loadu_si256((const __m256i*)(src + 64));
-    y3 = _mm256_loadu_si256((const __m256i*)(src + 96));
-    _mm256_storeu_si256((__m256i*)(dst_tmp + 0), y0);
-    _mm256_storeu_si256((__m256i*)(dst_tmp + 32), y1);
-    _mm256_storeu_si256((__m256i*)(dst_tmp + 64), y2);
-    _mm256_storeu_si256((__m256i*)(dst_tmp + 96), y3);
-    _mm256_zeroupper();
+static void avx2_memcpy(uint8_t *dst, const uint8_t *src,
+                        unsigned long long size) {
+  if (size < 128) {
+    for (int i = 0; i < size; i++)
+      dst[i] = src[i];
+    return;
+  }
+  uint8_t *dst_fin = dst + size;
+  const uint8_t *dst_aligned_fin = reinterpret_cast<uint8_t *>(
+      (reinterpret_cast<size_t>(dst_fin + 31) & ~31) - 128);
+  __m256i y0, y1, y2, y3;
+  const int start_align_diff =
+      static_cast<int>(reinterpret_cast<size_t>(dst) & 31);
+  if (start_align_diff) {
+    y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src));
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst), y0);
+    dst += 32 - start_align_diff;
+    src += 32 - start_align_diff;
+  }
+  for (; dst < dst_aligned_fin; dst += 128, src += 128) {
+    y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 0));
+    y1 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 32));
+    y2 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 64));
+    y3 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 96));
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 0), y0);
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 32), y1);
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 64), y2);
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 96), y3);
+  }
+  uint8_t *dst_tmp = dst_fin - 128;
+  src -= (dst - dst_tmp);
+  y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 0));
+  y1 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 32));
+  y2 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 64));
+  y3 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 96));
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 0), y0);
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 32), y1);
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 64), y2);
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 96), y3);
+  _mm256_zeroupper();
 }

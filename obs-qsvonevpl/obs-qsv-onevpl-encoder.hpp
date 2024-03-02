@@ -59,7 +59,7 @@ static unsigned short g_verMajor;
 static unsigned short g_verMinor;
 
 void qsv_encoder_version(unsigned short *major, unsigned short *minor);
-qsv_t *qsv_encoder_open(qsv_param_t *, enum qsv_codec codec);
+qsv_t *qsv_encoder_open(qsv_param_t *, enum qsv_codec codec, bool useTexAlloc);
 bool qsv_encoder_is_dgpu(qsv_t *);
 void obs_qsv_destroy(void *data);
 bool obs_qsv_update(void *data, obs_data_t *settings);
@@ -75,7 +75,7 @@ void load_headers(obs_qsv *obsqsv);
 
 bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size);
 
-void static parse_packet(obs_qsv *obsqsv, encoder_packet *packet,
+void static parse_packet(std::shared_ptr<obs_qsv> obsqsv, encoder_packet *packet,
                          mfxBitstream *pBS, const video_output_info *voi,
                          bool *received_packet);
 
@@ -87,9 +87,9 @@ static void roi_cb(void *param, obs_encoder_roi *roi);
 
 static void obs_qsv_setup_rois(obs_qsv *obsqsv);
 
-bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
+bool obs_qsv_encode_tex(void *data, struct encoder_texture *tex, int64_t pts,
                         uint64_t lock_key, uint64_t *next_key,
-                        encoder_packet *packet, bool *received_packet);
+                        struct encoder_packet *packet, bool *received_packet);
 
 bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
                     bool *received_packet);

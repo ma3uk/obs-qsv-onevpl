@@ -75,16 +75,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vpl/mfxdefs.h>
 #include <vpl/mfxstructures.h>
 
-mfxIMPL impl = MFX_IMPL_HARDWARE_ANY;
 mfxVersion ver = {{0, 1}}; // for backward compatibility
 std::atomic<bool> is_active{false};
-bool isDGPU = false;
+//bool isDGPU = false;
 void qsv_encoder_version(unsigned short *major, unsigned short *minor) {
   *major = ver.Major;
   *minor = ver.Minor;
 }
 
-qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec) {
+qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec,
+                        bool useTexAlloc) {
   obs_video_info ovi;
   obs_get_video_info(&ovi);
   auto adapter_idx = ovi.adapter;
@@ -106,11 +106,11 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec) {
     }
   }
   info("\tSelected adapter: %d", adapter_idx);
-  isDGPU = adapters[adapter_idx].is_dgpu;
+
   mfxStatus sts;
 
   QSV_VPL_Encoder_Internal *pEncoder =
-      new QSV_VPL_Encoder_Internal(ver, isDGPU);
+      new QSV_VPL_Encoder_Internal(ver, useTexAlloc);
 
   sts = pEncoder->Open(pParams, codec);
 
@@ -382,16 +382,17 @@ void static parse_packet(obs_qsv *obsqsv, encoder_packet *packet,
 
   da_resize(obsqsv->packet_data, 0);
   da_push_back_array(obsqsv->packet_data, *(&pBS->Data + *(&pBS->DataOffset)),
-                     *(&pBS->DataLength));
+                     std::move(*(&pBS->DataLength)));
 
-  packet->data = obsqsv->packet_data.array;
-  packet->size = obsqsv->packet_data.num;
+  packet->data = std::move(obsqsv->packet_data.array);
+  packet->size = std::move(obsqsv->packet_data.num);
   packet->type = OBS_ENCODER_VIDEO;
-  packet->pts = ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi);
+  packet->pts =
+      std::move(ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi));
   packet->dts =
       (obsqsv->codec == QSV_CODEC_VP9 || obsqsv->codec == QSV_CODEC_AV1)
-          ? packet->pts
-          : ts_mfx_to_obs(pBS->DecodeTimeStamp, voi);
+          ? std::move(packet->pts)
+          : std::move(ts_mfx_to_obs(pBS->DecodeTimeStamp, voi));
   packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_I) ||
                       (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
                       (pBS->FrameType & MFX_FRAMETYPE_S) ||
@@ -467,12 +468,16 @@ void static parse_packet(obs_qsv *obsqsv, encoder_packet *packet,
 //   obsqsv->roi_increment = increment;
 // }
 
-bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
+bool obs_qsv_encode_tex(void *data, struct encoder_texture *tex, int64_t pts,
                         uint64_t lock_key, uint64_t *next_key,
                         struct encoder_packet *packet, bool *received_packet) {
   obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
 
-  if (handle == GS_INVALID_HANDLE || !handle) {
+#ifdef _WIN32
+  if (!tex || tex->handle == static_cast<uint32_t>(-1)) {
+#else
+  if (!tex || !tex->tex[0] || !tex->tex[1]) {
+#endif
     warn("Encode failed: bad texture handle");
     *next_key = lock_key;
     return false;
@@ -483,21 +488,20 @@ bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
 
   pthread_mutex_lock(&g_QsvLock);
 
-  auto *video = obs_encoder_video(obsqsv->encoder);
-  auto *voi = video_output_get_info(video);
+  auto *video = std::move(obs_encoder_video(obsqsv->encoder));
+  auto *voi = std::move(video_output_get_info(video));
 
   auto *pBS = static_cast<mfxBitstream *>(nullptr);
-
-  mfxU64 qsvPTS = ts_obs_to_mfx(pts, voi);
 
   // if (obs_encoder_has_roi(obsqsv->encoder))
   //   obs_qsv_setup_rois(obsqsv);
 
   QSV_VPL_Encoder_Internal *pEncoder =
       reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
-
+  
   mfxStatus sts =
-      pEncoder->Encode_tex(qsvPTS, handle, lock_key, next_key, &pBS);
+      pEncoder->Encode_tex(std::move(ts_obs_to_mfx(pts, voi)),
+                           std::move(static_cast<void*>(tex)), lock_key, next_key, &pBS);
 
   if (sts < MFX_ERR_NONE && sts != MFX_ERR_MORE_DATA) {
     warn("encode failed");
@@ -505,7 +509,7 @@ bool obs_qsv_encode_tex(void *data, uint32_t handle, int64_t pts,
     return false;
   }
 
-  parse_packet(obsqsv, packet, pBS, voi, received_packet);
+  parse_packet(obsqsv, packet, std::move(pBS), voi, received_packet);
 
   pthread_mutex_unlock(&g_QsvLock);
 
@@ -522,12 +526,12 @@ bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
 
   pthread_mutex_lock(&g_QsvLock);
 
-  auto *video = obs_encoder_video(obsqsv->encoder);
-  auto *voi = video_output_get_info(video);
+  auto *video = std::move(obs_encoder_video(obsqsv->encoder));
+  auto *voi = std::move(video_output_get_info(video));
 
   auto *pBS = static_cast<mfxBitstream *>(nullptr);
 
-  mfxU64 qsvPTS = ts_obs_to_mfx(frame->pts, voi);
+  // mfxU64 qsvPTS = std::move(ts_obs_to_mfx(frame->pts, voi));
 
   // if (obs_encoder_has_roi(obsqsv->encoder))
   //   obs_qsv_setup_rois(obsqsv);
@@ -538,9 +542,12 @@ bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
   mfxStatus sts = MFX_ERR_NONE;
 
   if (frame->data[0]) {
-    sts = pEncoder->Encode(qsvPTS, frame->data, frame->linesize, &pBS);
+    sts = pEncoder->Encode(std::move(ts_obs_to_mfx(frame->pts, voi)),
+                           std::move(frame->data), std::move(frame->linesize),
+                           &pBS);
   } else {
-    sts = pEncoder->Encode(qsvPTS, nullptr, 0, &pBS);
+    sts = pEncoder->Encode(std::move(ts_obs_to_mfx(frame->pts, voi)), nullptr,
+                           0, &pBS);
   }
 
   if (sts < MFX_ERR_NONE && sts != MFX_ERR_MORE_DATA) {
@@ -549,7 +556,7 @@ bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
     return false;
   }
 
-  parse_packet(obsqsv, packet, pBS, voi, received_packet);
+  parse_packet(obsqsv, packet, std::move(pBS), voi, received_packet);
 
   pthread_mutex_unlock(&g_QsvLock);
 

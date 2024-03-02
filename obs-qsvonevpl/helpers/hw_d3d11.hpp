@@ -13,6 +13,8 @@
 #include <d3dcommon.h>
 #include <dxgitype.h>
 #include <vector>
+#include <obs.h>
+#include <obs-encoder.h>
 
 #define DEVICE_MGR_TYPE MFX_HANDLE_D3D11_DEVICE
 
@@ -30,8 +32,8 @@ public:
   ~hw_handle();
   void release_device();
 
-  mfxStatus create_device(mfxSession session, int deviceNum);
-  mfxStatus copy_tex(mfxSurfaceD3D11Tex2D &out_tex, mfxU32 tex_handle,
+  mfxStatus create_device(mfxSession session);
+  mfxStatus copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void* tex_handle,
                      mfxU64 lock_key, mfxU64 *next_key);
 
   mfxStatus allocate_tex(mfxFrameAllocRequest *request);
