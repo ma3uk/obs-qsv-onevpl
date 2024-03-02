@@ -219,7 +219,7 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
                                     input_tex, 0, &SrcBox);
   km->ReleaseSync(*next_key);
 
-  out_tex.texture2D = std::move(tex_pool[tex_counter]);
+  out_tex.texture2D = tex_pool[tex_counter];
 
   if (++tex_counter == tex_pool.size()) {
     tex_counter = 0;
@@ -238,6 +238,7 @@ mfxStatus hw_handle::free_tex() {
 
     tex_pool.clear();
     tex_pool.shrink_to_fit();
+    tex_pool.~vector();
   }
   return MFX_ERR_NONE;
 }
@@ -254,6 +255,7 @@ mfxStatus hw_handle::free_handled_tex() {
 
     handled_tex_pool.clear();
     handled_tex_pool.shrink_to_fit();
+    handled_tex_pool.~vector();
   }
   return MFX_ERR_NONE;
 }
