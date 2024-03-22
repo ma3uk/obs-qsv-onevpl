@@ -1811,28 +1811,22 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t **frame_data,
   *pBS = nullptr;
   int nTaskIdx = 0;
   mfxU32 CurrentRefCount = 0;
+
   if (mfx_EncSurface != nullptr) {
     refcounter_sts = mfx_EncSurface->FrameInterface->GetRefCounter(
         mfx_EncSurface, &CurrentRefCount);
   }
-  if (refcounter_sts < MFX_ERR_NONE || mfx_EncSurface == nullptr ||
-      CurrentRefCount == 0) {
-    sts = mfx_VideoEnc->GetSurface(&mfx_EncSurface);
-    if (sts < MFX_ERR_NONE) {
-      error("Error code: %d", sts);
-      throw std::runtime_error("Encode(): Get encode surface error");
-    }
-    mfx_EncSurface->FrameInterface->GetRefCounter(mfx_EncSurface,
-                                                  &mfx_EncSurfaceRefCount);
-  }
+
+  mfx_VideoEnc->GetSurface(&mfx_EncSurface);
+  mfx_EncSurface->FrameInterface->GetRefCounter(mfx_EncSurface,
+                                                &mfx_EncSurfaceRefCount);
 
   while (GetFreeTaskIndex(&nTaskIdx) == MFX_ERR_NOT_FOUND) {
     do {
       sync_sts = MFXVideoCORE_SyncOperation(
           mfx_Session, mfx_TaskPool[mfx_SyncTaskID].syncp, 100);
       if (sync_sts < MFX_ERR_NONE) {
-        error("Error code: %d", sync_sts);
-        throw std::runtime_error("Encode(): Syncronization error");
+        warn("Encode.Sync error: %d", sync_sts);
       }
     } while (sync_sts == MFX_WRN_IN_EXECUTION);
 
@@ -1849,20 +1843,20 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t **frame_data,
 
   sts = mfx_EncSurface->FrameInterface->Map(mfx_EncSurface, MFX_MAP_WRITE);
   if (sts < MFX_ERR_NONE) {
-    error("Error code: %d", sts);
-    throw std::runtime_error("Encode(): Map error");
+    warn("Surface.Map.Write error: %d", sts);
+    return sts;
   }
 
+  mfx_EncSurface->Data.TimeStamp = ts;
   LoadFrameData(mfx_EncSurface, std::move(frame_data),
                 std::move(frame_linesize));
 
-  mfx_TaskPool[nTaskIdx].mfxBS.TimeStamp = ts;
-  mfx_EncSurface->Data.TimeStamp = std::move(ts);
+  mfx_TaskPool[nTaskIdx].mfxBS.TimeStamp = std::move(ts);
 
   sts = mfx_EncSurface->FrameInterface->Unmap(mfx_EncSurface);
   if (sts < MFX_ERR_NONE) {
-    error("Error code: %d", sts);
-    throw std::runtime_error("Encode(): Unmap error");
+    warn("Surface.Unmap.Write error: %d", sts);
+    return sts;
   }
 
   /*Encode a frame asynchronously (returns immediately)*/
@@ -1872,15 +1866,16 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t **frame_data,
 
       sts = mfx_VideoVPP->GetSurfaceOut(&mfx_VPPSurface);
       if (sts < MFX_ERR_NONE) {
-        error("Error code: %d", sts);
-        throw std::runtime_error("Encode(): Get VPP out surface error");
+        warn("VPP surface error: %d", sts);
+        return MFX_ERR_NOT_INITIALIZED;
       }
       sts = mfx_VideoVPP->RunFrameVPPAsync(mfx_EncSurface, mfx_VPPSurface,
                                            nullptr, &VPPSyncPoint);
       if (sts < MFX_ERR_NONE) {
-        error("Error code: %d", sts);
-        throw std::runtime_error("Encode(): VPP processing error");
+        warn("VPP error: %d", sts);
       }
+
+      mfx_EncSurface->FrameInterface->Release(mfx_EncSurface);
     }
 
     sts = mfx_VideoEnc->EncodeFrameAsync(
@@ -1905,17 +1900,18 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t **frame_data,
     } else if (MFX_ERR_MORE_DATA == sts) {
       break;
     } else {
-      error("Error code: %d", sts);
-      throw std::runtime_error("Encode(): Encode processing error");
+      warn("Encode error: %d", sts);
       break;
     }
   }
 
   if (mfx_VPP) {
     mfx_VPPSurface->FrameInterface->Release(mfx_VPPSurface);
+  } else {
+    mfx_EncSurface->FrameInterface->Release(mfx_EncSurface);
   }
 
-  return sts;
+  return MFX_ERR_NONE;
 }
 
 mfxStatus QSV_VPL_Encoder_Internal::Drain() {
