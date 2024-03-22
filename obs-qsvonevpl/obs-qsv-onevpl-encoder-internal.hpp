@@ -4,36 +4,34 @@
 #define __QSV_VPL_ENCODER_INTERNAL_H__
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include "helpers/hw_d3d11.hpp"
-#elif defined(__linux__)
-#include <obs-nix-platform.h>
-#include <va/va_wayland.h>
-#include <va/va_x11.h>
-#endif
-
-#include "obs-qsv-onevpl-encoder.hpp"
+#ifndef __QSV_VPL_COMMON_UTILS_H__
 #include "helpers/common_utils.hpp"
+#endif
+#ifndef __QSV_VPL_ENCODER_H__
+#include "obs-qsv-onevpl-encoder.hpp"
+#endif
+#ifndef __QSV_VPL_EXT_BUF_MANAGER_H__
 #include "helpers/ext_buf_manager.hpp"
+#endif
+#ifndef __QSV_VPL_ENCODER_PARAMS_H__
 #include "helpers/qsv_params.hpp"
+#endif
 
 class QSV_VPL_Encoder_Internal {
 public:
-  QSV_VPL_Encoder_Internal(mfxVersion &version, bool useTexAlloc);
+  QSV_VPL_Encoder_Internal();
   ~QSV_VPL_Encoder_Internal();
 
-  mfxStatus Open(struct qsv_param_t *pParams, enum qsv_codec codec);
+  mfxStatus GetVPLVersion(mfxVersion &mfx_Version);
+  mfxStatus Open(struct qsv_param_t *pParams, enum qsv_codec codec,
+                 bool useTexAlloc);
   void GetVPSSPSPPS(mfxU8 **pVPSBuf, mfxU8 **pSPSBuf, mfxU8 **pPPSBuf,
                     mfxU16 *pnVPSBuf, mfxU16 *pnSPSBuf, mfxU16 *pnPPSBuf);
   mfxStatus Encode(mfxU64 ts, uint8_t **frame_data, uint32_t *frame_linesize,
                    mfxBitstream **pBS);
-  mfxStatus Encode_tex(mfxU64 ts, void* tex_handle, uint64_t lock_key,
+  mfxStatus Encode_tex(mfxU64 ts, void *tex_handle, uint64_t lock_key,
                        uint64_t *next_key, mfxBitstream **pBS);
   mfxStatus ClearData();
-  mfxStatus Reset(struct qsv_param_t *pParams, enum qsv_codec codec);
-  mfxStatus GetCurrentFourCC(mfxU32 &fourCC);
   mfxStatus ReconfigureEncoder();
   void AddROI(mfxU32 left, mfxU32 top, mfxU32 right, mfxU32 bottom,
               mfxI16 delta);
@@ -46,8 +44,7 @@ protected:
     mfxSyncPoint syncp;
   } Task;
 
-  mfxStatus Initialize(enum qsv_codec codec,
-                       [[maybe_unused]] void **data);
+  mfxStatus Initialize(enum qsv_codec codec, [[maybe_unused]] void **data);
 
   mfxStatus InitVPPParams(struct qsv_param_t *pParams, enum qsv_codec codec);
   mfxStatus InitEncParams(struct qsv_param_t *pParams, enum qsv_codec codec);
@@ -63,19 +60,20 @@ protected:
   mfxStatus GetFreeTaskIndex(int *TaskID);
 
   void LoadFrameData(mfxFrameSurface1 *&surface, uint8_t **frame_data,
-                    uint32_t *frame_linesize);
+                     uint32_t *frame_linesize);
 
   mfxStatus Drain();
 
 private:
-  mfxIMPL mfx_Impl;
   mfxPlatform mfx_Platform;
   mfxVersion mfx_Version;
   mfxLoader mfx_Loader;
   mfxConfig mfx_LoaderConfig[8];
   mfxVariant mfx_LoaderVariant[8];
   mfxSession mfx_Session;
+#if defined(__linux__)
   void *mfx_SessionData;
+#endif
 
   mfxFrameSurface1 *mfx_EncSurface;
   mfxU32 mfx_EncSurfaceRefCount;
@@ -105,18 +103,11 @@ private:
   mfx_EncodeCtrl mfx_EncCtrlParams;
 
   mfxFrameAllocRequest mfx_AllocRequest;
-  mfxFrameAllocResponse mfx_AllocResponse;
 
   bool mfx_UseTexAlloc;
   mfxMemoryInterface *mfx_MemoryInterface;
-#if defined(_WIN32) || defined(_WIN64)
-  mfxSurfaceD3D11Tex2D mfx_TextureInfo;
-#else
-  mfxSurfaceVAAPI mfx_TextureInfo;
-#endif
-  int mfx_TextureCounter;
 
-  std::shared_ptr<hw_handle> hw;
+  hw_handle *hw;
 
   bool mfx_VPP;
 };

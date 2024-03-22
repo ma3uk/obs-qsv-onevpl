@@ -1,16 +1,19 @@
 #pragma once
+#pragma warning(disable : 4201)
+
 #ifndef __QSV_VPL_COMMON_UTILS_H__
 #define __QSV_VPL_COMMON_UTILS_H__
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
-#ifndef __INTRIN_H_
-#include <intrin.h>
+#ifndef __QSV_VPL_WINDOWS_DEFS_H__
+#include "../bits/windows_defs.hpp"
 #endif
-#elif defined(__linux__)
-#ifndef __X86INTRIN_H
-#include <x86intrin.h>
+#ifndef __QSV_VPL_LINUX_DEFS_H__
+#include "../bits/linux_defs.hpp"
 #endif
+
+#ifndef _INTTYPES
+#include <inttypes.h>
 #endif
 #ifndef _INC_STDIO
 #include <stdio.h>
@@ -20,6 +23,21 @@
 #endif
 #ifndef _CONDITION_VARIABLE_
 #include <condition_variable>
+#endif
+#ifndef _VECTOR_
+#include <vector>
+#endif
+#ifndef _ARRAY_
+#include <array>
+#endif
+#ifndef _STRING_
+#include <string>
+#endif
+#ifndef _OPTIONAL_
+#include <optional>
+#endif
+#ifndef _CINTTYPES_
+#include <cinttypes>
 #endif
 #ifndef _CSTDLIB_
 #include <cstdlib>
@@ -33,9 +51,6 @@
 #ifndef _THREAD_
 #include <thread>
 #endif
-#ifndef _VECTOR_
-#include <vector>
-#endif
 #ifndef _BIT_
 #include <bit>
 #endif
@@ -48,15 +63,10 @@
 #ifndef _ATOMIC_
 #include <atomic>
 #endif
-#ifndef _STRING_
-#include <string>
-#endif
-#ifndef _CINTTYPES_
-#include <cinttypes>
-#endif
 #ifndef _NEW_
 #include <new>
 #endif
+
 #ifndef __MFX_H__
 #include <vpl/mfx.h>
 #endif
@@ -64,32 +74,46 @@
 #include <vpl/mfxvideo++.h>
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
-#include "../bits/windows_defs.h"
+#include <util/config-file.h>
+#include <util/dstr.h>
+#include <util/pipe.h>
+#include <util/platform.h>
+
+#ifndef __QSV_VPL_HW_HANDLES_H__
 #include "hw_d3d11.hpp"
-#elif defined(__linux__)
-#include "../bits/linux_defs.h"
 #endif
 
+#ifndef do_log
 #define do_log(level, format, ...)                                             \
   blog(level, "[QSV encoder: '%s'] " format, "libvpl", ##__VA_ARGS__);
-
+#endif
+#ifndef error
 #define error(format, ...) do_log(LOG_ERROR, format, ##__VA_ARGS__)
+#endif
+#ifndef warn
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
+#endif
+#ifndef info
 #define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
+#endif
+#ifndef debug
 #define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
-
-#define error_hr(msg) warn("%s: %s: 0x%08lX", __FUNCTION__, msg, (uint32_t)hr);
-
+#endif
+#ifndef error_hr
+#define error_hr(msg) warn("%s: %s: 0x%08lX", __FUNCTION__, msg, static_cast<uint32_t>(hr));
+#endif
+#ifndef INFINITE
 #define INFINITE 0xFFFFFFFF // Infinite timeout
-
-#define CHECK_STS(X, ERR_TEXT)                                                 \
-  {                                                                            \
-    if ((X) < MFX_ERR_NONE) {                                                  \
-      warn(TEXT);                                                              \
-      return X;                                                                \
-    }                                                                          \
-  }
+#endif
+#ifndef WILL_READ
+#define WILL_READ 0x1000
+#endif
+#ifndef WILL_WRITE
+#define WILL_WRITE 0x2000
+#endif
+#ifndef MAX_ADAPTERS
+#define MAX_ADAPTERS 10
+#endif
 
 extern "C" void util_cpuid(int cpuinfo[4], int flags);
 
@@ -103,21 +127,15 @@ struct adapter_info {
   bool supports_vp9;
 };
 
-#define MAX_ADAPTERS 10
+
 extern struct adapter_info adapters[MAX_ADAPTERS];
 extern size_t adapter_count;
 
 enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
 
-// Usage of the following two macros are only required for certain Windows
-// DirectX11 use cases
-#define WILL_READ 0x1000
-#define WILL_WRITE 0x2000
-
-void Release();
 void ReleaseSessionData(void *);
 
-static void avx2_memcpy(uint8_t *dst, const uint8_t *src,
+inline static void avx2_memcpy(uint8_t *dst, const uint8_t *src,
                         unsigned long long size) {
   if (size < 128) {
     for (int i = 0; i < size; i++)

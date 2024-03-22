@@ -4,16 +4,8 @@
 #define __QSV_VPL_ENCODER_PARAMS_H__
 #endif
 
-#ifndef __MFX_H__
-#include <vpl/mfx.h>
-#endif
-
-#ifndef _STRING_
-#include <string>
-#endif
-
-#ifndef _OPTIONAL_
-#include <optional>
+#ifndef __QSV_VPL_COMMON_UTILS_H__
+#include "common_utils.hpp"
 #endif
 
 static const char *const qsv_ratecontrols_h264[] = {"CBR", "VBR", "CQP", "ICQ",
@@ -173,6 +165,7 @@ struct qsv_param_t {
   std::optional<bool> bWeightedBiPred;
   std::optional<bool> bGlobalMotionBiasAdjustment;
   std::optional<bool> bHRDConformance;
+  std::optional<bool> bLowDelayHRD;
 
   bool bLookahead;
   bool bLookaheadLP;

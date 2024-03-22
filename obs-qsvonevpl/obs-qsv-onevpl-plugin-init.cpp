@@ -7,10 +7,6 @@
 #define _STDINT_H_INCLUDED
 #endif
 
-#ifndef GS_INVALID_HANDLE
-#define GS_INVALID_HANDLE (uint32_t) - 1
-#endif
-
 auto TEXT_SPEED = obs_module_text("TargetUsage");
 auto TEXT_TARGET_BITRATE = obs_module_text("Bitrate");
 auto TEXT_CUSTOM_BUFFER_SIZE = obs_module_text("CustomBufferSize");
@@ -43,6 +39,8 @@ auto TEXT_USE_RAW_REF = obs_module_text("UseRawRef");
 auto TEXT_MV_COST_SCALING_FACTOR = obs_module_text("MVCostScalingFactor");
 auto TEXT_RDO = obs_module_text("RDO");
 auto TEXT_HRD_CONFORMANCE = obs_module_text("HRDConformance");
+auto TEXT_LOW_DELAY_BRC = obs_module_text("LowDelayBRC");
+auto TEXT_LOW_DELAY_HRD = obs_module_text("LowDelayHRD");
 auto TEXT_ASYNC_DEPTH = obs_module_text("AsyncDepth");
 auto TEXT_WINBRC_MAX_AVG_SIZE = obs_module_text("WinBRCMaxAvgSize");
 auto TEXT_WINBRC_SIZE = obs_module_text("WinBRCSize");
@@ -91,6 +89,10 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
   obs_data_set_default_int(settings, "keyint_sec", 4);
   obs_data_set_default_int(settings, "gop_ref_dist", 4);
   obs_data_set_default_int(settings, "async_depth", 4);
+
+  obs_data_set_default_string(settings, "intra_ref_encoding", "OFF");
+  obs_data_set_default_string(settings, "low_delay_brc", "OFF");
+  obs_data_set_default_string(settings, "low_delay_hrd", "OFF");
 
   obs_data_set_default_string(settings, "tune_quality", "OFF");
   obs_data_set_default_string(settings, "adaptive_i", "AUTO");
@@ -203,6 +205,10 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
     if ((bLAOptVisibleHQ && bLAVisible)) {
       obs_data_set_string(settings, "hrd_conformance", "OFF");
     }
+
+    if (bLAOptVisibleLP) {
+      obs_data_set_string(settings, "enctools", "OFF");
+    }
   }
   bVisible =
       astrcmpi(rate_control, "VBR") == 0 || astrcmpi(rate_control, "CBR") == 0;
@@ -228,6 +234,12 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
   bool use_bufsize = obs_data_get_bool(settings, "custom_buffer_size");
   p = obs_properties_get(ppts, "buffer_size");
   obs_property_set_visible(p, use_bufsize);
+
+  const char *hrd_conformance = obs_data_get_string(settings, "hrd_conformance");
+  bVisible = astrcmpi(hrd_conformance, "ON") == 0 ||
+             astrcmpi(hrd_conformance, "AUTO") == 0;
+  p = obs_properties_get(ppts, "low_delay_hrd");
+  obs_property_set_visible(p, bVisible);
 
   return true;
 }
@@ -364,6 +376,10 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   obs_property_set_long_description(prop,
                                     obs_module_text("BufferSize.ToolTip"));
 
+  prop = obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
+                                10000000, 50);
+  obs_property_int_set_suffix(prop, " Kbps");
+
   prop = obs_properties_add_int(props, "winbrc_max_avg_size",
                                 TEXT_WINBRC_MAX_AVG_SIZE, 0, 10000000, 50);
   obs_property_set_long_description(
@@ -374,10 +390,6 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
                                 10000, 1);
   obs_property_set_long_description(prop,
                                     obs_module_text("WinBrcSize.ToolTip"));
-
-  prop = obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
-                                10000000, 50);
-  obs_property_int_set_suffix(prop, " Kbps");
 
   obs_properties_add_int(props, "cqp", "CQP", 1,
                          codec == QSV_CODEC_AV1 ? 63 : 51, 1);
@@ -412,6 +424,14 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   add_strings(prop, qsv_params_condition_tristate);
   obs_property_set_long_description(prop,
                                     obs_module_text("HRDConformance.ToolTip"));
+  obs_property_set_modified_callback(prop, rate_control_modified);
+
+  prop = obs_properties_add_list(props, "low_delay_hrd", TEXT_LOW_DELAY_HRD,
+                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+  add_strings(prop, qsv_params_condition_tristate);
+  obs_property_set_long_description(prop,
+                                    obs_module_text("LowDelayHRD.ToolTip"));
+  obs_property_set_modified_callback(prop, rate_control_modified);
 
   if (codec != QSV_CODEC_VP9) {
     prop =
@@ -619,8 +639,12 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   bool cbr_override = obs_data_get_bool(settings, "cbr");
   int gop_ref_dist =
       static_cast<int>(obs_data_get_int(settings, "gop_ref_dist"));
+
   const char *hrd_conformance =
       obs_data_get_string(settings, "hrd_conformance");
+
+  const char *low_delay_hrd = obs_data_get_string(settings, "low_delay_hrd");
+
   const char *mbbrc = obs_data_get_string(settings, "mbbrc");
   const char *codec = "";
   const char *adaptive_i = obs_data_get_string(settings, "adaptive_i");
@@ -848,6 +872,12 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     rate_control = "CBR";
   }
 
+  if (astrcmpi(low_delay_hrd, "ON") == 0) {
+    obsqsv->params.bLowDelayHRD = true;
+  } else if (astrcmpi(low_delay_hrd, "OFF") == 0) {
+    obsqsv->params.bLowDelayHRD = false;
+  }
+
   if (astrcmpi(mv_overpic_boundaries, "ON") == 0) {
     obsqsv->params.nMotionVectorsOverPicBoundaries = true;
   } else if (astrcmpi(mv_overpic_boundaries, "OFF") == 0) {
@@ -938,7 +968,7 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
       if (gop_ref_dist > 8) {
         obsqsv->params.nLADepth = 8;
       } else {
-        obsqsv->params.nLADepth = gop_ref_dist;
+        obsqsv->params.nLADepth = static_cast<mfxU16>(gop_ref_dist);
       }
     }
   } else {
@@ -1269,11 +1299,6 @@ static void *obs_qsv_create_vp9(obs_data_t *settings, obs_encoder_t *encoder) {
   return obs_qsv_create(QSV_CODEC_VP9, settings, encoder, false);
 }
 
-static bool obs_qsv_encode_texture_available(const video_scale_info *info) {
-  return (info->format == VIDEO_FORMAT_NV12 ||
-          info->format == VIDEO_FORMAT_P010);
-}
-
 static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
                                 obs_encoder_t *encoder,
                                 const char *fallback_id) {
@@ -1286,11 +1311,11 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
                                        static_cast<const char *>(fallback_id));
   }
 
-  #if !defined(_WIN32) || !defined(_WIN64)
+#if !defined(_WIN32) || !defined(_WIN64)
   info(">>> unsupported platform for texture encode");
   return obs_encoder_create_rerouted(encoder,
                                      static_cast<const char *>(fallback_id));
-  #endif
+#endif
 
   if (codec == QSV_CODEC_AV1 && !adapters[ovi.adapter].supports_av1) {
     info(">>> cap on different device, fall back to non-texture "

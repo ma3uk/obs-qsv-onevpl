@@ -6,21 +6,26 @@
 hw_handle::hw_handle()
     : session(nullptr), tex_counter(), tex_pool(), handled_tex_pool() {}
 
-hw_handle::~hw_handle() { release_device(); }
+hw_handle::~hw_handle() {
+  release_tex();
+  release_device();
+}
 
 IDXGIAdapter *hw_handle::GetIntelDeviceAdapterHandle() {
   mfxU32 adapterNum = 0;
   mfxIMPL impl;
 
+  const std::array<mfxIMPL, 4> impls{MFX_IMPL_HARDWARE, MFX_IMPL_HARDWARE2,
+                                     MFX_IMPL_HARDWARE3, MFX_IMPL_HARDWARE4};
   MFXQueryIMPL(session, &impl);
 
   mfxIMPL baseImpl =
       MFX_IMPL_BASETYPE(impl); // Extract Media SDK base implementation type
 
   // get corresponding adapter number
-  for (mfxU8 i = 0; i < sizeof(implTypes) / sizeof(implTypes[0]); i++) {
-    if (implTypes[i].impl == baseImpl) {
-      adapterNum = implTypes[i].adapterID;
+  for (mfxU32 i = 0; i < sizeof(impls) / sizeof(impls[0]); i++) {
+    if (impls[i] == baseImpl) {
+      adapterNum = i;
       break;
     }
   }
@@ -54,28 +59,32 @@ mfxStatus hw_handle::create_device(mfxSession input_session) {
 
     hw_adapter = GetIntelDeviceAdapterHandle();
     if (nullptr == hw_adapter) {
-      return MFX_ERR_DEVICE_FAILED;
+      throw std::runtime_error("create_device(): Adapter is nullptr");
     }
 
-    UINT dxFlags = 0;
-    // UINT dxFlags = D3D11_CREATE_DEVICE_DEBUG;
+    //UINT dxFlags = 0;
+    UINT dxFlags =
+        /*D3D11_CREATE_DEVICE_DEBUG |*/ D3D11_CREATE_DEVICE_BGRA_SUPPORT |
+        D3D11_CREATE_DEVICE_DISABLE_GPU_TIMEOUT |
+        D3D11_CREATE_DEVICE_VIDEO_SUPPORT |
+        D3D11_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS;
 
     hr = D3D11CreateDevice(
         hw_adapter, D3D_DRIVER_TYPE_UNKNOWN, NULL, dxFlags, FeatureLevels,
         (sizeof(FeatureLevels) / sizeof(FeatureLevels[0])), D3D11_SDK_VERSION,
         &hw_device, &pFeatureLevelsOut, &hw_context);
     if (FAILED(hr)) {
-      error_hr("D3D11CreateDevice error");
-      return MFX_ERR_DEVICE_FAILED;
+      throw std::runtime_error("create_device(): D3D11CreateDevice error");
     }
 
-    // turn on multithreading for the DX11 context
-    CComQIPtr<ID3D10Multithread> p_mt(hw_context);
-    if (p_mt) {
-      p_mt->SetMultithreadProtected(true);
-    } else {
-      return MFX_ERR_DEVICE_FAILED;
+    ID3D10Multithread *pD10Multithread = nullptr;
+    hr = hw_context->QueryInterface(IID_ID3D10Multithread,
+                               reinterpret_cast<void **>(&pD10Multithread));
+    if (FAILED(hr)) {
+      throw std::runtime_error(
+          "create_device(): SetMultithreadProtected error");
     }
+    pD10Multithread->SetMultithreadProtected(true);
 
     device_handle = static_cast<mfxHDL>(hw_device);
   }
@@ -84,9 +93,6 @@ mfxStatus hw_handle::create_device(mfxSession input_session) {
 
 // Free HW device context
 void hw_handle::release_device() {
-  free_tex();
-  free_handled_tex();
-
   if (encoder_counter <= 0) {
     if (hw_adapter) {
       hw_adapter->Release();
@@ -129,7 +135,7 @@ mfxStatus hw_handle::allocate_tex(mfxFrameAllocRequest *request) {
   } else if (MFX_FOURCC_P010 == request->Info.FourCC) {
     format = DXGI_FORMAT_P010;
   } else {
-    return MFX_ERR_UNSUPPORTED;
+    throw std::runtime_error("allocate_tex(): Unsupported format");
   }
 
   D3D11_TEXTURE2D_DESC desc = {0};
@@ -154,8 +160,7 @@ mfxStatus hw_handle::allocate_tex(mfxFrameAllocRequest *request) {
     hr = hw_device->CreateTexture2D(&desc, nullptr, &pTexture2D);
 
     if (FAILED(hr)) {
-      error_hr("CreateTexture2D error");
-      return MFX_ERR_MEMORY_ALLOC;
+      throw std::runtime_error("allocate_tex(): CreateTexture2D error");
     }
     pTexture2D->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
@@ -190,16 +195,14 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
         reinterpret_cast<HANDLE>(static_cast<uintptr_t>(tex->handle)),
         IID_ID3D11Texture2D, reinterpret_cast<void **>(&input_tex));
     if (FAILED(hr)) {
-      error_hr("OpenSharedResource error");
-      return MFX_ERR_INVALID_HANDLE;
+      throw std::runtime_error("copy_tex(): OpenSharedResource error");
     }
 
     hr = input_tex->QueryInterface(IID_IDXGIKeyedMutex,
                                    reinterpret_cast<void **>(&km));
     if (FAILED(hr)) {
       input_tex->Release();
-      error_hr("QueryInterface error");
-      return MFX_ERR_INVALID_HANDLE;
+      throw std::runtime_error("copy_tex(): QueryInterface error");
     }
 
     input_tex->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
@@ -230,9 +233,10 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
 
 mfxStatus hw_handle::free_tex() {
   if (!tex_pool.empty()) {
-    for (mfxU32 i = 0; i < tex_pool.size(); i++) {
+    for (size_t i = 0; i < tex_pool.size(); i++) {
       if (tex_pool[i]) {
         tex_pool[i]->Release();
+        tex_pool[i] = nullptr;
       }
     }
 
@@ -245,11 +249,12 @@ mfxStatus hw_handle::free_tex() {
 
 mfxStatus hw_handle::free_handled_tex() {
   if (!handled_tex_pool.empty()) {
-    for (mfxU32 i = 0; i < handled_tex_pool.size(); i++) {
+    for (size_t i = 0; i < handled_tex_pool.size(); i++) {
       struct handled_texture *ht = std::move(&handled_tex_pool[i]);
       if (ht->texture) {
         ht->km->Release();
         ht->texture->Release();
+        ht = nullptr;
       }
     }
 
@@ -258,4 +263,9 @@ mfxStatus hw_handle::free_handled_tex() {
     handled_tex_pool.~vector();
   }
   return MFX_ERR_NONE;
+}
+
+void hw_handle::release_tex() {
+  free_tex();
+  free_handled_tex();
 }

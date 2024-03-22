@@ -1,17 +1,4 @@
 #pragma once
-#include "common_utils.hpp"
-#include <cstdint>
-#include <new>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
-#include <vector>
-#include <vpl/mfxbrc.h>
-#include <vpl/mfxcommon.h>
-#include <vpl/mfxdefs.h>
-#include <vpl/mfxstructures.h>
-#include <vpl/mfxsurfacepool.h>
-
 #ifndef __QSV_VPL_EXT_BUF_MANAGER_H__
 #define __QSV_VPL_EXT_BUF_MANAGER_H__
 #endif
@@ -24,7 +11,42 @@
 #ifndef __QSV_VPL_COMMON_UTILS_H__
 #include "helpers/common_utils.hpp"
 #endif
-
+#ifndef _CSTDINT_
+#include <cstdint>
+#endif
+#ifndef _NEW_
+#include <new>
+#endif
+#ifndef _STDEXCEPT_
+#include <stdexcept>
+#endif
+#ifndef _STRING_
+#include <string>
+#endif
+#ifndef _TYPE_TRAITS_
+#include <type_traits>
+#endif
+#ifndef _VECTOR_
+#include <vector>
+#endif
+#ifndef __MFXBRC_H__
+#include <vpl/mfxbrc.h>
+#endif
+#ifndef __MFXCOMMON_H__
+#include <vpl/mfxcommon.h>
+#endif
+#ifndef __MFXDEFS_H__
+#include <vpl/mfxdefs.h>
+#endif
+#ifndef __MFXSTRUCTURES_H__
+#include <vpl/mfxstructures.h>
+#endif
+#ifndef __MFX_SURFACE_POOL_H__
+#include <vpl/mfxsurfacepool.h>
+#endif
+#ifndef __QSV_VPL_COMMON_UTILS_H__
+#include "helpers/common_utils.hpp"
+#endif
 #ifndef __MFXAV1_H__
 #include <vpl/private/mfxav1.h>
 #endif

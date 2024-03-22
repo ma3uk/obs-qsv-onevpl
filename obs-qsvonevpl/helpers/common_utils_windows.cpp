@@ -1,15 +1,6 @@
 #include "common_utils.hpp"
 
-#include "hw_d3d11.hpp"
 
-#include <util/config-file.h>
-#include <util/dstr.h>
-#include <util/pipe.h>
-#include <util/platform.h>
-#include <util/windows/device-enum.h>
-
-#include <intrin.h>
-#include <inttypes.h>
 
 void Release() {
 #if defined(_WIN32) || defined(_WIN64)
@@ -28,7 +19,7 @@ static bool enum_luids(void *param, uint32_t idx, uint64_t luid) {
   return true;
 }
 
-void check_adapters(struct adapter_info *adapters, size_t *adapter_count) {
+void check_adapters(struct adapter_info *adapters_info, size_t *adapters_count) {
   char *test_exe = os_get_executable_path_ptr("obs-qsv-test.exe");
   struct dstr cmd = {0};
   struct dstr caps_str = {0};
@@ -79,14 +70,14 @@ void check_adapters(struct adapter_info *adapters, size_t *adapter_count) {
 
   config_adapter_count = config_num_sections(config);
 
-  if (config_adapter_count < *adapter_count)
-    *adapter_count = config_adapter_count;
+  if (config_adapter_count < *adapters_count)
+    *adapters_count = config_adapter_count;
 
-  for (size_t i = 0; i < *adapter_count; i++) {
+  for (size_t i = 0; i < *adapters_count; i++) {
     char section[16];
     snprintf(section, sizeof(section), "%d", (int)i);
 
-    struct adapter_info *adapter = &adapters[i];
+    struct adapter_info *adapter = &adapters_info[i];
     adapter->is_intel = config_get_bool(config, section, "is_intel");
     adapter->is_dgpu = config_get_bool(config, section, "is_dgpu");
     adapter->supports_av1 = config_get_bool(config, section, "supports_av1");

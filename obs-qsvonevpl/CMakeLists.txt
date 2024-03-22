@@ -57,7 +57,7 @@ if(WIN32)
   target_sources(
     obs-qsvonevpl
     PRIVATE # cmake-format: sortable
-    bits/windows_defs.h
+    bits/windows_defs.hpp
     helpers/hw_d3d11.cpp
     helpers/hw_d3d11.hpp
     helpers/common_utils_windows.cpp)
@@ -93,7 +93,7 @@ elseif(UNIX AND NOT APPLE)
   target_sources(
     obs-qsvonevpl
     PRIVATE # cmake-format: sortable
-    bits/linux_defs.h
+    bits/linux_defs.hpp
     helpers/common_utils_linux.cpp)
 
   target_link_libraries(obs-qsvonevpl PRIVATE va va-drm va-wayland va-x11)

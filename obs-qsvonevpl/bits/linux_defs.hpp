@@ -12,4 +12,9 @@
 #include <obs-nix-platform.h>
 #include <va/va_wayland.h>
 #include <va/va_x11.h>
+#include <va/va_drm.h>
+#include <va/va_str.h>
+#include <va/va_drmcommon.h>
+
+#include <util/bmem.h>
 #endif
