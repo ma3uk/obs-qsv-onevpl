@@ -1917,23 +1917,11 @@ mfxStatus QSV_VPL_Encoder_Internal::Encode(mfxU64 ts, uint8_t **frame_data,
 mfxStatus QSV_VPL_Encoder_Internal::Drain() {
   mfxStatus sts = MFX_ERR_NONE;
 
-  for (int i = 0; i < mfx_TaskPoolSize; i++) {
-    if (mfx_TaskPool[i].mfxBS.Data != nullptr) {
-      for (;;) {
-        sts = mfx_VideoEnc->EncodeFrameAsync(
-            nullptr, nullptr, &mfx_TaskPool[i].mfxBS, &mfx_TaskPool[i].syncp);
-        if (sts == MFX_ERR_NONE) {
-          // We continue until we get MFX_ERR_MORE_DATA
-        } else if (sts == MFX_ERR_MORE_DATA) {
-          mfx_TaskPool[i].mfxBS.Data = nullptr;
-          break;
-        } else {
-          warn("Drain(): The Task #%d buffer was released with an error %d", i,
-               sts);
-          break;
-        }
-      }
-    }
+  if (mfx_TaskPool[mfx_SyncTaskID].syncp != nullptr) {
+    sts = MFXVideoCORE_SyncOperation(mfx_Session,
+                                     mfx_TaskPool[mfx_SyncTaskID].syncp, 100);
+
+    mfx_TaskPool[mfx_SyncTaskID].syncp = nullptr;
   }
 
   return sts;
@@ -1945,12 +1933,14 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData() {
     Drain();
 
     if (mfx_VideoEnc) {
-      mfxU32 CurrentRefCount = 0;
-      sts = mfx_EncSurface->FrameInterface->GetRefCounter(mfx_EncSurface,
-                                                          &CurrentRefCount);
-      if (sts >= MFX_ERR_NONE && CurrentRefCount > 0) {
-        for (size_t i = 0; i < CurrentRefCount; i++) {
-          mfx_EncSurface->FrameInterface->Release(mfx_EncSurface);
+      if (mfx_EncSurfaceRefCount > 0) {
+        mfxU32 CurrentRefCount = 0;
+        sts = mfx_EncSurface->FrameInterface->GetRefCounter(mfx_EncSurface,
+                                                            &CurrentRefCount);
+        if (sts >= MFX_ERR_NONE && CurrentRefCount > 0) {
+          for (size_t i = 0; i < CurrentRefCount; i++) {
+            mfx_EncSurface->FrameInterface->Release(mfx_EncSurface);
+          }
         }
       }
 
@@ -2003,16 +1993,16 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData() {
 
     if (mfx_UseTexAlloc) {
       hw->release_tex();
-    }
 
-    if (hw_handle::encoder_counter <= 0) {
-      try {
-        hw->release_device();
-        delete hw;
-        hw = nullptr;
-        hw_handle::encoder_counter = 0;
-      } catch (const std::bad_alloc &) {
-        throw;
+      if (hw_handle::encoder_counter <= 0) {
+        try {
+          hw->release_device();
+          delete hw;
+          hw = nullptr;
+          hw_handle::encoder_counter = 0;
+        } catch (const std::bad_alloc &) {
+          throw;
+        }
       }
     }
   } catch (const std::exception &) {
