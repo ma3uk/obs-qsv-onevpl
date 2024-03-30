@@ -66,7 +66,7 @@ auto TEXT_INTRA_REF_ENCODING = obs_module_text("IntraRefEncoding");
 auto TEXT_INTRA_REF_CYCLE_SIZE = obs_module_text("IntraRefCycleSize");
 auto TEXT_INTRA_REF_QP_DELTA = obs_module_text("IntraRefQPDelta");
 
-auto TEXT_GPU_NUMBER = obs_module_text("gpu_number");
+auto TEXT_GPU_NUMBER = obs_module_text("Select GPU");
 
 static void obs_qsv_defaults(obs_data_t *settings, int ver,
                              enum qsv_codec codec) {
@@ -623,7 +623,7 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
     obs_property_set_long_description(prop, obs_module_text("SAO.ToolTip"));
   }
 
-  prop = obs_properties_add_int(props, "Select GPU", TEXT_GPU_NUMBER, 0, 4, 1);
+  prop = obs_properties_add_int(props, "gpu_number", TEXT_GPU_NUMBER, 0, 4, 1);
   obs_property_set_long_description(prop, obs_module_text("GPUNumber.Tooltip"));
   obs_property_long_description(prop);
 
