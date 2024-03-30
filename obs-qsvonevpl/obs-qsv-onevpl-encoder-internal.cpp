@@ -4,12 +4,12 @@ QSV_VPL_Encoder_Internal::QSV_VPL_Encoder_Internal()
     : mfx_Platform(), mfx_Version(), mfx_Loader(), mfx_LoaderConfig(),
       mfx_LoaderVariant(), mfx_Session(nullptr), mfx_EncSurface(),
       mfx_EncSurfaceRefCount(), mfx_VPPSurface(), mfx_VideoEnc(nullptr),
-      mfx_VideoVPP(), VPS_Buffer(), SPS_Buffer(), PPS_Buffer(),
+      mfx_VideoVPP(nullptr), VPS_Buffer(), SPS_Buffer(), PPS_Buffer(),
       VPS_BufferSize(1024), SPS_BufferSize(1024), PPS_BufferSize(1024),
-      mfx_Bitstream(), mfx_TaskPoolSize(0), mfx_TaskPool(), mfx_SyncTaskID(),
-      mfx_ResetParams(), ResetParamChanged(false), mfx_EncParams(),
-      mfx_EncCtrlParams(), mfx_AllocRequest(), mfx_UseTexAlloc(),
-      mfx_MemoryInterface(), hw(), mfx_VPP() {}
+      mfx_Bitstream(), /*mfx_TaskPoolSize(0),*/ mfx_TaskPool(),
+      mfx_SyncTaskID(), mfx_ResetParams(), ResetParamChanged(false),
+      mfx_EncParams(), mfx_EncCtrlParams(), mfx_AllocRequest(),
+      mfx_UseTexAlloc(), mfx_MemoryInterface(), hw(nullptr), mfx_VPP() {}
 
 QSV_VPL_Encoder_Internal::~QSV_VPL_Encoder_Internal() {
   if (mfx_VideoEnc || mfx_VideoVPP) {
@@ -38,7 +38,7 @@ mfxStatus QSV_VPL_Encoder_Internal::GetVPLVersion(mfxVersion &version) {
 
 mfxStatus
 QSV_VPL_Encoder_Internal::Initialize([[maybe_unused]] enum qsv_codec codec,
-                                     [[maybe_unused]] void **data) {
+                                     [[maybe_unused]] void **data, int GPUNum) {
   mfxStatus sts = MFX_ERR_NONE;
 
   // Initialize Intel VPL Session
@@ -146,7 +146,7 @@ QSV_VPL_Encoder_Internal::Initialize([[maybe_unused]] enum qsv_codec codec,
         mfx_LoaderVariant[6]);
   }
 
-  sts = MFXCreateSession(mfx_Loader, 0, &mfx_Session);
+  sts = MFXCreateSession(mfx_Loader, (GPUNum > 0 ? GPUNum : 0), &mfx_Session);
   if (sts < MFX_ERR_NONE) {
     error("Error code: %d", sts);
     throw std::runtime_error("Initialize(): MFXCreateSession error");
@@ -154,6 +154,7 @@ QSV_VPL_Encoder_Internal::Initialize([[maybe_unused]] enum qsv_codec codec,
 
   if (mfx_UseTexAlloc) {
 #if defined(_WIN32) || defined(_WIN64)
+    hw = std::make_unique<hw_handle>(hw_handle());
     // Create DirectX device context
     if (hw->device_handle == nullptr) {
       try {
@@ -196,14 +197,13 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
                                          bool useTexAlloc) {
   mfxStatus sts = MFX_ERR_NONE;
 
-  hw = new hw_handle();
-
   mfx_UseTexAlloc = useTexAlloc;
   mfx_VPP = pParams->bVPPEnable;
   try {
-    sts = Initialize(codec, nullptr);
+    sts = Initialize(codec, nullptr, pParams->nGPUNum);
 
-    mfx_VideoEnc = new MFXVideoENCODE(mfx_Session);
+    mfx_VideoEnc =
+        std::make_unique<MFXVideoENCODE>(MFXVideoENCODE(mfx_Session));
 
     sts = InitEncParams(pParams, codec);
 
@@ -212,7 +212,7 @@ mfxStatus QSV_VPL_Encoder_Internal::Open(qsv_param_t *pParams,
     sts = mfx_VideoEnc->Init(&mfx_EncParams);
 
     if (mfx_VPP) {
-      mfx_VideoVPP = new MFXVideoVPP(mfx_Session);
+      mfx_VideoVPP = std::make_unique<MFXVideoVPP>(MFXVideoVPP(mfx_Session));
 
       sts = InitVPPParams(pParams, codec);
 
@@ -1363,38 +1363,34 @@ QSV_VPL_Encoder_Internal::InitBitstream([[maybe_unused]] enum qsv_codec codec) {
 mfxStatus
 QSV_VPL_Encoder_Internal::InitTaskPool([[maybe_unused]] enum qsv_codec codec) {
   try {
-    mfx_TaskPoolSize = mfx_EncParams.AsyncDepth;
     mfx_SyncTaskID = 0;
+    Task NewTask = {};
+    mfx_TaskPool.reserve(mfx_EncParams.AsyncDepth);
 
-    mfx_TaskPool = new Task[mfx_TaskPoolSize];
-    memset(mfx_TaskPool, 0, sizeof(Task) * mfx_TaskPoolSize);
-
-    for (int i = 0; i < mfx_TaskPoolSize; i++) {
-      mfx_TaskPool[i].mfxBS.MaxLength =
+    for (int i = 0; i < mfx_EncParams.AsyncDepth; i++) {
+      NewTask.mfxBS.MaxLength =
           static_cast<mfxU32>(mfx_EncParams.mfx.BufferSizeInKB * 1000 * 10);
-      mfx_TaskPool[i].mfxBS.DataOffset = 0;
-      mfx_TaskPool[i].mfxBS.DataLength = 0;
+      NewTask.mfxBS.DataOffset = 0;
+      NewTask.mfxBS.DataLength = 0;
 #if defined(_WIN32) || defined(_WIN64)
-      if (nullptr ==
-          (mfx_TaskPool[i].mfxBS.Data = static_cast<mfxU8 *>(
-               _aligned_malloc(mfx_TaskPool[i].mfxBS.MaxLength, 32)))) {
+      if (nullptr == (NewTask.mfxBS.Data = static_cast<mfxU8 *>(
+                          _aligned_malloc(NewTask.mfxBS.MaxLength, 32)))) {
         throw std::runtime_error(
             "InitTaskPool(): Task memory allocation error");
       }
 #elif defined(__linux__)
-      if (nullptr ==
-          (mfx_TaskPool[i].mfxBS.Data = static_cast<mfxU8 *>(
-               aligned_alloc(32, mfx_TaskPool[i].mfxBS.MaxLength)))) {
+      if (nullptr == (NewTask.mfxBS.Data = static_cast<mfxU8 *>(
+                          aligned_alloc(32, NewTask.mfxBS.MaxLength)))) {
         throw std::runtime_error(
             "InitTaskPool(): Task memory allocation error");
       }
 #endif
+      info("\tTask #%d bitstream size: %d", i, NewTask.mfxBS.MaxLength / 1000);
 
-      info("\tTask #%d bitstream size: %d", i,
-           mfx_TaskPool[i].mfxBS.MaxLength / 1000);
+      mfx_TaskPool.push_back(std::move(NewTask));
     }
 
-    info("\tTaskPool count: %d", mfx_TaskPoolSize);
+    info("\tTaskPool count: %d", mfx_TaskPool.size());
 
   } catch (const std::bad_alloc &) {
     throw;
@@ -1440,13 +1436,15 @@ void QSV_VPL_Encoder_Internal::ReleaseTask(int TaskID) {
 }
 
 void QSV_VPL_Encoder_Internal::ReleaseTaskPool() {
-  if (mfx_TaskPool != nullptr && mfx_TaskPoolSize > 0) {
+  if (!mfx_TaskPool.empty()) {
     try {
-      for (int i = 0; i < mfx_TaskPoolSize; i++) {
+      for (int i = 0; i < mfx_TaskPool.size(); i++) {
         ReleaseTask(i);
       }
-      delete[] mfx_TaskPool;
-      mfx_TaskPool = nullptr;
+
+      mfx_TaskPool.clear();
+      mfx_TaskPool.shrink_to_fit();
+
     } catch (const std::bad_alloc &) {
       throw;
     } catch (const std::exception &) {
@@ -1467,19 +1465,19 @@ mfxStatus QSV_VPL_Encoder_Internal::ChangeBitstreamSize(mfxU32 NewSize) {
           "ChangeBitstreamSize(): Bitstream memory allocation error");
     }
 
-    mfxU32 nDataLen = mfx_Bitstream.DataLength;
+    mfxU32 nDataLen = std::move(mfx_Bitstream.DataLength);
     if (mfx_Bitstream.DataLength) {
       memcpy(pData, mfx_Bitstream.Data + mfx_Bitstream.DataOffset,
              std::min(nDataLen, NewSize));
     }
     ReleaseBitstream();
 
-    mfx_Bitstream.Data = pData;
+    mfx_Bitstream.Data = std::move(pData);
     mfx_Bitstream.DataOffset = 0;
-    mfx_Bitstream.DataLength = static_cast<mfxU32>(nDataLen);
-    mfx_Bitstream.MaxLength = static_cast<mfxU32>(NewSize);
+    mfx_Bitstream.DataLength = std::move(static_cast<mfxU32>(nDataLen));
+    mfx_Bitstream.MaxLength = std::move(static_cast<mfxU32>(NewSize));
 
-    for (int i = 0; i < mfx_TaskPoolSize; i++) {
+    for (int i = 0; i < mfx_TaskPool.size(); i++) {
 #if defined(_WIN32) || defined(_WIN64)
       mfxU8 *pTaskData = static_cast<mfxU8 *>(_aligned_malloc(NewSize, 32));
 #elif defined(__linux__)
@@ -1490,7 +1488,7 @@ mfxStatus QSV_VPL_Encoder_Internal::ChangeBitstreamSize(mfxU32 NewSize) {
             "ChangeBitstreamSize(): Task memory allocation error");
       }
 
-      mfxU32 nTaskDataLen = mfx_TaskPool[i].mfxBS.DataLength;
+      mfxU32 nTaskDataLen = std::move(mfx_TaskPool[i].mfxBS.DataLength);
       if (mfx_TaskPool[i].mfxBS.DataLength) {
         memcpy(pTaskData,
                mfx_TaskPool[i].mfxBS.Data + mfx_TaskPool[i].mfxBS.DataOffset,
@@ -1498,10 +1496,11 @@ mfxStatus QSV_VPL_Encoder_Internal::ChangeBitstreamSize(mfxU32 NewSize) {
       }
       ReleaseTask(i);
 
-      mfx_TaskPool[i].mfxBS.Data = pTaskData;
+      mfx_TaskPool[i].mfxBS.Data = std::move(pTaskData);
       mfx_TaskPool[i].mfxBS.DataOffset = 0;
-      mfx_TaskPool[i].mfxBS.DataLength = static_cast<mfxU32>(nTaskDataLen);
-      mfx_TaskPool[i].mfxBS.MaxLength = static_cast<mfxU32>(NewSize);
+      mfx_TaskPool[i].mfxBS.DataLength =
+          std::move(static_cast<mfxU32>(nTaskDataLen));
+      mfx_TaskPool[i].mfxBS.MaxLength = std::move(static_cast<mfxU32>(NewSize));
     }
 
   } catch (const std::bad_alloc &) {
@@ -1662,10 +1661,10 @@ void QSV_VPL_Encoder_Internal::ClearROI() {
 }
 
 mfxStatus QSV_VPL_Encoder_Internal::GetFreeTaskIndex(int *TaskID) {
-  if (mfx_TaskPool != nullptr) {
-    for (int i = 0; i < mfx_TaskPoolSize; i++) {
+  if (!mfx_TaskPool.empty()) {
+    for (int i = 0; i < mfx_TaskPool.size(); i++) {
       if (static_cast<mfxSyncPoint>(nullptr) == mfx_TaskPool[i].syncp) {
-        mfx_SyncTaskID = (i + 1) % static_cast<int>(mfx_TaskPoolSize);
+        mfx_SyncTaskID = (i + 1) % static_cast<int>(mfx_TaskPool.size());
         *TaskID = i;
         return MFX_ERR_NONE;
       }
@@ -1947,12 +1946,7 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData() {
       mfx_EncParams.~ExtBufManager();
       sts = mfx_VideoEnc->Close();
       if (sts >= MFX_ERR_NONE) {
-        try {
-          delete mfx_VideoEnc;
-          mfx_VideoEnc = nullptr;
-        } catch (const std::bad_alloc &) {
-          throw;
-        }
+        mfx_VideoEnc = nullptr;
       }
     }
 
@@ -1960,12 +1954,7 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData() {
       mfx_VPPParams.~ExtBufManager();
       sts = mfx_VideoVPP->Close();
       if (sts >= MFX_ERR_NONE) {
-        try {
-          delete mfx_VideoVPP;
-          mfx_VideoVPP = nullptr;
-        } catch (const std::bad_alloc &) {
-          throw;
-        }
+        mfx_VideoVPP = nullptr;
       }
     }
 
@@ -1995,14 +1984,9 @@ mfxStatus QSV_VPL_Encoder_Internal::ClearData() {
       hw->release_tex();
 
       if (hw_handle::encoder_counter <= 0) {
-        try {
-          hw->release_device();
-          delete hw;
-          hw = nullptr;
-          hw_handle::encoder_counter = 0;
-        } catch (const std::bad_alloc &) {
-          throw;
-        }
+        hw->release_device();
+        hw = nullptr;
+        hw_handle::encoder_counter = 0;
       }
     }
   } catch (const std::exception &) {

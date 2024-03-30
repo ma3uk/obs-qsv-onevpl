@@ -194,6 +194,8 @@ struct qsv_param_t {
 
   mfxU32 nFourCC;
   mfxU16 nChromaFormat;
+
+  int nGPUNum;
 };
 
 template <typename T>

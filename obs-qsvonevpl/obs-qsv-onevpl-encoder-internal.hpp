@@ -39,12 +39,12 @@ public:
   bool UpdateParams(struct qsv_param_t *pParams);
 
 protected:
-  typedef struct {
+  typedef struct Task {
     mfxBitstream mfxBS;
     mfxSyncPoint syncp;
   } Task;
 
-  mfxStatus Initialize(enum qsv_codec codec, [[maybe_unused]] void **data);
+  mfxStatus Initialize(enum qsv_codec codec, [[maybe_unused]] void **data, int GPUNum);
 
   mfxStatus InitVPPParams(struct qsv_param_t *pParams, enum qsv_codec codec);
   mfxStatus InitEncParams(struct qsv_param_t *pParams, enum qsv_codec codec);
@@ -80,8 +80,8 @@ private:
 
   mfxFrameSurface1 *mfx_VPPSurface;
 
-  MFXVideoENCODE *mfx_VideoEnc;
-  MFXVideoVPP *mfx_VideoVPP;
+  std::unique_ptr<MFXVideoENCODE> mfx_VideoEnc;
+  std::unique_ptr<MFXVideoVPP> mfx_VideoVPP;
 
   mfxU8 VPS_Buffer[1024];
   mfxU8 SPS_Buffer[1024];
@@ -91,8 +91,8 @@ private:
   mfxU16 PPS_BufferSize;
 
   mfxBitstream mfx_Bitstream;
-  mfxU16 mfx_TaskPoolSize;
-  Task *mfx_TaskPool;
+  //mfxU16 mfx_TaskPoolSize;
+  std::vector<struct Task> mfx_TaskPool;
   int mfx_SyncTaskID;
 
   mfxVideoParam mfx_ResetParams;
@@ -107,7 +107,7 @@ private:
   bool mfx_UseTexAlloc;
   mfxMemoryInterface *mfx_MemoryInterface;
 
-  hw_handle *hw;
+  std::unique_ptr<hw_handle> hw;
 
   bool mfx_VPP;
 };

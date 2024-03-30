@@ -66,6 +66,8 @@ auto TEXT_INTRA_REF_ENCODING = obs_module_text("IntraRefEncoding");
 auto TEXT_INTRA_REF_CYCLE_SIZE = obs_module_text("IntraRefCycleSize");
 auto TEXT_INTRA_REF_QP_DELTA = obs_module_text("IntraRefQPDelta");
 
+auto TEXT_GPU_NUMBER = obs_module_text("gpu_number");
+
 static void obs_qsv_defaults(obs_data_t *settings, int ver,
                              enum qsv_codec codec) {
   obs_data_set_default_string(settings, "target_usage", "TU4 (Balanced)");
@@ -134,6 +136,8 @@ static void obs_qsv_defaults(obs_data_t *settings, int ver,
   obs_data_set_default_string(settings, "image_stab_mode", "OFF");
   obs_data_set_default_string(settings, "scaling_mode", "OFF");
   obs_data_set_default_string(settings, "perc_enc_prefilter", "OFF");
+
+  obs_data_set_default_int(settings, "gpu_number", 0);
 }
 
 static inline void add_strings(obs_property_t *list,
@@ -235,7 +239,8 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
   p = obs_properties_get(ppts, "buffer_size");
   obs_property_set_visible(p, use_bufsize);
 
-  const char *hrd_conformance = obs_data_get_string(settings, "hrd_conformance");
+  const char *hrd_conformance =
+      obs_data_get_string(settings, "hrd_conformance");
   bVisible = astrcmpi(hrd_conformance, "ON") == 0 ||
              astrcmpi(hrd_conformance, "AUTO") == 0;
   p = obs_properties_get(ppts, "low_delay_hrd");
@@ -618,6 +623,10 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
     obs_property_set_long_description(prop, obs_module_text("SAO.ToolTip"));
   }
 
+  prop = obs_properties_add_int(props, "Select GPU", TEXT_GPU_NUMBER, 0, 4, 1);
+  obs_property_set_long_description(prop, obs_module_text("GPUNumber.Tooltip"));
+  obs_property_long_description(prop);
+
   return props;
 }
 
@@ -701,6 +710,10 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
       obs_data_get_string(settings, "image_stab_mode");
   const char *perc_enc_prefilter =
       obs_data_get_string(settings, "perc_enc_prefilter");
+
+  int gpu_number = static_cast<int>(obs_data_get_int(settings, "gpu_number"));
+
+  obsqsv->params.nGPUNum = gpu_number;
 
   if (astrcmpi(target_usage, "TU1 (Veryslow)") == 0) {
     obsqsv->params.nTargetUsage = MFX_TARGETUSAGE_1;
@@ -1307,6 +1320,14 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
 
   if (!adapters[ovi.adapter].is_intel) {
     info(">>> app not on intel GPU, fall back to old qsv encoder");
+    return obs_encoder_create_rerouted(encoder,
+                                       static_cast<const char *>(fallback_id));
+  }
+
+  if (static_cast<int>(obs_data_get_int(settings, "gpu_number")) > 0) {
+    info(">>> custom GPU is selected. OBS Studio does not support "
+         "transferring textures to third-party adapters, fall back to "
+         "non-texture");
     return obs_encoder_create_rerouted(encoder,
                                        static_cast<const char *>(fallback_id));
   }

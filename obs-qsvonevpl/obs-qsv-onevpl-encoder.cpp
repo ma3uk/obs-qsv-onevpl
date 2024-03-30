@@ -85,29 +85,13 @@ void qsv_encoder_version(unsigned short *major, unsigned short *minor) {
 
 qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec,
                         bool useTexAlloc) {
-  obs_video_info ovi;
-  obs_get_video_info(&ovi);
-  auto adapter_idx = ovi.adapter;
-
-  // Select current adapter - will be iGPU if exists due to adapter reordering
-  if (codec == QSV_CODEC_AV1 && !adapters[adapter_idx].supports_av1) {
-    for (uint32_t i = 0; i < 4; ++i) {
-      if (adapters[i].supports_av1) {
-        adapter_idx = i;
-        break;
-      }
-    }
-  } else if (!adapters[adapter_idx].is_intel) {
-    for (uint32_t i = 0; i < 4; ++i) {
-      if (adapters[i].is_intel) {
-        adapter_idx = i;
-        break;
-      }
-    }
-  }
-  info("\tSelected adapter: %d", adapter_idx);
-
   QSV_VPL_Encoder_Internal *pEncoder = new QSV_VPL_Encoder_Internal();
+
+  if (pParams->nGPUNum > 0) {
+    useTexAlloc = false;
+  }
+
+  info("\tSelected adapter: %d", pParams->nGPUNum);
 
   try {
     pEncoder->GetVPLVersion(ver);

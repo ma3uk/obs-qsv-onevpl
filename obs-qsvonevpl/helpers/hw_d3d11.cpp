@@ -48,7 +48,7 @@ IDXGIAdapter *hw_handle::GetIntelDeviceAdapterHandle() {
 // Create HW device context
 mfxStatus hw_handle::create_device(mfxSession input_session) {
   session = std::move(input_session);
-  if (encoder_counter == 0) {
+  if (encoder_counter <= 0) {
 
     HRESULT hr = S_OK;
 
@@ -180,17 +180,18 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
   struct encoder_texture *tex =
       std::move(static_cast<struct encoder_texture *>(tex_handle));
 
-  for (size_t i = 0; i < handled_tex_pool.size(); i++) {
-    struct handled_texture *ht = std::move(&handled_tex_pool[i]);
-    if (ht->handle == tex->handle) {
-      input_tex = ht->texture;
-      km = ht->km;
-      break;
+  if (!handled_tex_pool.empty()) {
+    for (size_t i = 0; i < handled_tex_pool.size(); i++) {
+      struct handled_texture *ht = std::move(&handled_tex_pool[i]);
+      if (ht->handle == tex->handle) {
+        input_tex = ht->texture;
+        km = ht->km;
+        break;
+      }
     }
   }
 
-  if (!input_tex) {
-
+  if (handled_tex_pool.empty() || !input_tex) {
     hr = hw_device->OpenSharedResource(
         reinterpret_cast<HANDLE>(static_cast<uintptr_t>(tex->handle)),
         IID_ID3D11Texture2D, reinterpret_cast<void **>(&input_tex));
@@ -208,11 +209,16 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
     input_tex->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
     struct handled_texture new_ht = {std::move(tex->handle), input_tex, km};
+
+    if (handled_tex_pool.empty()) {
+      handled_tex_pool.reserve(11);
+    }
+
     handled_tex_pool.push_back(std::move(new_ht));
   }
-  // warn("Handled size: %d, Tex size: %d", handled_tex_pool.size(),
-  //      tex_pool.size());
-  // info("-------------------");
+   //warn("Handled size: %d, Tex size: %d", handled_tex_pool.size(),
+   //     tex_pool.size());
+   //info("-------------------");
   km->AcquireSync(lock_key, INFINITE);
 
   D3D11_TEXTURE2D_DESC desc = {0};
