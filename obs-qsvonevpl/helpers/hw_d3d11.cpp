@@ -85,6 +85,7 @@ mfxStatus hw_handle::create_device(mfxSession input_session) {
           "create_device(): SetMultithreadProtected error");
     }
     pD10Multithread->SetMultithreadProtected(true);
+    pD10Multithread->Release();
 
     device_handle = static_cast<mfxHDL>(hw_device);
   }
@@ -154,9 +155,9 @@ mfxStatus hw_handle::allocate_tex(mfxFrameAllocRequest *request) {
 
   ID3D11Texture2D *pTexture2D = nullptr;
   // Create textures
-  tex_pool.reserve(request->NumFrameSuggested);
+  tex_pool.reserve(request->NumFrameSuggested + 100);
 
-  for (size_t i = 0; i < request->NumFrameSuggested; i++) {
+  for (size_t i = 0; i < request->NumFrameSuggested + 100; i++) {
     hr = hw_device->CreateTexture2D(&desc, nullptr, &pTexture2D);
 
     if (FAILED(hr)) {
@@ -211,7 +212,7 @@ mfxStatus hw_handle::copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
     struct handled_texture new_ht = {std::move(tex->handle), input_tex, km};
 
     if (handled_tex_pool.empty()) {
-      handled_tex_pool.reserve(11);
+      handled_tex_pool.reserve(240);
     }
 
     handled_tex_pool.push_back(std::move(new_ht));

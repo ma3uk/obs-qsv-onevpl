@@ -190,6 +190,9 @@ struct qsv_param_t {
   std::optional<bool> nMotionVectorsOverPicBoundaries;
   std::optional<int> nTuneQualityMode;
   std::optional<int> nNumRefFrameLayers;
+  std::optional<int> nNumRefActiveP;
+  std::optional<int> nNumRefActiveBL0;
+  std::optional<int> nNumRefActiveBL1;
   std::optional<int> nSAO;
 
   mfxU32 nFourCC;

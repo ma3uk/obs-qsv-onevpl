@@ -20,6 +20,9 @@ auto TEXT_KEYINT_SEC = obs_module_text("KeyframeIntervalSec");
 auto TEXT_GOP_REF_DIST = obs_module_text("GOPRefDist");
 auto TEXT_MBBRC = obs_module_text("MBBRC");
 auto TEXT_NUM_REF_FRAME = obs_module_text("NumRefFrame");
+auto TEXT_NUM_REF_ACTIVE_P = obs_module_text("NumRefActiveP");
+auto TEXT_NUM_REF_ACTIVE_BL0 = obs_module_text("NumRefActiveBL0");
+auto TEXT_NUM_REF_ACTIVE_BL1 = obs_module_text("NumRefActiveBL1");
 auto TEXT_LA_DS = obs_module_text("LookaheadDownSampling");
 auto TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT =
     obs_module_text("GlobalMotionBiasAdjustment");
@@ -206,9 +209,9 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
     p = obs_properties_get(ppts, "lookahead_latency");
     obs_property_set_visible(p, (bLAOptVisibleHQ && bLAVisible));
 
-    if ((bLAOptVisibleHQ && bLAVisible)) {
-      obs_data_set_string(settings, "hrd_conformance", "OFF");
-    }
+    // if ((bLAOptVisibleHQ && bLAVisible)) {
+    //   obs_data_set_string(settings, "hrd_conformance", "OFF");
+    // }
 
     if (bLAOptVisibleLP) {
       obs_data_set_string(settings, "enctools", "OFF");
@@ -593,7 +596,14 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
   obs_property_set_modified_callback(prop, rate_control_modified);
-  obs_property_set_long_description(prop, obs_module_text("LowPower.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text(
+                "Hint to enable low power consumption mode for encoders. \n "
+                "Intel Arc graphics adapters only work with the LowPower \n"
+                "parameter enabled, changing the state of the parameter will \n"
+                "not affect operation. The integrated Intel UHD graphics can \n"
+                "work in both modes, the available functionality may vary \n"
+                "depending on the state of the parameter."));
 
   if (codec != QSV_CODEC_AV1) {
     prop = obs_properties_add_list(props, "intra_ref_encoding",
@@ -623,8 +633,44 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
     obs_property_set_long_description(prop, obs_module_text("SAO.ToolTip"));
   }
 
+  prop = obs_properties_add_int_slider(props, "num_ref_active_p",
+                                TEXT_NUM_REF_ACTIVE_P, 0,
+                                (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Max number of active references for P-frames. \nThe set values "
+          "can cause frame drops. Do not touch the values \n"
+          "of this parameter if you are not sure what you are doing."));
+
+  prop = obs_properties_add_int_slider(props, "num_ref_active_bl0",
+                                TEXT_NUM_REF_ACTIVE_BL0, 0,
+                                (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Max number of active references for B-frames in reference \n"
+          "picture list 0. The set values can cause frame drops. Do not \n"
+          "touch the values \n"
+          "of this parameter if you are not sure what you are doing."));
+
+  prop = obs_properties_add_int_slider(props, "num_ref_active_bl1",
+                                TEXT_NUM_REF_ACTIVE_BL1, 0,
+                                (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Max number of active references for B-frames in reference "
+          "picture list 1. \n The set values can cause frame drops. Do not \n"
+          "touch the values \n"
+          "of this parameter if you are not sure what you are doing."));
+  obs_property_long_description(prop);
   prop = obs_properties_add_int(props, "gpu_number", TEXT_GPU_NUMBER, 0, 4, 1);
-  obs_property_set_long_description(prop, obs_module_text("GPUNumber.Tooltip"));
+  obs_property_set_long_description(
+      prop, obs_module_text(
+                "Choosing a graphics adapter for multi-GPU systems. \n The "
+                "number of the adapter you need may vary depending on \n"
+                "the priority set by the system"));
   obs_property_long_description(prop);
 
   return props;
@@ -670,6 +716,12 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   const char *trellis = obs_data_get_string(settings, "trellis");
   int num_ref_frame =
       static_cast<int>(obs_data_get_int(settings, "num_ref_frame"));
+  int num_ref_active_p =
+      static_cast<int>(obs_data_get_int(settings, "num_ref_active_p"));
+  int num_ref_active_bl0 =
+      static_cast<int>(obs_data_get_int(settings, "num_ref_active_bl0"));
+  int num_ref_active_bl1 =
+      static_cast<int>(obs_data_get_int(settings, "num_ref_active_bl1"));
   const char *globalmotionbias_adjustment =
       obs_data_get_string(settings, "globalmotionbias_adjustment");
   const char *mv_costscaling_factor =
@@ -1152,6 +1204,9 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
   obsqsv->params.nKeyIntSec = static_cast<mfxU16>(keyint_sec);
   obsqsv->params.nICQQuality = static_cast<mfxU16>(icq_quality);
   obsqsv->params.nNumRefFrame = static_cast<mfxU16>(num_ref_frame);
+  obsqsv->params.nNumRefActiveP = static_cast<mfxU16>(num_ref_active_p);
+  obsqsv->params.nNumRefActiveBL0 = static_cast<mfxU16>(num_ref_active_bl0);
+  obsqsv->params.nNumRefActiveBL1 = static_cast<mfxU16>(num_ref_active_bl1);
   obsqsv->params.nWinBRCMaxAvgSize =
       static_cast<mfxU16>(winbrc_max_avg_size / 100);
   obsqsv->params.nWinBRCSize = static_cast<mfxU16>(winbrc_size);
@@ -1319,7 +1374,7 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
   obs_get_video_info(&ovi);
 
   if (!adapters[ovi.adapter].is_intel) {
-    info(">>> app not on intel GPU, fall back to old qsv encoder");
+    info(">>> app not on intel GPU, fall back to non-texture encoder");
     return obs_encoder_create_rerouted(encoder,
                                        static_cast<const char *>(fallback_id));
   }
@@ -1327,7 +1382,7 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
   if (static_cast<int>(obs_data_get_int(settings, "gpu_number")) > 0) {
     info(">>> custom GPU is selected. OBS Studio does not support "
          "transferring textures to third-party adapters, fall back to "
-         "non-texture");
+         "non-texture encoder");
     return obs_encoder_create_rerouted(encoder,
                                        static_cast<const char *>(fallback_id));
   }
@@ -1351,21 +1406,21 @@ static void *obs_qsv_create_tex(enum qsv_codec codec, obs_data_t *settings,
     gpu_texture_active = gpu_texture_active || obs_p010_tex_active();
 
   if (!gpu_texture_active) {
-    info(">>> gpu tex not active, fall back to old qsv encoder");
+    info(">>> gpu tex not active, fall back to non-texture encoder");
     return obs_encoder_create_rerouted(encoder,
                                        static_cast<const char *>(fallback_id));
   }
 
   if (obs_encoder_scaling_enabled(encoder)) {
     if (!obs_encoder_gpu_scaling_enabled(encoder)) {
-      info(">>> encoder CPU scaling active, fall back to old qsv encoder");
+      info(">>> encoder CPU scaling active, fall back to non-texture encoder");
       return obs_encoder_create_rerouted(
           encoder, static_cast<const char *>(fallback_id));
     }
     info(">>> encoder GPU scaling active");
   }
 
-  info(">>> new qsv encoder");
+  info(">>> Texture encoder");
   return obs_qsv_create(codec, settings, encoder, true);
 }
 

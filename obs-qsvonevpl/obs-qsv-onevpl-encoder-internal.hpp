@@ -76,12 +76,11 @@ private:
 #endif
 
   mfxFrameSurface1 *mfx_EncSurface;
-  mfxU32 mfx_EncSurfaceRefCount;
 
   mfxFrameSurface1 *mfx_VPPSurface;
 
-  std::unique_ptr<MFXVideoENCODE> mfx_VideoEnc;
-  std::unique_ptr<MFXVideoVPP> mfx_VideoVPP;
+  MFXVideoENCODE* mfx_VideoEnc;
+  MFXVideoVPP* mfx_VideoVPP;
 
   mfxU8 VPS_Buffer[1024];
   mfxU8 SPS_Buffer[1024];
@@ -107,7 +106,7 @@ private:
   bool mfx_UseTexAlloc;
   mfxMemoryInterface *mfx_MemoryInterface;
 
-  std::unique_ptr<hw_handle> hw;
+  hw_handle* hw;
 
   bool mfx_VPP;
 };

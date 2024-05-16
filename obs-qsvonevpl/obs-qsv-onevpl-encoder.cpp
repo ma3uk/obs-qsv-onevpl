@@ -87,6 +87,32 @@ qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec,
                         bool useTexAlloc) {
   QSV_VPL_Encoder_Internal *pEncoder = new QSV_VPL_Encoder_Internal();
 
+  if (pParams->nGPUNum == 0) {
+    obs_video_info ovi;
+    obs_get_video_info(&ovi);
+    mfxU32 adapter_idx = ovi.adapter;
+
+    // Select current adapter - will be iGPU if exists due to adapter
+    // reordering
+    if (codec == QSV_CODEC_AV1 && !adapters[adapter_idx].supports_av1) {
+      for (mfxU32 i = 0; i < 4; i++) {
+        if (adapters[i].supports_av1) {
+          adapter_idx = i;
+          break;
+        }
+      }
+    } else if (!adapters[adapter_idx].is_intel) {
+      for (mfxU32 i = 0; i < 4; i++) {
+        if (adapters[i].is_intel) {
+          adapter_idx = i;
+          break;
+        }
+      }
+    }
+
+    pParams->nGPUNum = adapter_idx;
+  }
+
   if (pParams->nGPUNum > 0) {
     useTexAlloc = false;
   }
@@ -321,49 +347,49 @@ void parse_packet(obs_qsv *obsqsv, encoder_packet *packet, mfxBitstream *pBS,
   pBS->DataOffset = 0;
 }
 
-//void qsv_encoder_add_roi(qsv_t *pContext, const obs_encoder_roi *roi) {
-//  QSV_VPL_Encoder_Internal *pEncoder =
-//      reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
+// void qsv_encoder_add_roi(qsv_t *pContext, const obs_encoder_roi *roi) {
+//   QSV_VPL_Encoder_Internal *pEncoder =
+//       reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
 //
-//  /* QP value is range 0..51 */
-//  // ToDo figure out if this is different for AV1
-//  mfxI16 delta = static_cast<mfxI16>(-51.0f * roi->priority);
-//  pEncoder->AddROI(roi->left, roi->top, roi->right, roi->bottom, delta);
-//}
+//   /* QP value is range 0..51 */
+//   // ToDo figure out if this is different for AV1
+//   mfxI16 delta = static_cast<mfxI16>(-51.0f * roi->priority);
+//   pEncoder->AddROI(roi->left, roi->top, roi->right, roi->bottom, delta);
+// }
 //
-//void qsv_encoder_clear_roi(qsv_t *pContext) {
-//  QSV_VPL_Encoder_Internal *pEncoder =
-//      reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
-//  pEncoder->ClearROI();
-//}
+// void qsv_encoder_clear_roi(qsv_t *pContext) {
+//   QSV_VPL_Encoder_Internal *pEncoder =
+//       reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
+//   pEncoder->ClearROI();
+// }
 //
-//void roi_cb(void *param, struct obs_encoder_roi *roi) {
-//  struct darray *da = static_cast<darray *>(param);
-//  darray_push_back(sizeof(struct obs_encoder_roi), da, roi);
-//}
+// void roi_cb(void *param, struct obs_encoder_roi *roi) {
+//   struct darray *da = static_cast<darray *>(param);
+//   darray_push_back(sizeof(struct obs_encoder_roi), da, roi);
+// }
 //
-//void obs_qsv_setup_rois(struct obs_qsv *obsqsv) {
-//  const uint32_t increment = obs_encoder_get_roi_increment(obsqsv->encoder);
-//  if (obsqsv->roi_increment == increment)
-//    return;
+// void obs_qsv_setup_rois(struct obs_qsv *obsqsv) {
+//   const uint32_t increment = obs_encoder_get_roi_increment(obsqsv->encoder);
+//   if (obsqsv->roi_increment == increment)
+//     return;
 //
-//  qsv_encoder_clear_roi(obsqsv->context);
-//  /* Because we pass-through the ROIs more or less directly we need to
-//   * pass them in reverse order, so make a temporary copy and then use
-//   * that instead. */
-//  DARRAY(struct obs_encoder_roi) rois;
-//  da_init(rois);
+//   qsv_encoder_clear_roi(obsqsv->context);
+//   /* Because we pass-through the ROIs more or less directly we need to
+//    * pass them in reverse order, so make a temporary copy and then use
+//    * that instead. */
+//   DARRAY(struct obs_encoder_roi) rois;
+//   da_init(rois);
 //
-//  obs_encoder_enum_roi(obsqsv->encoder, roi_cb, &rois);
+//   obs_encoder_enum_roi(obsqsv->encoder, roi_cb, &rois);
 //
-//  size_t idx = rois.num;
-//  while (idx)
-//    qsv_encoder_add_roi(obsqsv->context, &rois.array[--idx]);
+//   size_t idx = rois.num;
+//   while (idx)
+//     qsv_encoder_add_roi(obsqsv->context, &rois.array[--idx]);
 //
-//  da_free(rois);
+//   da_free(rois);
 //
-//  obsqsv->roi_increment = increment;
-//}
+//   obsqsv->roi_increment = increment;
+// }
 
 bool obs_qsv_encode_tex(void *data, encoder_texture *tex, int64_t pts,
                         uint64_t lock_key, uint64_t *next_key,

@@ -148,6 +148,9 @@ template <> struct mfx_ext_buffer_id<mfxExtAV1ResolutionParam> {
 template <> struct mfx_ext_buffer_id<mfxExtAV1TileParam> {
   enum { id = MFX_EXTBUFF_AV1_TILE_PARAM };
 };
+template <> struct mfx_ext_buffer_id<mfxExtAV1ScreenContentTools> {
+  enum { id = MFX_EXTBUFF_AV1_SCREEN_CONTENT_TOOLS };
+};
 template <> struct mfx_ext_buffer_id<mfxExtVideoSignalInfo> {
   enum { id = MFX_EXTBUFF_VIDEO_SIGNAL_INFO };
 };
