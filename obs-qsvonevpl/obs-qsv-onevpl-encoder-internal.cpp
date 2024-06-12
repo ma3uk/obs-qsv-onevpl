@@ -953,125 +953,125 @@ mfxStatus QSV_VPL_Encoder_Internal::InitEncParams(struct qsv_param_t *pParams,
     auto EncToolsParam = mfx_EncParams.AddExtBuffer<mfxExtEncToolsConfig>();
     EncToolsParam->Header.BufferId = MFX_EXTBUFF_ENCTOOLS_CONFIG;
     EncToolsParam->Header.BufferSz = sizeof(mfxExtEncToolsConfig);
-    switch (codec) {
-    case QSV_CODEC_AVC:
-      EncToolsParam->AdaptiveLTR = static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
-      EncToolsParam->BRC =
-          static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
-                               pParams->RateControl == MFX_RATECONTROL_VBR)
-                                  ? MFX_CODINGOPTION_ON
-                                  : 0);
-      EncToolsParam->AdaptiveLTR =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveLTR));
-      EncToolsParam->AdaptiveRefB =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
-      EncToolsParam->AdaptiveRefP =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
-      EncToolsParam->AdaptivePyramidQuantB = static_cast<mfxU16>(
-          (pParams->nGOPRefDist > 1) ? MFX_CODINGOPTION_ON
-                                     : MFX_CODINGOPTION_OFF);
-      EncToolsParam->AdaptivePyramidQuantP = static_cast<mfxU16>(
-          (pParams->bPPyramid == true) ? MFX_CODINGOPTION_ON
-                                       : MFX_CODINGOPTION_OFF);
-      EncToolsParam->BRCBufferHints =
-          static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
-                               pParams->RateControl == MFX_RATECONTROL_VBR)
-                                  ? MFX_CODINGOPTION_ON
-                                  : 0);
-      EncToolsParam->SceneChange = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
-      EncToolsParam->AdaptiveMBQP =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bMBBRC));
-      EncToolsParam->AdaptiveQuantMatrices =
-          static_cast<mfxU16>(MFX_CODINGOPTION_ON);
-      EncToolsParam->AdaptiveB =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveB));
-      EncToolsParam->AdaptiveI =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveI));
-      EncToolsParam->SaliencyMapHint =
-          static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
+    //switch (codec) {
+    //case QSV_CODEC_AVC:
+    //  EncToolsParam->AdaptiveLTR = static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->BRC =
+    //      static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
+    //                           pParams->RateControl == MFX_RATECONTROL_VBR)
+    //                              ? MFX_CODINGOPTION_ON
+    //                              : 0);
+    //  EncToolsParam->AdaptiveLTR =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveLTR));
+    //  EncToolsParam->AdaptiveRefB =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
+    //  EncToolsParam->AdaptiveRefP =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
+    //  EncToolsParam->AdaptivePyramidQuantB = static_cast<mfxU16>(
+    //      (pParams->nGOPRefDist > 1) ? MFX_CODINGOPTION_ON
+    //                                 : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->AdaptivePyramidQuantP = static_cast<mfxU16>(
+    //      (pParams->bPPyramid == true) ? MFX_CODINGOPTION_ON
+    //                                   : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->BRCBufferHints =
+    //      static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
+    //                           pParams->RateControl == MFX_RATECONTROL_VBR)
+    //                              ? MFX_CODINGOPTION_ON
+    //                              : 0);
+    //  EncToolsParam->SceneChange = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
+    //  EncToolsParam->AdaptiveMBQP =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bMBBRC));
+    //  EncToolsParam->AdaptiveQuantMatrices =
+    //      static_cast<mfxU16>(MFX_CODINGOPTION_ON);
+    //  EncToolsParam->AdaptiveB =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveB));
+    //  EncToolsParam->AdaptiveI =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveI));
+    //  EncToolsParam->SaliencyMapHint =
+    //      static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
 
-      if (pParams->bLookahead == true) {
-        EncToolsParam->BRC = static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
-      }
-      break;
-    case QSV_CODEC_AV1:
-      EncToolsParam->BRC =
-          static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
-                               pParams->RateControl == MFX_RATECONTROL_VBR)
-                                  ? MFX_CODINGOPTION_ON
-                                  : MFX_CODINGOPTION_OFF);
-      EncToolsParam->AdaptiveLTR = static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
-      EncToolsParam->AdaptiveRefB =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
-      EncToolsParam->AdaptiveRefP =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
-      EncToolsParam->AdaptivePyramidQuantB = static_cast<mfxU16>(
-          (pParams->nGOPRefDist > 1) ? MFX_CODINGOPTION_ON
-                                     : MFX_CODINGOPTION_OFF);
-      EncToolsParam->AdaptivePyramidQuantP = static_cast<mfxU16>(
-          (pParams->bPPyramid == true) ? MFX_CODINGOPTION_ON
-                                       : MFX_CODINGOPTION_OFF);
-      EncToolsParam->BRCBufferHints = static_cast<mfxU16>(EncToolsParam->BRC);
-      EncToolsParam->SceneChange = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
-      EncToolsParam->AdaptiveMBQP =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bMBBRC));
-      EncToolsParam->AdaptiveQuantMatrices =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveCQM));
-      EncToolsParam->AdaptiveB =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveB));
-      EncToolsParam->AdaptiveI =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveI));
-      EncToolsParam->SaliencyMapHint = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
-      break;
-    case QSV_CODEC_HEVC:
-      EncToolsParam->BRC =
-          static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
-                               pParams->RateControl == MFX_RATECONTROL_VBR)
-                                  ? MFX_CODINGOPTION_ON
-                                  : 0);
-      EncToolsParam->AdaptiveLTR =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveLTR));
-      EncToolsParam->AdaptiveRefB =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
-      EncToolsParam->AdaptiveRefP =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
-      EncToolsParam->AdaptivePyramidQuantB = static_cast<mfxU16>(
-          (pParams->nGOPRefDist > 1) ? MFX_CODINGOPTION_ON
-                                     : MFX_CODINGOPTION_OFF);
-      EncToolsParam->AdaptivePyramidQuantP = static_cast<mfxU16>(
-          (pParams->bPPyramid == true) ? MFX_CODINGOPTION_ON
-                                       : MFX_CODINGOPTION_OFF);
-      EncToolsParam->BRCBufferHints =
-          static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
-                               pParams->RateControl == MFX_RATECONTROL_VBR)
-                                  ? MFX_CODINGOPTION_ON
-                                  : 0);
-      EncToolsParam->SceneChange = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
-      EncToolsParam->AdaptiveMBQP =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bMBBRC));
-      EncToolsParam->AdaptiveQuantMatrices =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveCQM));
-      EncToolsParam->AdaptiveB =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveB));
-      EncToolsParam->AdaptiveI =
-          static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveI));
-      EncToolsParam->SaliencyMapHint = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
+    //  if (pParams->bLookahead == true) {
+    //    EncToolsParam->BRC = static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
+    //  }
+    //  break;
+    //case QSV_CODEC_AV1:
+    //  EncToolsParam->BRC =
+    //      static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
+    //                           pParams->RateControl == MFX_RATECONTROL_VBR)
+    //                              ? MFX_CODINGOPTION_ON
+    //                              : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->AdaptiveLTR = static_cast<mfxU16>(MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->AdaptiveRefB =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
+    //  EncToolsParam->AdaptiveRefP =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
+    //  EncToolsParam->AdaptivePyramidQuantB = static_cast<mfxU16>(
+    //      (pParams->nGOPRefDist > 1) ? MFX_CODINGOPTION_ON
+    //                                 : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->AdaptivePyramidQuantP = static_cast<mfxU16>(
+    //      (pParams->bPPyramid == true) ? MFX_CODINGOPTION_ON
+    //                                   : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->BRCBufferHints = static_cast<mfxU16>(EncToolsParam->BRC);
+    //  EncToolsParam->SceneChange = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
+    //  EncToolsParam->AdaptiveMBQP =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bMBBRC));
+    //  EncToolsParam->AdaptiveQuantMatrices =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveCQM));
+    //  EncToolsParam->AdaptiveB =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveB));
+    //  EncToolsParam->AdaptiveI =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveI));
+    //  EncToolsParam->SaliencyMapHint = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
+    //  break;
+    //case QSV_CODEC_HEVC:
+    //  EncToolsParam->BRC =
+    //      static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
+    //                           pParams->RateControl == MFX_RATECONTROL_VBR)
+    //                              ? MFX_CODINGOPTION_ON
+    //                              : 0);
+    //  EncToolsParam->AdaptiveLTR =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveLTR));
+    //  EncToolsParam->AdaptiveRefB =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
+    //  EncToolsParam->AdaptiveRefP =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveRef));
+    //  EncToolsParam->AdaptivePyramidQuantB = static_cast<mfxU16>(
+    //      (pParams->nGOPRefDist > 1) ? MFX_CODINGOPTION_ON
+    //                                 : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->AdaptivePyramidQuantP = static_cast<mfxU16>(
+    //      (pParams->bPPyramid == true) ? MFX_CODINGOPTION_ON
+    //                                   : MFX_CODINGOPTION_OFF);
+    //  EncToolsParam->BRCBufferHints =
+    //      static_cast<mfxU16>((pParams->RateControl == MFX_RATECONTROL_CBR ||
+    //                           pParams->RateControl == MFX_RATECONTROL_VBR)
+    //                              ? MFX_CODINGOPTION_ON
+    //                              : 0);
+    //  EncToolsParam->SceneChange = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
+    //  EncToolsParam->AdaptiveMBQP =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bMBBRC));
+    //  EncToolsParam->AdaptiveQuantMatrices =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveCQM));
+    //  EncToolsParam->AdaptiveB =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveB));
+    //  EncToolsParam->AdaptiveI =
+    //      static_cast<mfxU16>(GetCodingOpt(pParams->bAdaptiveI));
+    //  EncToolsParam->SaliencyMapHint = static_cast<mfxU16>(MFX_CODINGOPTION_ON);
 
-      if (pParams->bLookahead == true) {
-        EncToolsParam->BRC = 0;
-        EncToolsParam->AdaptiveLTR = 0;
-        EncToolsParam->AdaptiveRefB = 0;
-        EncToolsParam->AdaptiveRefP = 0;
-        EncToolsParam->AdaptivePyramidQuantB = 0;
-        EncToolsParam->AdaptivePyramidQuantP = 0;
-        EncToolsParam->BRCBufferHints = 0;
-        EncToolsParam->SceneChange = 0;
-        EncToolsParam->AdaptiveQuantMatrices = 0;
-        EncToolsParam->AdaptiveB = 0;
-        EncToolsParam->AdaptiveI = 0;
-      }
-      break;
-    }
+    //  if (pParams->bLookahead == true) {
+    //    EncToolsParam->BRC = 0;
+    //    EncToolsParam->AdaptiveLTR = 0;
+    //    EncToolsParam->AdaptiveRefB = 0;
+    //    EncToolsParam->AdaptiveRefP = 0;
+    //    EncToolsParam->AdaptivePyramidQuantB = 0;
+    //    EncToolsParam->AdaptivePyramidQuantP = 0;
+    //    EncToolsParam->BRCBufferHints = 0;
+    //    EncToolsParam->SceneChange = 0;
+    //    EncToolsParam->AdaptiveQuantMatrices = 0;
+    //    EncToolsParam->AdaptiveB = 0;
+    //    EncToolsParam->AdaptiveI = 0;
+    //  }
+    //  break;
+    //}
     info("\tEncTools set: ON");
   }
 

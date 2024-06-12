@@ -201,6 +201,16 @@ struct qsv_param_t {
   int nGPUNum;
 };
 
+enum {
+  MFX_FOURCC_IMC3 = MFX_MAKEFOURCC('I', 'M', 'C', '3'),
+  MFX_FOURCC_YUV400 = MFX_MAKEFOURCC('4', '0', '0', 'P'),
+  MFX_FOURCC_YUV411 = MFX_MAKEFOURCC('4', '1', '1', 'P'),
+  MFX_FOURCC_YUV422H = MFX_MAKEFOURCC('4', '2', '2', 'H'),
+  MFX_FOURCC_YUV422V = MFX_MAKEFOURCC('4', '2', '2', 'V'),
+  MFX_FOURCC_YUV444 = MFX_MAKEFOURCC('4', '4', '4', 'P'),
+  MFX_FOURCC_RGBP24 = MFX_MAKEFOURCC('R', 'G', 'B', 'P'),
+};
+
 template <typename T>
 static inline T GetTriState(const std::optional<bool> &Value,
                             const T DefaultValue, const T OnValue,

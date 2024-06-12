@@ -187,33 +187,37 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
   obs_property_set_visible(p, bVisible);
   p = obs_properties_get(ppts, "extbrc");
   obs_property_set_visible(p, bVisible);
+  p = obs_properties_get(ppts, "winbrc_max_avg_size");
+  obs_property_set_visible(p, bVisible);
+  p = obs_properties_get(ppts, "winbrc_size");
+  obs_property_set_visible(p, bVisible);
 
   const char *lookahead = obs_data_get_string(settings, "lookahead");
 
-  bool bLAVisible = (astrcmpi(rate_control, "CBR") == 0 ||
-                     astrcmpi(rate_control, "VBR") == 0);
+  bVisible = (astrcmpi(rate_control, "CBR") == 0 ||
+              astrcmpi(rate_control, "VBR") == 0);
   p = obs_properties_get(ppts, "lookahead");
-  obs_property_set_visible(p, bLAVisible);
-  if (bLAVisible) {
+  obs_property_set_visible(p, bVisible);
+  if (bVisible) {
 
-    bool bLAOptVisibleHQ = astrcmpi(lookahead, "HQ") == 0;
-    bool bLAOptVisibleLP = astrcmpi(lookahead, "LP") == 0;
+    bool bVisible_lookahead_hq = astrcmpi(lookahead, "HQ") == 0;
+    bool bVisible_lookahead_lp = astrcmpi(lookahead, "LP") == 0;
     p = obs_properties_get(ppts, "lookahead_ds");
     obs_property_set_visible(
-        p, ((bLAOptVisibleHQ || bLAOptVisibleLP) && bLAVisible));
+        p, ((bVisible_lookahead_hq || bVisible_lookahead_lp) && bVisible));
 
-    if ((bLAOptVisibleHQ /* || bLAOptVisibleLP*/)) {
+    if ((bVisible_lookahead_hq /* || bLAOptVisibleLP*/)) {
       obs_data_set_string(settings, "extbrc", "OFF");
     }
 
     p = obs_properties_get(ppts, "lookahead_latency");
-    obs_property_set_visible(p, (bLAOptVisibleHQ && bLAVisible));
+    obs_property_set_visible(p, (bVisible_lookahead_hq && bVisible));
 
     // if ((bLAOptVisibleHQ && bLAVisible)) {
     //   obs_data_set_string(settings, "hrd_conformance", "OFF");
     // }
 
-    if (bLAOptVisibleLP) {
+    if (bVisible_lookahead_lp) {
       obs_data_set_string(settings, "enctools", "OFF");
     }
   }
@@ -300,6 +304,18 @@ static bool visible_modified(obs_properties_t *ppts, obs_property_t *p,
   p = obs_properties_get(ppts, "intra_ref_qp_delta");
   obs_property_set_visible(p, bVisible);
 
+  const char *extbrc = obs_data_get_string(settings, "extbrc");
+  const char *enctools = obs_data_get_string(settings, "enctools");
+  bool bVisible_extbrc = astrcmpi(extbrc, "OFF") == 0;
+  bool bVisible_enctools = astrcmpi(enctools, "OFF") == 0;
+
+  p = obs_properties_get(ppts, "num_ref_active_p");
+  obs_property_set_visible(p, bVisible_extbrc && bVisible_enctools);
+  p = obs_properties_get(ppts, "num_ref_active_bl0");
+  obs_property_set_visible(p, bVisible_extbrc && bVisible_enctools);
+  p = obs_properties_get(ppts, "num_ref_active_bl1");
+  obs_property_set_visible(p, bVisible_extbrc && bVisible_enctools);
+
   return true;
 }
 
@@ -350,15 +366,27 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
 
   prop = obs_properties_add_list(props, "extbrc", TEXT_EXT_BRC,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-  obs_property_set_long_description(prop, obs_module_text("ExtBRC.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text("Set this parameter to ON to enable external bitrate "
+                      "\ncontrol. It can have a positive effect on the stability "
+                      "\nof the bitrate and the quality of the output image"));
   add_strings(prop, qsv_params_condition_extbrc);
   obs_property_set_modified_callback(prop, rate_control_modified);
+  obs_property_set_modified_callback(prop, visible_modified);
 
   prop = obs_properties_add_list(props, "enctools", TEXT_ENC_TOOLS,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-  obs_property_set_long_description(prop, obs_module_text("EncTools.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Includes additional frame processing steps using the advanced "
+          "\nencoder functionality to improve quality. \nEnctools uses CPU "
+          "power to process the frame. \nEnabling it may affect the "
+          "performance and stability of the encoder"));
   add_strings(prop, qsv_params_condition);
   obs_property_set_modified_callback(prop, rate_control_modified);
+  obs_property_set_modified_callback(prop, visible_modified);
 
   if (codec == QSV_CODEC_AV1) {
     prop =
@@ -366,7 +394,8 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     add_strings(prop, qsv_params_condition_tune_quality);
     obs_property_set_long_description(
-        prop, obs_module_text("TuneQualityMode.ToolTip"));
+        prop, obs_module_text("Parameter specifies type of quality "
+                              "\noptimization used by the encoder"));
   }
 
   prop = obs_properties_add_int(props, "bitrate", TEXT_TARGET_BITRATE, 50,
@@ -375,14 +404,10 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
 
   prop = obs_properties_add_bool(props, "custom_buffer_size",
                                  TEXT_CUSTOM_BUFFER_SIZE);
-  obs_property_set_long_description(
-      prop, obs_module_text("CustomBufferSize.ToolTip"));
   obs_property_set_modified_callback(prop, rate_control_modified);
   prop = obs_properties_add_int(props, "buffer_size", TEXT_BUFFER_SIZE, 0,
                                 10000000, 10);
   obs_property_int_set_suffix(prop, " KB");
-  obs_property_set_long_description(prop,
-                                    obs_module_text("BufferSize.ToolTip"));
 
   prop = obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
                                 10000000, 50);
@@ -391,13 +416,23 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   prop = obs_properties_add_int(props, "winbrc_max_avg_size",
                                 TEXT_WINBRC_MAX_AVG_SIZE, 0, 10000000, 50);
   obs_property_set_long_description(
-      prop, obs_module_text("WinBrcMaxAvgSize.ToolTip"));
+      prop,
+      obs_module_text(
+          "Parameter specifies the maximum bitrate averaged over a sliding "
+          "window specified by WinBRCSize.\n For H.264(AVC), H.265(HEVC) "
+          "codecs, it is recommended to set the value to (Bitrate * 1.3). "
+          "\nFor "
+          "the AV1 codec, the recommended value is (Bitrate * 1.2)"));
   obs_property_int_set_suffix(prop, " Kbps");
 
-  prop = obs_properties_add_int(props, "winbrc_size", TEXT_WINBRC_SIZE, 0,
+  prop = obs_properties_add_int(props, "winbrc_size", TEXT_WINBRC_SIZE, 60,
                                 10000, 1);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("WinBrcSize.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text(
+                "Parameter specifies the size of the sliding window in "
+                "frames for bitrate control. \nIt is recommended to set it "
+                "equal to the value of the final FPS of the video (FPSNum / "
+                "FPSDen). \nSet 0 for disable sliding window."));
 
   obs_properties_add_int(props, "cqp", "CQP", 1,
                          codec == QSV_CODEC_AV1 ? 63 : 51, 1);
@@ -415,14 +450,20 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
         obs_properties_add_list(props, "hevc_gpb", TEXT_HEVC_GPB,
                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     add_strings(prop, qsv_params_condition_tristate);
-    obs_property_set_long_description(prop, obs_module_text("GPB.ToolTip"));
+    obs_property_set_long_description(
+        prop, obs_module_text("Set this parameter to OFF to make HEVC encoder "
+                              "\nuse regular P-frames instead of GPB."));
   }
 
   prop =
       obs_properties_add_int_slider(props, "gop_ref_dist", TEXT_GOP_REF_DIST, 1,
                                     (codec == QSV_CODEC_AV1) ? 32 : 16, 1);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("GOPRefDist.Tooltip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Distance between I- or P (or GPB) - key frames; "
+          "\nif it is zero, the GOP structure is unspecified. GPB is ON, GPB "
+          "\nframes (B without backward references) are used instead of P."));
   obs_property_long_description(prop);
 
   obs_properties_add_int(props, "async_depth", TEXT_ASYNC_DEPTH, 1, 1000, 1);
@@ -430,15 +471,19 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   prop = obs_properties_add_list(props, "hrd_conformance", TEXT_HRD_CONFORMANCE,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("HRDConformance.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "If this parameter is turned ON, then encoder produces an HRD "
+          "\nconformant bitstream. If it is turned OFF, then the encoder may "
+          "\n(but not necessarily) violate HRD conformance. That is, this "
+          "\nparameter can force the encoder to produce an HRD conformant "
+          "\nstream, but cannot force it to produce a non-conformant stream."));
   obs_property_set_modified_callback(prop, rate_control_modified);
 
   prop = obs_properties_add_list(props, "low_delay_hrd", TEXT_LOW_DELAY_HRD,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("LowDelayHRD.ToolTip"));
   obs_property_set_modified_callback(prop, rate_control_modified);
 
   if (codec != QSV_CODEC_VP9) {
@@ -447,51 +492,79 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
                                 OBS_COMBO_FORMAT_STRING);
     add_strings(prop, qsv_params_condition_tristate);
     obs_property_set_modified_callback(prop, rate_control_modified);
-    obs_property_set_long_description(prop, obs_module_text("MBBRC.ToolTip"));
+    obs_property_set_long_description(
+        prop,
+        obs_module_text(
+            "Setting this parameter enables macroblock level bitrate "
+            "\ncontrol that generally improves subjective visual quality. "
+            "\nEnabling this flag may have negative impact on performance "
+            "\nand objective visual quality metric."));
   }
 
   prop = obs_properties_add_list(props, "rdo", TEXT_RDO, OBS_COMBO_TYPE_LIST,
                                  OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop, obs_module_text("RDO.ToolTip"));
+  obs_property_set_long_description(prop, obs_module_text("Set this parameter to ON if rate distortion optimization is needed"));
 
   prop = obs_properties_add_list(props, "adaptive_i", TEXT_ADAPTIVE_I,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop, obs_module_text("AdaptiveI.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Controls insertion of I-frames by the encoder. Set this parameter "
+          "\nto ON to allow changing of frame type from P and B to I"));
 
   prop = obs_properties_add_list(props, "adaptive_b", TEXT_ADAPTIVE_B,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop, obs_module_text("AdaptiveB.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "Controls changing of frame type from B to P. Set this "
+          "\nparameter to ON enable changing of frame type from B to P."));
 
   prop = obs_properties_add_list(props, "adaptive_ref", TEXT_ADAPTIVE_REF,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("AdaptiveRef.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text(
+                "If this parameter is set to ON, encoder adaptively selects "
+                "\nlist of reference frames to improve encoding quality"));
 
   prop = obs_properties_add_list(props, "adaptive_ltr", TEXT_ADAPTIVE_LTR,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("AdaptiveLTR.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text("If this parameter is set to ON, encoder will "
+                            "\nmark, modify, or remove LTR frames based on "
+                            "\nencoding parameters and content properties"));
 
   prop = obs_properties_add_list(props, "adaptive_cqm", TEXT_ADAPTIVE_CQM,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("AdaptiveCQM.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text(
+          "If this parameter is set to ON, encoder adaptively selects "
+          "\none of implementation-defined quantization matrices for each "
+          "\nframe. Non-default quantization matrices aim to improve "
+          "\nsubjective visual quality under certain conditions"));
 
   prop = obs_properties_add_list(props, "p_pyramid", TEXT_P_PYRAMID,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_p_pyramid);
-  obs_property_set_long_description(prop, obs_module_text("PPyramid.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text("When GopRefDist=1, specifies the model of "
+                      "\nreference list construction and DPB management"));
 
   prop = obs_properties_add_list(props, "use_raw_ref", TEXT_USE_RAW_REF,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
-  obs_property_set_long_description(prop, obs_module_text("UseRawRef.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text("Set this parameter to ON to use raw frames for "
+                            "\nreference instead of reconstructed frames"));
 
   prop = obs_properties_add_list(props, "globalmotionbias_adjustment",
                                  TEXT_GLOBAL_MOTION_BIAS_ADJUSTMENT,
@@ -499,64 +572,72 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   add_strings(prop, qsv_params_condition_tristate);
   obs_property_set_modified_callback(prop, visible_modified);
   obs_property_set_long_description(
-      prop, obs_module_text("GlobalMotionBiasAdjustment.ToolTip"));
+      prop, obs_module_text("Enables global motion bias"));
 
   prop = obs_properties_add_list(props, "mv_costscaling_factor",
                                  TEXT_MV_COST_SCALING_FACTOR,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_mv_cost_scaling);
-  obs_property_set_long_description(
-      prop, obs_module_text("MVCostScalingFactor.ToolTip"));
 
   prop = obs_properties_add_list(props, "directbias_adjustment",
                                  TEXT_DIRECT_BIAS_ADJUSTMENT,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
   obs_property_set_long_description(
-      prop, obs_module_text("DirectBiasAdjusment.ToolTip"));
+      prop,
+      obs_module_text(
+          "Set this parameter to ON to enable the ENC mode decision "
+          "\nalgorithm to bias to fewer B Direct/Skip types. Applies only "
+          "\nto B-frames, all other frames will ignore this setting."));
 
   prop = obs_properties_add_list(props, "mv_overpic_boundaries",
                                  TEXT_MV_OVER_PIC_BOUNDARIES,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_tristate);
   obs_property_set_long_description(
-      prop, obs_module_text("MVOverpicBoundaries.ToolTip"));
+      prop,
+      obs_module_text(
+          "When set to OFF, no sample outside the picture boundaries and "
+          "\nno sample at a fractional sample position for which the "
+          "\nsample value is derived using one or more samples outside the "
+          "\npicture boundaries is used for inter prediction of any "
+          "\nsample. When set to ON, one or more samples outside picture "
+          "\nboundaries may be used in inter prediction"));
 
   prop = obs_properties_add_list(props, "trellis", TEXT_TRELLIS,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_trellis);
-  obs_property_set_long_description(prop, obs_module_text("Trellis.ToolTip"));
+  obs_property_set_long_description(
+      prop,
+      obs_module_text("Used to control trellis quantization in encoder. "));
 
   prop = obs_properties_add_list(props, "lookahead", TEXT_LA,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_lookahead_mode);
   obs_property_set_modified_callback(prop, rate_control_modified);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("LookaheadDS.ToolTip"));
 
   prop = obs_properties_add_list(props, "lookahead_ds", TEXT_LA_DS,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_lookahead_ds);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("LookaheadDS.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text(
+                "Controls down sampling in look ahead bitrate control mode"));
 
   prop = obs_properties_add_list(props, "lookahead_latency", TEXT_LA_LATENCY,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_lookahead_latency);
-  obs_property_set_long_description(
-      prop, obs_module_text("LookaheadLatency.ToolTip"));
 
   prop = obs_properties_add_list(props, "vpp", TEXT_VPP, OBS_COMBO_TYPE_LIST,
                                  OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition);
-  obs_property_set_long_description(prop, obs_module_text("VPP.ToolTip"));
+  obs_property_set_long_description(
+      prop, obs_module_text("Filters for additional frame processing. Enabling "
+                            "\nit can have an impact on performance"));
   obs_property_set_modified_callback(prop, visible_modified);
 
   prop = obs_properties_add_list(props, "denoise_mode", TEXT_DENOISE_MODE,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_denoise_mode);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("DenoiseMode.ToolTip"));
   obs_property_set_modified_callback(prop, visible_modified);
 
   obs_properties_add_int_slider(props, "denoise_strength",
@@ -565,14 +646,11 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   prop = obs_properties_add_list(props, "scaling_mode", TEXT_SCALING_MODE,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_scaling_mode);
-  obs_property_set_long_description(prop,
-                                    obs_module_text("ScalingMode.ToolTip"));
   obs_property_set_modified_callback(prop, visible_modified);
 
   prop = obs_properties_add_list(props, "detail", TEXT_DETAIL,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition);
-  obs_property_set_long_description(prop, obs_module_text("Detail.ToolTip"));
   obs_property_set_modified_callback(prop, visible_modified);
 
   obs_properties_add_int_slider(props, "detail_factor", TEXT_DETAIL_FACTOR, 1,
@@ -581,15 +659,12 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
   prop = obs_properties_add_list(props, "image_stab_mode", TEXT_IMAGE_STAB_MODE,
                                  OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition_image_stab_mode);
-  obs_property_set_long_description(prop, obs_module_text("ImageStab.ToolTip"));
   obs_property_set_modified_callback(prop, visible_modified);
 
   prop = obs_properties_add_list(props, "perc_enc_prefilter",
                                  TEXT_PERC_ENC_PREFILTER, OBS_COMBO_TYPE_LIST,
                                  OBS_COMBO_FORMAT_STRING);
   add_strings(prop, qsv_params_condition);
-  obs_property_set_long_description(
-      prop, obs_module_text("PercPreEncFilter.ToolTip"));
   obs_property_set_modified_callback(prop, visible_modified);
 
   prop = obs_properties_add_list(props, "low_power", TEXT_LOW_POWER,
@@ -611,18 +686,19 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
                                    OBS_COMBO_FORMAT_STRING);
     add_strings(prop, qsv_params_condition);
     obs_property_set_modified_callback(prop, visible_modified);
-    obs_property_set_long_description(
-        prop, obs_module_text("IntraRefEncoding.ToolTip"));
 
-    obs_properties_add_int(props, "intra_ref_cycle_size",
+    prop = obs_properties_add_int(props, "intra_ref_cycle_size",
                            TEXT_INTRA_REF_CYCLE_SIZE, 2, 1000, 1);
     obs_property_set_long_description(
-        prop, obs_module_text("IntraRefCycleSize.ToolTip"));
+        prop,
+        obs_module_text("Specifies number of pictures within refresh cycle "
+                        "\nstarting from 2. 0 and 1 are invalid values."));
 
-    obs_properties_add_int(props, "intra_ref_qp_delta", TEXT_INTRA_REF_QP_DELTA,
+    prop  = obs_properties_add_int(props, "intra_ref_qp_delta", TEXT_INTRA_REF_QP_DELTA,
                            -51, 51, 1);
     obs_property_set_long_description(
-        prop, obs_module_text("IntraRefQPDelta.ToolTip"));
+        prop, obs_module_text("Specifies QP difference for inserted intra MBs. "
+                              "\nSigned values are in the -51 to 51 range. "));
   }
 
   if (codec == QSV_CODEC_HEVC) {
@@ -630,12 +706,11 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
         obs_properties_add_list(props, "hevc_sao", TEXT_HEVC_SAO,
                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     add_strings(prop, qsv_params_condition_hevc_sao);
-    obs_property_set_long_description(prop, obs_module_text("SAO.ToolTip"));
   }
 
   prop = obs_properties_add_int_slider(props, "num_ref_active_p",
-                                TEXT_NUM_REF_ACTIVE_P, 0,
-                                (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
+                                       TEXT_NUM_REF_ACTIVE_P, 0,
+                                       (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
   obs_property_set_long_description(
       prop,
       obs_module_text(
@@ -644,8 +719,8 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
           "of this parameter if you are not sure what you are doing."));
 
   prop = obs_properties_add_int_slider(props, "num_ref_active_bl0",
-                                TEXT_NUM_REF_ACTIVE_BL0, 0,
-                                (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
+                                       TEXT_NUM_REF_ACTIVE_BL0, 0,
+                                       (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
   obs_property_set_long_description(
       prop,
       obs_module_text(
@@ -655,8 +730,8 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
           "of this parameter if you are not sure what you are doing."));
 
   prop = obs_properties_add_int_slider(props, "num_ref_active_bl1",
-                                TEXT_NUM_REF_ACTIVE_BL1, 0,
-                                (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
+                                       TEXT_NUM_REF_ACTIVE_BL1, 0,
+                                       (codec == QSV_CODEC_AV1 ? 7 : 16), 1);
   obs_property_set_long_description(
       prop,
       obs_module_text(
@@ -664,14 +739,14 @@ static obs_properties_t *obs_qsv_props(enum qsv_codec codec) {
           "picture list 1. \n The set values can cause frame drops. Do not \n"
           "touch the values \n"
           "of this parameter if you are not sure what you are doing."));
-  obs_property_long_description(prop);
+
   prop = obs_properties_add_int(props, "gpu_number", TEXT_GPU_NUMBER, 0, 4, 1);
   obs_property_set_long_description(
       prop, obs_module_text(
                 "Choosing a graphics adapter for multi-GPU systems. \n The "
                 "number of the adapter you need may vary depending on \n"
                 "the priority set by the system"));
-  obs_property_long_description(prop);
+  obs_property_set_modified_callback(prop, visible_modified);
 
   return props;
 }
@@ -918,7 +993,8 @@ static void update_params(obs_qsv *obsqsv, obs_data_t *settings) {
     obsqsv->params.WhitePointY = 16450;
     obsqsv->params.MaxDisplayMasteringLuminance =
         static_cast<mfxU32>(hdr_nominal_peak_level * 10000);
-    obsqsv->params.MinDisplayMasteringLuminance = 0;
+    obsqsv->params.MinDisplayMasteringLuminance =
+        obsqsv->codec == QSV_CODEC_AV1 ? 0 : 1;
 
     obsqsv->params.MaxContentLightLevel =
         static_cast<mfxU16>(hdr_nominal_peak_level);
