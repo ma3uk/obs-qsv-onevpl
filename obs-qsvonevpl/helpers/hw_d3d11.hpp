@@ -2,55 +2,53 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 
-#ifndef __QSV_VPL_HW_HANDLES_H__
-#define __QSV_VPL_HW_HANDLES_H__
+#ifndef __QSV_VPL_HWManagerS_H__
+#define __QSV_VPL_HWManagerS_H__
 #endif
 
 #ifndef __QSV_VPL_COMMON_UTILS_H__
 #include "common_utils.hpp"
 #endif
-
+extern "C" {
 #include <obs.h>
-
-class hw_handle {
+}
+class HWManager {
 public:
-  hw_handle();
-  ~hw_handle();
+  HWManager();
+  ~HWManager();
 
-  void release_device();
-  void release_tex();
+  void ReleaseDevice();
+  void ReleaseTexturePool();
 
-  mfxStatus create_device(mfxSession session);
-  mfxStatus copy_tex(mfxSurfaceD3D11Tex2D &out_tex, void *tex_handle,
-                     mfxU64 lock_key, mfxU64 *next_key);
+  mfxStatus CreateDevice(mfxIMPL &Impl);
+  mfxStatus CopyTexture(mfxSurfaceD3D11Tex2D &OuterTexture, void *TextureHandle,
+                        mfxU64 LockKey, mfxU64 *NextKey);
 
-  mfxStatus allocate_tex(mfxFrameAllocRequest *request);
+  mfxStatus AllocateTexturePool(mfxFrameAllocRequest *Request);
 
-  static inline int encoder_counter = 0;
-  static inline mfxHDL device_handle = nullptr;
+  static inline int HWEncoderCounter = 0;
+  static inline mfxHDL HWDeviceHandle = nullptr;
 
 private:
  
   struct handled_texture {
-    uint32_t handle;
-    ID3D11Texture2D *texture;
-    IDXGIKeyedMutex *km;
+    uint32_t Handle;
+    ID3D11Texture2D *Texture;
+    IDXGIKeyedMutex *KeyedMutex;
   };
 
-  mfxSession session;
+  IDXGIAdapter *GetIntelDeviceAdapterHandle(mfxIMPL &Impl);
+  mfxStatus FreeTexturePool();
+  mfxStatus FreeHandledTexturePool();
 
-  IDXGIAdapter *GetIntelDeviceAdapterHandle();
-  mfxStatus free_tex();
-  mfxStatus free_handled_tex();
+  int HWTextureCounter;
 
-  int tex_counter;
+  std::vector<ID3D11Texture2D *> HWTexturePool;
+  std::vector<handled_texture> HWHandledTexturePool;
 
-  std::vector<ID3D11Texture2D *> tex_pool;
-  std::vector<handled_texture> handled_tex_pool;
-
-  static inline ID3D11Device *hw_device;
-  static inline ID3D11DeviceContext *hw_context;
-  static inline IDXGIFactory2 *hw_factory;
-  static inline IDXGIAdapter *hw_adapter;
+  static inline ID3D11Device *HWDevice;
+  static inline ID3D11DeviceContext *HWContext;
+  static inline IDXGIFactory2 *HWFactory;
+  static inline IDXGIAdapter *HWAdapter;
 };
 #endif

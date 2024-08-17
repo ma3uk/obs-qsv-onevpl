@@ -1,5 +1,6 @@
 #include "common_utils.hpp"
 #include "../obs-qsv-onevpl-encoder.hpp"
 
-struct adapter_info adapters[MAX_ADAPTERS] = {};
-size_t adapter_count = 0;
+struct adapter_info AdaptersInfo[MAX_ADAPTERS] = {};
+size_t AdaptersCount = 0;
+

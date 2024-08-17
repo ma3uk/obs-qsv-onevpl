@@ -1,488 +1,367 @@
-/*
-
-This file is provided under a dual BSD/GPLv2 license.  When using or
-redistributing this file, you may do so under either license.
-
-GPL LICENSE SUMMARY
-
-Copyright(c) Oct. 2015 Intel Corporation.
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of version 2 of the GNU General Public License as
-published by the Free Software Foundation.
-
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License for more details.
-
-Contact Information:
-
-Seung-Woo Kim, seung-woo.kim@intel.com
-705 5th Ave S #500, Seattle, WA 98104
-
-BSD LICENSE
-
-Copyright(c) <date> Intel Corporation.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-
-* Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in
-the documentation and/or other materials provided with the
-distribution.
-
-* Neither the name of Intel Corporation nor the names of its
-contributors may be used to endorse or promote products derived
-from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-// QSV_Encoder.cpp : Defines the exported functions for the DLL application.
-//
-// #define MFX_DEPRECATED_OFF
+// #define MFXDEPRECATED_OFF
 
 #ifndef __QSV_VPL_ENCODER_H__
 #include "obs-qsv-onevpl-encoder.hpp"
 #endif
 
-#include "helpers/common_utils.hpp"
-#include "helpers/qsv_params.hpp"
-#include "obs-qsv-onevpl-encoder-internal.hpp"
-#include <atomic>
-#include <cstdint>
-#include <media-io/video-io.h>
-#include <new>
-#include <obs.h>
-#include <util/base.h>
-#include <vpl/mfxcommon.h>
-#include <vpl/mfxdefs.h>
-#include <vpl/mfxstructures.h>
+mfxVersion VPLVersion = {{0, 1}}; // for backward compatibility
+std::atomic<bool> IsActive{false};
 
-mfxVersion ver = {{0, 1}}; // for backward compatibility
-std::atomic<bool> is_active{false};
-// bool isDGPU = false;
-void qsv_encoder_version(unsigned short *major, unsigned short *minor) {
-  *major = ver.Major;
-  *minor = ver.Minor;
+void GetEncoderVersion(unsigned short *Major, unsigned short *Minor) {
+  *Major = VPLVersion.Major;
+  *Minor = VPLVersion.Minor;
 }
 
-qsv_t *qsv_encoder_open(qsv_param_t *pParams, enum qsv_codec codec,
-                        bool useTexAlloc) {
-  QSV_VPL_Encoder_Internal *pEncoder = new QSV_VPL_Encoder_Internal();
-
-  if (pParams->nGPUNum == 0) {
-    obs_video_info ovi;
-    obs_get_video_info(&ovi);
-    mfxU32 adapter_idx = ovi.adapter;
-    mfxU32 idx_adjustment = 0;
-
-    // Select current adapter - will be iGPU if exists due to adapter
-    // reordering
-    if (codec == QSV_CODEC_AV1 && !adapters[adapter_idx].supports_av1) {
-      for (mfxU32 i = 0; i < MAX_ADAPTERS; i++) {
-        if (!adapters[i].is_intel) {
-          idx_adjustment++;
-          continue;
-        }
-      }
-    } else if (!adapters[adapter_idx].is_intel) {
-      for (mfxU32 i = 0; i < MAX_ADAPTERS; i++) {
-        if (adapters[i].is_intel) {
-          adapter_idx = i;
-          break;
-        }
-        idx_adjustment++;
-      }
-    }
-    adapter_idx -= idx_adjustment;
-    pParams->nGPUNum = adapter_idx;
-  }
-
-  if (pParams->nGPUNum > 0) {
-    useTexAlloc = false;
-  }
-
-  info("\tSelected adapter: %d", pParams->nGPUNum);
-
+bool OpenEncoder(std::unique_ptr<QSVEncoder> &EncoderPTR,
+                      encoder_params *EncoderParams, enum codec_enum Codec,
+                      bool IsTextureEncoder) {
   try {
-    pEncoder->GetVPLVersion(ver);
-    pEncoder->Open(pParams, codec, useTexAlloc);
+    EncoderPTR = std::make_unique<QSVEncoder>();
+    //throw std::exception("test");
+    if (EncoderParams->GPUNum == 0) {
+      obs_video_info OVI;
+      obs_get_video_info(&OVI);
+      mfxU32 AdapterID = OVI.adapter;
+      mfxU32 AdapterIDAdjustment = 0;
+      // Select current adapter - will be iGPU if exiStatus due to adapter
+      // reordering
+      if (Codec == QSV_CODEC_AV1 && !AdaptersInfo[AdapterID].SupportAV1) {
+        for (mfxU32 i = 0; i < MAX_ADAPTERS; i++) {
+          if (!AdaptersInfo[i].IsIntel) {
+            AdapterIDAdjustment++;
+            continue;
+          }
+          if (AdaptersInfo[i].SupportAV1) {
+            AdapterID = i;
+            break;
+          }
+        }
+      } else if (!AdaptersInfo[AdapterID].IsIntel) {
+        for (mfxU32 i = 0; i < MAX_ADAPTERS; i++) {
+          if (AdaptersInfo[i].IsIntel) {
+            AdapterID = i;
+            break;
+          }
+          AdapterIDAdjustment++;
+        }
+      }
+
+      AdapterID -= AdapterIDAdjustment;
+
+      EncoderParams->GPUNum = AdapterID;
+    }
+
+    if (EncoderParams->GPUNum > 0) {
+      IsTextureEncoder = false;
+    }
+
+    EncoderPTR->GetVPLVersion(VPLVersion);
+    EncoderPTR->Init(EncoderParams, Codec, IsTextureEncoder);
+
+    IsActive.store(true);
+
+    return true;
+
   } catch (const std::exception &e) {
     error("QSV ERROR: %s", e.what());
-    delete pEncoder;
-    is_active.store(false);
-    return nullptr;
+    IsActive.store(false);
+    throw;
   }
-
-  is_active.store(true);
-
-  return (qsv_t *)pEncoder;
 }
 
-void obs_qsv_destroy(void *data) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
+void DestroyPluginContext(void *Data) {
+  plugin_context *Context = static_cast<plugin_context *>(Data);
 
-  if (obsqsv) {
-    os_end_high_performance(obsqsv->performance_token);
-    if (obsqsv->context) {
+  if (Context) {
+    os_end_high_performance(Context->PerformanceToken);
+    if (Context->EncoderPTR) {
       try {
-        pthread_mutex_lock(&g_QsvLock);
-        QSV_VPL_Encoder_Internal *pEncoder =
-            reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
-        pEncoder->ClearData();
-        delete pEncoder;
-        is_active.store(false);
-        obsqsv->context = nullptr;
-        pthread_mutex_unlock(&g_QsvLock);
-        bfree(obsqsv->sei);
-        bfree(obsqsv->extra_data);
-        obsqsv->sei = nullptr;
-        obsqsv->sei_size = 0;
-        obsqsv->extra_data = nullptr;
-        obsqsv->extra_data_size = 0;
+
+        {
+          std::lock_guard<std::mutex> lock(Mutex);
+
+          Context->EncoderPTR->ClearData();
+
+          IsActive.store(false);
+          Context->EncoderPTR = nullptr;
+        }
+
+        Context->SEI.first = nullptr;
+        Context->SEI.second = 0;
+        Context->ExtraData.first = nullptr;
+        Context->ExtraData.second = 0;
       } catch (const std::exception &e) {
         error("QSV ERROR: %s", e.what());
       }
     }
-    da_free(obsqsv->packet_data);
 
-    bfree(obsqsv);
+    delete Context;
+    //bfree(Context);
   }
 }
 
-bool obs_qsv_update(void *data, obs_data_t *settings) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
-  const char *bitrate_control = obs_data_get_string(settings, "rate_control");
-  if (astrcmpi(bitrate_control, "CBR") == 0) {
-    obsqsv->params.nTargetBitRate =
-        static_cast<mfxU16>(obs_data_get_int(settings, "bitrate"));
-  } else if (astrcmpi(bitrate_control, "VBR") == 0) {
-    obsqsv->params.nTargetBitRate =
-        static_cast<mfxU16>(obs_data_get_int(settings, "bitrate"));
-    obsqsv->params.nMaxBitRate =
-        static_cast<mfxU16>(obs_data_get_int(settings, "max_bitrate"));
-  } else if (astrcmpi(bitrate_control, "CQP") == 0) {
-    obsqsv->params.nQPI =
-        static_cast<mfxU16>(obs_data_get_int(settings, "cqp"));
-    obsqsv->params.nQPP =
-        static_cast<mfxU16>(obs_data_get_int(settings, "cqp"));
-    obsqsv->params.nQPB =
-        static_cast<mfxU16>(obs_data_get_int(settings, "cqp"));
-  } else if (astrcmpi(bitrate_control, "ICQ") == 0) {
-    obsqsv->params.nICQQuality =
-        static_cast<mfxU16>(obs_data_get_int(settings, "icq_quality"));
+bool UpdateEncoderParams(void *Data, obs_data_t *Params) {
+  plugin_context *Context = static_cast<plugin_context *>(Data);
+  const char *bitrate_control = obs_data_get_string(Params, "rate_control");
+  if (std::strcmp(bitrate_control, "CBR") == 0) {
+    Context->EncoderParams.TargetBitRate =
+        static_cast<mfxU16>(obs_data_get_int(Params, "bitrate"));
+  } else if (std::strcmp(bitrate_control, "VBR") == 0) {
+    Context->EncoderParams.TargetBitRate =
+        static_cast<mfxU16>(obs_data_get_int(Params, "bitrate"));
+    Context->EncoderParams.MaxBitRate =
+        static_cast<mfxU16>(obs_data_get_int(Params, "max_bitrate"));
+  } else if (std::strcmp(bitrate_control, "CQP") == 0) {
+    Context->EncoderParams.QPI = static_cast<mfxU16>(obs_data_get_int(Params, "cqp"));
+    Context->EncoderParams.QPP = static_cast<mfxU16>(obs_data_get_int(Params, "cqp"));
+    Context->EncoderParams.QPB = static_cast<mfxU16>(obs_data_get_int(Params, "cqp"));
+  } else if (std::strcmp(bitrate_control, "ICQ") == 0) {
+    Context->EncoderParams.ICQQuality =
+        static_cast<mfxU16>(obs_data_get_int(Params, "icq_quality"));
   }
 
-  QSV_VPL_Encoder_Internal *pEncoder =
-      reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
-  pEncoder->UpdateParams(&obsqsv->params);
-  mfxStatus sts = pEncoder->ReconfigureEncoder();
+  if (Context->EncoderPTR->UpdateParams(&Context->EncoderParams)) {
+    mfxStatus Status = Context->EncoderPTR->ReconfigureEncoder();
 
-  if (sts < MFX_ERR_NONE) {
-    warn("Failed to reconfigure \nReset status: %d", sts);
-    return false;
+    if (Status < MFX_ERR_NONE) {
+      warn("Failed to reconfigure \nReset status: %d", Status);
+      return false;
+    }
   }
 
   return true;
 }
 
-int qsv_encoder_reconfig(qsv_t *pContext, qsv_param_t *pParams) {
-  QSV_VPL_Encoder_Internal *pEncoder =
-      reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
-  pEncoder->UpdateParams(pParams);
-  mfxStatus sts = pEncoder->ReconfigureEncoder();
+static int qsv_encoder_reconfig(QSVEncoder *EncoderPTR,
+                         encoder_params *EncoderParams) {
 
-  if (sts < MFX_ERR_NONE) {
+  EncoderPTR->UpdateParams(EncoderParams);
+
+  if (EncoderPTR->ReconfigureEncoder() < MFX_ERR_NONE) {
 
     return false;
   }
   return true;
 }
 
-void load_headers(obs_qsv *obsqsv) {
+bool GetExtraData(void *Data, uint8_t **ExtraData, size_t *Size) {
+  plugin_context *Context = static_cast<plugin_context *>(Data);
 
-  DARRAY(uint8_t) header;
-  DARRAY(uint8_t) sei;
-
-  da_clear(header);
-  da_clear(sei);
-  da_init(header);
-  da_init(sei);
-
-  uint8_t *pVPS, *pSPS, *pPPS;
-  uint16_t nVPS, nSPS, nPPS;
-  QSV_VPL_Encoder_Internal *pEncoder =
-      reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
-  pEncoder->GetVPSSPSPPS(&pVPS, &pSPS, &pPPS, &nVPS, &nSPS, &nPPS);
-
-  if (obsqsv->codec == QSV_CODEC_HEVC) {
-    da_push_back_array(header, pVPS, nVPS);
-    da_push_back_array(header, pSPS, nSPS);
-    da_push_back_array(header, pPPS, nPPS);
-  } else if (obsqsv->codec == QSV_CODEC_AVC) {
-    da_push_back_array(header, pSPS, nSPS);
-    da_push_back_array(header, pPPS, nPPS);
-  } else if (obsqsv->codec == QSV_CODEC_VP9 || obsqsv->codec == QSV_CODEC_AV1) {
-    da_push_back_array(header, pSPS, nSPS);
-  }
-  obsqsv->extra_data = header.array;
-  obsqsv->extra_data_size = header.num;
-  obsqsv->sei = sei.array;
-  obsqsv->sei_size = sei.num;
-}
-
-bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
-
-  if (!obsqsv->context)
+  if (!Context->EncoderPTR)
     return false;
 
-  *extra_data = obsqsv->extra_data;
-  *size = obsqsv->extra_data_size;
+  *ExtraData = Context->ExtraData.first;
+  *Size = Context->ExtraData.second;
   return true;
 }
 
-bool obs_qsv_sei(void *data, uint8_t **sei, size_t *size) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
+bool GetSEIData(void *Data, uint8_t **SEI, size_t *Size) {
+  plugin_context *Context = static_cast<plugin_context *>(Data);
 
-  if (!obsqsv->context)
+  if (!Context->EncoderPTR)
     return false;
 
-  *sei = obsqsv->sei;
-  *size = obsqsv->sei_size;
+  *SEI = Context->SEI.first;
+  *Size = Context->SEI.second;
   return true;
 }
 
-void obs_qsv_video_info(void *data, video_scale_info *info) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
-  auto pref_format = obs_encoder_get_preferred_video_format(obsqsv->encoder);
-  if (obsqsv->codec == QSV_CODEC_AVC) {
+void GetVideoInfo(void *Data, video_scale_info *Info) {
+  plugin_context *Context = static_cast<plugin_context *>(Data);
+  auto pref_format =
+      obs_encoder_get_preferred_video_format(Context->EncoderData);
+  if (Context->Codec == QSV_CODEC_AVC) {
     if (!(pref_format == VIDEO_FORMAT_NV12)) {
-      pref_format = (info->format == VIDEO_FORMAT_NV12) ? info->format
+      pref_format = (Info->format == VIDEO_FORMAT_NV12) ? Info->format
                                                         : VIDEO_FORMAT_NV12;
     }
   } else {
     if (!(pref_format == VIDEO_FORMAT_NV12 ||
           pref_format == VIDEO_FORMAT_P010)) {
-      pref_format = (info->format == VIDEO_FORMAT_NV12 ||
-                     info->format == VIDEO_FORMAT_P010)
-                        ? info->format
+      pref_format = (Info->format == VIDEO_FORMAT_NV12 ||
+                     Info->format == VIDEO_FORMAT_P010)
+                        ? Info->format
                         : VIDEO_FORMAT_NV12;
     }
   }
-  info->format = pref_format;
+  Info->format = pref_format;
 }
 
-mfxU64 ts_obs_to_mfx(int64_t ts, const video_output_info *voi) {
-  return ts * 90000 / voi->fps_num;
+mfxU64 ConvertTSOBSMFX(int64_t TS, const video_output_info *VOI) {
+  return static_cast<mfxU64>(TS * 90000 / VOI->fps_num);
 }
 
-int64_t ts_mfx_to_obs(mfxI64 ts, const video_output_info *voi) {
-  return voi->fps_num * ts / 90000;
+int64_t ConvertTSMFXOBS(mfxI64 TS, const video_output_info *VOI) {
+  return VOI->fps_num * TS / 90000;
 }
 
-void parse_packet(obs_qsv *obsqsv, encoder_packet *packet, mfxBitstream *pBS,
-                  const video_output_info *voi, bool *received_packet) {
-  if (pBS == nullptr || pBS->DataLength == 0) {
-    *received_packet = false;
+void ParseEncodedPacket(plugin_context *Context, encoder_packet *Packet,
+                  mfxBitstream *Bitstream, const video_output_info *VOI,
+                  bool *ReceivedPacketStatus) {
+  if (Bitstream == nullptr || Bitstream->DataLength == 0) {
+    *ReceivedPacketStatus = false;
     return;
   }
 
-  da_resize(obsqsv->packet_data, 0);
-  da_push_back_array(obsqsv->packet_data, *(&pBS->Data + *(&pBS->DataOffset)),
-                     std::move(*(&pBS->DataLength)));
+  Context->PacketData.resize(0);
 
-  packet->data = std::move(obsqsv->packet_data.array);
-  packet->size = std::move(obsqsv->packet_data.num);
-  packet->type = OBS_ENCODER_VIDEO;
-  packet->pts =
-      std::move(ts_mfx_to_obs(static_cast<mfxI64>(pBS->TimeStamp), voi));
-  packet->dts =
-      (obsqsv->codec == QSV_CODEC_VP9 || obsqsv->codec == QSV_CODEC_AV1)
-          ? std::move(packet->pts)
-          : std::move(ts_mfx_to_obs(pBS->DecodeTimeStamp, voi));
-  packet->keyframe = ((pBS->FrameType & MFX_FRAMETYPE_I) ||
-                      (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-                      (pBS->FrameType & MFX_FRAMETYPE_S) ||
-                      (pBS->FrameType & MFX_FRAMETYPE_xI) ||
-                      (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
-                      (pBS->FrameType & MFX_FRAMETYPE_xS));
+  if (!Context->ExtraData.first || Context->ExtraData.second == 0) {
+    uint8_t *NewPacket = 0;
+    size_t NewPacketSize = 0;
+    if (Context->Codec == QSV_CODEC_AVC) {
+      obs_extract_avc_headers(*(&Bitstream->Data + *(&Bitstream->DataOffset)),
+                              *(&Bitstream->DataLength), &NewPacket, &NewPacketSize,
+                              &Context->ExtraData.first, &Context->ExtraData.second,
+                              &Context->SEI.first, &Context->SEI.second);
+    } else if (Context->Codec == QSV_CODEC_HEVC) {
+      obs_extract_hevc_headers(*(&Bitstream->Data + *(&Bitstream->DataOffset)),
+                               *(&Bitstream->DataLength), &NewPacket, &NewPacketSize,
+                               &Context->ExtraData.first, &Context->ExtraData.second,
+                               &Context->SEI.first, &Context->SEI.second);
+    } else if (Context->Codec == QSV_CODEC_AV1) {
+      obs_extract_av1_headers(*(&Bitstream->Data + *(&Bitstream->DataOffset)),
+                              *(&Bitstream->DataLength), &NewPacket, &NewPacketSize,
+                              &Context->ExtraData.first, &Context->ExtraData.second);
+    }
 
-  if ((pBS->FrameType & MFX_FRAMETYPE_I) ||
-      (pBS->FrameType & MFX_FRAMETYPE_IDR) ||
-      (pBS->FrameType & MFX_FRAMETYPE_S) ||
-      (pBS->FrameType & MFX_FRAMETYPE_xI) ||
-      (pBS->FrameType & MFX_FRAMETYPE_xIDR) ||
-      (pBS->FrameType & MFX_FRAMETYPE_xS)) {
-    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_HIGHEST);
-  } else if ((pBS->FrameType & MFX_FRAMETYPE_REF) ||
-             (pBS->FrameType & MFX_FRAMETYPE_xREF)) {
-    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
-  } else if ((pBS->FrameType & MFX_FRAMETYPE_P) ||
-             (pBS->FrameType & MFX_FRAMETYPE_xP)) {
-    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_LOW);
+    Context->PacketData.insert(Context->PacketData.end(), NewPacket,
+                                NewPacket + NewPacketSize);
   } else {
-    packet->priority = static_cast<int>(OBS_NAL_PRIORITY_DISPOSABLE);
+    Context->PacketData.insert(Context->PacketData.end(),
+                               *(&Bitstream->Data + *(&Bitstream->DataOffset)),
+        *(&Bitstream->Data + *(&Bitstream->DataOffset)) + *(&Bitstream->DataLength));
   }
 
-  *received_packet = true;
+  Packet->data = Context->PacketData.data();
+  Packet->size = Context->PacketData.size();
 
-  *pBS->Data = 0;
-  pBS->DataLength = 0;
-  pBS->DataOffset = 0;
+  Packet->type = OBS_ENCODER_VIDEO;
+  Packet->pts =
+      std::move(ConvertTSMFXOBS(static_cast<mfxI64>(Bitstream->TimeStamp), VOI));
+  Packet->dts = (Context->Codec == QSV_CODEC_AV1)
+                    ? std::move(Packet->pts)
+                    : std::move(ConvertTSMFXOBS(Bitstream->DecodeTimeStamp, VOI));
+  Packet->keyframe = ((Bitstream->FrameType & MFX_FRAMETYPE_I) ||
+                      (Bitstream->FrameType & MFX_FRAMETYPE_IDR) ||
+                      (Bitstream->FrameType & MFX_FRAMETYPE_S) ||
+                      (Bitstream->FrameType & MFX_FRAMETYPE_xI) ||
+                      (Bitstream->FrameType & MFX_FRAMETYPE_xIDR) ||
+                      (Bitstream->FrameType & MFX_FRAMETYPE_xS));
+
+  if ((Bitstream->FrameType & MFX_FRAMETYPE_I) ||
+      (Bitstream->FrameType & MFX_FRAMETYPE_IDR) ||
+      (Bitstream->FrameType & MFX_FRAMETYPE_S) ||
+      (Bitstream->FrameType & MFX_FRAMETYPE_xI) ||
+      (Bitstream->FrameType & MFX_FRAMETYPE_xIDR) ||
+      (Bitstream->FrameType & MFX_FRAMETYPE_xS)) {
+    Packet->priority = static_cast<int>(OBS_NAL_PRIORITY_HIGHEST);
+    Packet->drop_priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
+  } else if ((Bitstream->FrameType & MFX_FRAMETYPE_REF) ||
+             (Bitstream->FrameType & MFX_FRAMETYPE_xREF)) {
+    Packet->priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
+    Packet->drop_priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
+  } else if ((Bitstream->FrameType & MFX_FRAMETYPE_P) ||
+             (Bitstream->FrameType & MFX_FRAMETYPE_xP)) {
+    Packet->priority = static_cast<int>(OBS_NAL_PRIORITY_LOW);
+    Packet->drop_priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
+  } else {
+    Packet->priority = static_cast<int>(OBS_NAL_PRIORITY_DISPOSABLE);
+    Packet->drop_priority = static_cast<int>(OBS_NAL_PRIORITY_HIGH);
+  }
+
+  *ReceivedPacketStatus = true;
+
+  *Bitstream->Data = 0;
+  Bitstream->DataLength = 0;
+  Bitstream->DataOffset = 0;
 }
 
-// void qsv_encoder_add_roi(qsv_t *pContext, const obs_encoder_roi *roi) {
-//   QSV_VPL_Encoder_Internal *pEncoder =
-//       reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
-//
-//   /* QP value is range 0..51 */
-//   // ToDo figure out if this is different for AV1
-//   mfxI16 delta = static_cast<mfxI16>(-51.0f * roi->priority);
-//   pEncoder->AddROI(roi->left, roi->top, roi->right, roi->bottom, delta);
-// }
-//
-// void qsv_encoder_clear_roi(qsv_t *pContext) {
-//   QSV_VPL_Encoder_Internal *pEncoder =
-//       reinterpret_cast<QSV_VPL_Encoder_Internal *>(pContext);
-//   pEncoder->ClearROI();
-// }
-//
-// void roi_cb(void *param, struct obs_encoder_roi *roi) {
-//   struct darray *da = static_cast<darray *>(param);
-//   darray_push_back(sizeof(struct obs_encoder_roi), da, roi);
-// }
-//
-// void obs_qsv_setup_rois(struct obs_qsv *obsqsv) {
-//   const uint32_t increment = obs_encoder_get_roi_increment(obsqsv->encoder);
-//   if (obsqsv->roi_increment == increment)
-//     return;
-//
-//   qsv_encoder_clear_roi(obsqsv->context);
-//   /* Because we pass-through the ROIs more or less directly we need to
-//    * pass them in reverse order, so make a temporary copy and then use
-//    * that instead. */
-//   DARRAY(struct obs_encoder_roi) rois;
-//   da_init(rois);
-//
-//   obs_encoder_enum_roi(obsqsv->encoder, roi_cb, &rois);
-//
-//   size_t idx = rois.num;
-//   while (idx)
-//     qsv_encoder_add_roi(obsqsv->context, &rois.array[--idx]);
-//
-//   da_free(rois);
-//
-//   obsqsv->roi_increment = increment;
-// }
-
-bool obs_qsv_encode_tex(void *data, encoder_texture *tex, int64_t pts,
-                        uint64_t lock_key, uint64_t *next_key,
-                        encoder_packet *packet, bool *received_packet) {
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
+bool EncodeTexture(void *Data, encoder_texture *Texture, int64_t PTS,
+                        uint64_t LockKey, uint64_t *NextKey,
+                        encoder_packet *Packet, bool *ReceivedPacketStatus) {
+  plugin_context *Context = static_cast<plugin_context *>(Data);
 
 #if defined(_WIN32) || defined(_WIN64)
-  if (!tex || tex->handle == static_cast<uint32_t>(-1)) {
+  if (!Texture || Texture->handle == static_cast<uint32_t>(-1)) {
 #else
-  if (!tex || !tex->tex[0] || !tex->tex[1]) {
+  if (!Texture || !Texture->tex[0] || !Texture->tex[1]) {
 #endif
     warn("Encode failed: bad texture handle");
-    *next_key = lock_key;
+    *NextKey = LockKey;
     return false;
   }
 
-  if (!packet || !received_packet)
+  if (!Packet || !ReceivedPacketStatus)
     return false;
 
-  pthread_mutex_lock(&g_QsvLock);
+  {
+    std::lock_guard<std::mutex> lock(Mutex);
 
-  auto *video = std::move(obs_encoder_video(obsqsv->encoder));
-  auto *voi = std::move(video_output_get_info(video));
+    auto *Video = std::move(obs_encoder_video(Context->EncoderData));
+    auto *VOI = std::move(video_output_get_info(std::move(Video)));
 
-  auto *pBS = static_cast<mfxBitstream *>(nullptr);
+    auto *Bitstream = static_cast<mfxBitstream *>(nullptr);
 
-  // if (obs_encoder_has_roi(obsqsv->encoder))
-  //   obs_qsv_setup_rois(obsqsv);
+    // if (obs_encoder_has_roi(obsqsv->encoder))
+    //   obs_qsv_setup_rois(obsqsv);
 
-  QSV_VPL_Encoder_Internal *pEncoder =
-      reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
+    try {
+      Context->EncoderPTR->EncodeTexture(
+          std::move(ConvertTSOBSMFX(PTS, VOI)),
+          std::move(static_cast<void *>(Texture)), LockKey, NextKey,
+          &Bitstream);
+    } catch (const std::exception &e) {
+      error("%s", e.what());
+      error("encode failed");
 
-  try {
-    pEncoder->Encode_tex(std::move(ts_obs_to_mfx(pts, voi)),
-                         std::move(static_cast<void *>(tex)), lock_key,
-                         next_key, &pBS);
-  } catch (const std::exception &e) {
-    error("%s", e.what());
-    error("encode failed");
-    pthread_mutex_unlock(&g_QsvLock);
-    return false;
+      return false;
+    }
+
+    ParseEncodedPacket(Context, Packet, std::move(Bitstream), VOI,
+                 ReceivedPacketStatus);
   }
-
-  parse_packet(obsqsv, packet, std::move(pBS), voi, received_packet);
-
-  pthread_mutex_unlock(&g_QsvLock);
 
   return true;
 }
 
-bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
-                    bool *received_packet) {
+bool EncodeFrame(void *Data, encoder_frame *Frame, encoder_packet *Packet,
+                      bool *ReceivedPacketStatus) {
 
-  obs_qsv *obsqsv = static_cast<obs_qsv *>(data);
+  plugin_context *Context = static_cast<plugin_context *>(Data);
 
-  if (!frame || !packet || !received_packet) {
+  if (!Frame || !Packet || !ReceivedPacketStatus) {
     return false;
   }
 
-  pthread_mutex_lock(&g_QsvLock);
+  {
+    std::lock_guard<std::mutex> lock(Mutex);
+    auto *video = std::move(obs_encoder_video(Context->EncoderData));
+    auto *VOI = std::move(video_output_get_info(std::move(video)));
 
-  auto *video = std::move(obs_encoder_video(obsqsv->encoder));
-  auto *voi = std::move(video_output_get_info(video));
+    auto *Bitstream = static_cast<mfxBitstream *>(nullptr);
 
-  auto *pBS = static_cast<mfxBitstream *>(nullptr);
+    // if (obs_encoder_has_roi(obsqsv->encoder))
+    //   obs_qsv_setup_rois(obsqsv);
 
-  // if (obs_encoder_has_roi(obsqsv->encoder))
-  //   obs_qsv_setup_rois(obsqsv);
+    try {
+      if (Frame->data[0]) {
+        Context->EncoderPTR->EncodeFrame(
+            std::move(ConvertTSOBSMFX(Frame->pts, VOI)), std::move(Frame->data),
+            std::move(Frame->linesize), &Bitstream);
+      } else {
+        Context->EncoderPTR->EncodeFrame(
+            std::move(ConvertTSOBSMFX(Frame->pts, VOI)), nullptr, 0, &Bitstream);
+      }
+    } catch (const std::exception &e) {
+      error("%s", e.what());
+      error("encode failed");
 
-  QSV_VPL_Encoder_Internal *pEncoder =
-      reinterpret_cast<QSV_VPL_Encoder_Internal *>(obsqsv->context);
-
-  try {
-    if (frame->data[0]) {
-      pEncoder->Encode(std::move(ts_obs_to_mfx(frame->pts, voi)),
-                       std::move(frame->data), std::move(frame->linesize),
-                       &pBS);
-    } else {
-      pEncoder->Encode(std::move(ts_obs_to_mfx(frame->pts, voi)), nullptr, 0,
-                       &pBS);
+      return false;
     }
-  } catch (const std::exception &e) {
-    error("%s", e.what());
-    error("encode failed");
-    pthread_mutex_unlock(&g_QsvLock);
-    return false;
+
+    ParseEncodedPacket(Context, Packet, std::move(Bitstream), VOI,
+                 ReceivedPacketStatus);
   }
-
-  parse_packet(obsqsv, packet, std::move(pBS), voi, received_packet);
-
-  pthread_mutex_unlock(&g_QsvLock);
 
   return true;
 }

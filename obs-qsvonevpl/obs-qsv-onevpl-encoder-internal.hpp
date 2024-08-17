@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef __QSV_VPL_ENCODER_INTERNAL_H__
-#define __QSV_VPL_ENCODER_INTERNAL_H__
+#ifndef __QSVEncoder_H__
+#define __QSVEncoder_H__
 #endif
 
 #ifndef __QSV_VPL_COMMON_UTILS_H__
@@ -17,96 +17,131 @@
 #include "helpers/qsv_params.hpp"
 #endif
 
-class QSV_VPL_Encoder_Internal {
+class QSVEncoder {
 public:
-  QSV_VPL_Encoder_Internal();
-  ~QSV_VPL_Encoder_Internal();
+  QSVEncoder();
+  ~QSVEncoder();
 
-  mfxStatus GetVPLVersion(mfxVersion &mfx_Version);
-  mfxStatus Open(struct qsv_param_t *pParams, enum qsv_codec codec,
-                 bool useTexAlloc);
-  void GetVPSSPSPPS(mfxU8 **pVPSBuf, mfxU8 **pSPSBuf, mfxU8 **pPPSBuf,
-                    mfxU16 *pnVPSBuf, mfxU16 *pnSPSBuf, mfxU16 *pnPPSBuf);
-  mfxStatus Encode(mfxU64 ts, uint8_t **frame_data, uint32_t *frame_linesize,
-                   mfxBitstream **pBS);
-  mfxStatus Encode_tex(mfxU64 ts, void *tex_handle, uint64_t lock_key,
-                       uint64_t *next_key, mfxBitstream **pBS);
+  mfxStatus GetVPLVersion(mfxVersion &);
+  mfxStatus Init(struct encoder_params *InputParams, enum codec_enum Codec,
+                 bool IsTextureEncoder);
+  mfxStatus EncodeFrame(mfxU64 TS, uint8_t **FrameData, uint32_t *FrameLinesize,
+                        mfxBitstream **Bitstream);
+  mfxStatus EncodeTexture(mfxU64 TS, void *TextureHandle, uint64_t LockKey,
+                          uint64_t *NextKey, mfxBitstream **Bitstream);
   mfxStatus ClearData();
   mfxStatus ReconfigureEncoder();
-  void AddROI(mfxU32 left, mfxU32 top, mfxU32 right, mfxU32 bottom,
-              mfxI16 delta);
-  void ClearROI();
-  bool UpdateParams(struct qsv_param_t *pParams);
+  bool UpdateParams(struct encoder_params *InputParams);
 
 protected:
   typedef struct Task {
-    mfxBitstream mfxBS;
-    mfxSyncPoint syncp;
+    mfxBitstream Bitstream;
+    mfxSyncPoint SyncPoint;
   } Task;
 
-  mfxStatus Initialize(enum qsv_codec codec, [[maybe_unused]] void **data, int GPUNum);
+  mfxStatus CreateSession(enum codec_enum Codec, [[maybe_unused]] void **Data,
+                          int GPUNum);
 
-  mfxStatus InitVPPParams(struct qsv_param_t *pParams, enum qsv_codec codec);
-  mfxStatus InitEncParams(struct qsv_param_t *pParams, enum qsv_codec codec);
+  mfxStatus SetProcessingParams(struct encoder_params *InputParams,
+                                enum codec_enum Codec);
+  mfxStatus SetEncoderParams(struct encoder_params *InputParams,
+                             enum codec_enum Codec);
 
-  mfxStatus GetVideoParam(enum qsv_codec codec);
-  mfxStatus AllocateTextures();
-  mfxStatus InitBitstream(enum qsv_codec codec);
+  mfxStatus GetVideoParam(enum codec_enum Codec);
+  mfxStatus InitTexturePool();
+  mfxStatus InitBitstreamBuffer(enum codec_enum Codec);
   void ReleaseBitstream();
-  mfxStatus InitTaskPool(enum qsv_codec codec);
+  mfxStatus InitTaskPool(enum codec_enum Codec);
   void ReleaseTask(int TaskID);
   void ReleaseTaskPool();
   mfxStatus ChangeBitstreamSize(mfxU32 NewSize);
   mfxStatus GetFreeTaskIndex(int *TaskID);
 
-  void LoadFrameData(mfxFrameSurface1 *&surface, uint8_t **frame_data,
-                     uint32_t *frame_linesize);
+  void LoadFrameData(mfxFrameSurface1 *&Surface, uint8_t **FrameData,
+                     uint32_t *FrameLinesize);
 
   mfxStatus Drain();
 
+  template <typename T>
+  static inline T GetTriState(const std::optional<bool> &Value,
+                              const T DefaultValue, const T OnValue,
+                              const T OffValue) {
+    if (!Value.has_value()) {
+      return DefaultValue;
+    }
+    return Value.value() ? OnValue : OffValue;
+  }
+
+  static inline mfxU16 GetCodingOpt(const std::optional<bool> &Value) {
+    return static_cast<mfxU16>(GetTriState(Value, MFX_CODINGOPTION_UNKNOWN,
+                                           MFX_CODINGOPTION_ON,
+                                           MFX_CODINGOPTION_OFF));
+  }
+
+  static inline std::string GetCodingOptStatus(const mfxU16 &Value) {
+    if (Value == MFX_CODINGOPTION_ON) {
+      return "ON";
+    } else if (Value == MFX_CODINGOPTION_OFF) {
+      return "OFF";
+    } else {
+      return "AUTO";
+    }
+  }
+
 private:
-  mfxPlatform mfx_Platform;
-  mfxVersion mfx_Version;
-  mfxLoader mfx_Loader;
-  mfxConfig mfx_LoaderConfig[8];
-  mfxVariant mfx_LoaderVariant[8];
-  mfxSession mfx_Session;
+  mfxPlatform QSVPlatform;
+  mfxVersion QSVVersion;
+  mfxLoader QSVLoader;
+  mfxConfig QSVLoaderConfig[8];
+  mfxVariant QSVLoaderVariant[8];
+  mfxSession QSVSession;
+  mfxIMPL QSVImpl;
 #if defined(__linux__)
-  void *mfx_SessionData;
+  void *QSVSessionData;
 #endif
 
-  mfxFrameSurface1 *mfx_EncSurface;
+  mfxFrameSurface1 *QSVEncodeSurface;
 
-  mfxFrameSurface1 *mfx_VPPSurface;
+  mfxFrameSurface1 *QSVProcessingSurface;
 
-  MFXVideoENCODE* mfx_VideoEnc;
-  MFXVideoVPP* mfx_VideoVPP;
+  std::unique_ptr<MFXVideoENCODE> QSVEncode;
+  std::unique_ptr<MFXVideoVPP> QSVProcessing;
 
-  mfxU8 VPS_Buffer[1024];
-  mfxU8 SPS_Buffer[1024];
-  mfxU8 PPS_Buffer[1024];
-  mfxU16 VPS_BufferSize;
-  mfxU16 SPS_BufferSize;
-  mfxU16 PPS_BufferSize;
+  mfxU8 QSVVPSBuffer[1024];
+  mfxU8 QSVSPSBuffer[1024];
+  mfxU8 QSVPPSBuffer[1024];
+  mfxU16 QSVVPSBufferSize;
+  mfxU16 QSVSPSBufferSize;
+  mfxU16 QSVPPSBufferSize;
 
-  mfxBitstream mfx_Bitstream;
-  //mfxU16 mfx_TaskPoolSize;
-  std::vector<struct Task> mfx_TaskPool;
-  int mfx_SyncTaskID;
+  mfxBitstream QSVBitstream;
+  // mfxU16 MFXTaskPoolSize;
+  std::vector<struct Task> QSVTaskPool;
+  int QSVSyncTaskID;
 
-  mfxVideoParam mfx_ResetParams;
-  bool ResetParamChanged;
+  mfxVideoParam QSVResetParams;
+  bool QSVResetParamsChanged;
 
-  mfx_VideoParam mfx_EncParams;
-  mfx_VideoParam mfx_VPPParams;
-  mfx_EncodeCtrl mfx_EncCtrlParams;
+  MFXVideoParam QSVEncodeParams;
+  MFXVideoParam QSVProcessingParams;
+  MFXEncodeCtrl QSVEncodeCtrlParams;
 
-  mfxFrameAllocRequest mfx_AllocRequest;
+  mfxFrameAllocRequest QSVAllocateRequest;
 
-  bool mfx_UseTexAlloc;
-  mfxMemoryInterface *mfx_MemoryInterface;
+  bool QSVIsTextureEncoder;
+  mfxMemoryInterface *QSVMemoryInterface;
 
-  hw_handle* hw;
+  std::unique_ptr<class HWManager> HWManager;
 
-  bool mfx_VPP;
+  bool QSVProcessingEnable;
+
+  enum class AdditionalFourCC {
+    MFX_FOURCC_IMC3 = MFX_MAKEFOURCC('I', 'M', 'C', '3'),
+    MFX_FOURCC_YUV400 = MFX_MAKEFOURCC('4', '0', '0', 'P'),
+    MFX_FOURCC_YUV411 = MFX_MAKEFOURCC('4', '1', '1', 'P'),
+    MFX_FOURCC_YUV422H = MFX_MAKEFOURCC('4', '2', '2', 'H'),
+    MFX_FOURCC_YUV422V = MFX_MAKEFOURCC('4', '2', '2', 'V'),
+    MFX_FOURCC_YUV444 = MFX_MAKEFOURCC('4', '4', '4', 'P'),
+    MFX_FOURCC_RGBP24 = MFX_MAKEFOURCC('R', 'G', 'B', 'P'),
+  };
 };

@@ -4,126 +4,27 @@
 #define __QSV_VPL_ENCODER_PARAMS_H__
 #endif
 
-#ifndef __QSV_VPL_COMMON_UTILS_H__
-#include "common_utils.hpp"
-#endif
-
-static const char *const qsv_ratecontrols_h264[] = {"CBR", "VBR", "CQP", "ICQ",
-                                                    0};
-
-static const char *const qsv_ratecontrols_vp9[] = {"CBR", "VBR", "CQP", "ICQ",
-                                                   0};
-
-static const char *const qsv_ratecontrols_hevc[] = {"CBR", "VBR", "CQP", "ICQ",
-                                                    0};
-
-static const char *const qsv_ratecontrols_av1[] = {"CBR", "VBR", "CQP", "ICQ",
-                                                   0};
-
-static const char *const qsv_profile_names_h264[] = {
-    "high", "main", "baseline", "extended", "high10", "high422", 0};
-
-static const char *const qsv_profile_names_av1[] = {"main", 0};
-
-static const char *const qsv_profile_names_hevc[] = {"main", "main10", "rext",
-                                                     0};
-
-static const char *const qsv_profile_tiers_hevc[] = {"main", "high", 0};
-
-static const char *const qsv_usage_names[] = {
-    "TU1 (Veryslow)", "TU2 (Slower)", "TU3 (Slow)",     "TU4 (Balanced)",
-    "TU5 (Fast)",     "TU6 (Faster)", "TU7 (Veryfast)", 0};
-
-static const char *const qsv_latency_names[] = {"ultra-low", "low", "normal",
-                                                0};
-
-static const char *const qsv_params_condition[] = {"ON", "OFF", 0};
-
-static const char *const qsv_params_condition_tristate[] = {"ON", "OFF", "AUTO",
-                                                            0};
-
-static const char *const qsv_params_condition_p_pyramid[] = {"SIMPLE",
-                                                             "PYRAMID", 0};
-
-static const char *const qsv_params_condition_vpp[] = {"PRE ENC", "POST ENC", "PRE ENC | POST ENC",
-                                                                  0};
-
-static const char *const qsv_params_condition_scaling_mode[] = {
-    "OFF",
-    "QUALITY | ADVANCED",
-    "VEBOX | ADVANCED",
-    "LOWPOWER | NEAREST NEIGHBOR",
-    "LOWPOWER | ADVANCED",
-    "AUTO",
-    0};
-
-static const char *const qsv_params_condition_image_stab_mode[] = {
-    "OFF", "UPSCALE", "BOXING", "AUTO", 0};
-
-static const char *const qsv_params_condition_extbrc[] = {"ON", "OFF", 0};
-
-static const char *const qsv_params_condition_intra_ref_encoding[] = {
-    "VERTICAL", "HORIZONTAL", 0};
-
-static const char *const qsv_params_condition_mv_cost_scaling[] = {
-    "DEFAULT", "1/2", "1/4", "1/8", "AUTO", 0};
-
-static const char *const qsv_params_condition_lookahead_mode[] = {"HQ", "LP",
-                                                                  "OFF", 0};
-
-static const char *const qsv_params_condition_lookahead_latency[] = {
-    "NORMAL", "HIGH", "LOW", "VERYLOW", 0};
-
-static const char *const qsv_params_condition_lookahead_ds[] = {
-    "SLOW", "MEDIUM", "FAST", "AUTO", 0};
-
-static const char *const qsv_params_condition_trellis[] = {
-    "OFF", "I", "IP", "IPB", "IB", "P", "PB", "B", "AUTO", 0};
-
-static const char *const qsv_params_condition_hevc_sao[] = {
-    "AUTO", "DISABLE", "LUMA", "CHROMA", "ALL", 0};
-
-static const char *const qsv_params_condition_tune_quality[] = {
-    "DEFAULT", "PSNR", "SSIM", "MS SSIM", "VMAF", "PERCEPTUAL", "OFF", 0};
-
-static const char *const qsv_params_condition_denoise_mode[] = {
-    "DEFAULT",
-    "AUTO | BDRATE | PRE ENCODE",
-    "AUTO | ADJUST | POST ENCODE",
-    "AUTO | SUBJECTIVE | PRE ENCODE",
-    "MANUAL | PRE ENCODE",
-    "MANUAL | POST ENCODE",
-    "OFF",
-    0};
-
-struct vpp_param {
-  bool bPreEnc;
-  bool bPostEnc;
-
-  bool Enable;
-};
-
-struct qsv_param_t {
-  mfxU16 nTargetUsage; /* 1 through 7, 1 being best quality and 7
+struct encoder_params {
+  mfxU16 TargetUsage; /* 1 through 7, 1 being best quality and 7
                                   being the best speed */
-  mfxU16 nWidth;       /* source picture width */
-  mfxU16 nHeight;      /* source picture height */
-  mfxU16 nAsyncDepth;
-  mfxU16 nFpsNum;
-  mfxU16 nFpsDen;
-  mfxU16 nTargetBitRate;
-  mfxU16 nMaxBitRate;
-  mfxU16 nBufferSize;
+  mfxU16 Width;       /* source picture width */
+  mfxU16 Height;      /* source picture height */
+  mfxU16 AsyncDepth;
+  mfxU16 FpsNum;
+  mfxU16 FpsDen;
+  mfxU16 TargetBitRate;
+  mfxU16 MaxBitRate;
+  mfxU16 BufferSize;
   mfxU16 CodecProfile;
-  mfxU16 HEVCTier;
+  mfxU16 CodecProfileTier;
   mfxU16 RateControl;
-  mfxU16 nQPI;
-  mfxU16 nQPP;
-  mfxU16 nQPB;
-  mfxU16 nLADepth;
-  mfxU16 nKeyIntSec;
-  mfxU16 nGOPRefDist;
-  mfxU16 nICQQuality;
+  mfxU16 QPI;
+  mfxU16 QPP;
+  mfxU16 QPB;
+  mfxU16 LADepth;
+  mfxU16 KeyIntSec;
+  mfxU16 GOPRefDist;
+  mfxU16 ICQQuality;
   mfxU16 VideoFormat;
   mfxU16 VideoFullRange;
   mfxU16 ColourPrimaries;
@@ -139,100 +40,65 @@ struct qsv_param_t {
   mfxU32 MinDisplayMasteringLuminance;
   mfxU16 MaxContentLightLevel;
   mfxU16 MaxPicAverageLightLevel;
-  mfxU16 nIntraRefCycleSize;
-  mfxU16 nCTU;
-  mfxU16 nWinBRCMaxAvgSize;
-  mfxU16 nWinBRCSize;
-  mfxU16 nNumRefFrame;
-  mfxU16 nDenoiseStrength;
+  mfxU16 IntraRefCycleSize;
+  mfxU16 CTU;
+  mfxU16 WinBRCMaxAvgSize;
+  mfxU16 WinBRCSize;
+  mfxU16 NumRefFrame;
+  mfxU16 DenoiseStrength;
 
-  mfxI16 nIntraRefQPDelta;
+  mfxI16 IntraRefQPDelta;
 
-  std::optional<bool> bQualityEnchance;
-  std::optional<bool> bMBBRC;
-  std::optional<bool> bAdaptiveI;
-  std::optional<bool> bAdaptiveB;
-  std::optional<bool> bAdaptiveRef;
-  std::optional<bool> bAdaptiveCQM;
-  std::optional<bool> bAdaptiveLTR;
-  std::optional<bool> bAdaptiveMaxFrameSize;
-  std::optional<bool> bRDO;
-  std::optional<bool> bRawRef;
-  std::optional<bool> bGPB;
-  std::optional<bool> bDirectBiasAdjustment;
-  std::optional<bool> bGopOptFlag;
-  std::optional<bool> bWeightedPred;
-  std::optional<bool> bWeightedBiPred;
-  std::optional<bool> bGlobalMotionBiasAdjustment;
-  std::optional<bool> bHRDConformance;
-  std::optional<bool> bLowDelayHRD;
+  std::optional<bool> QualityEnchance;
+  std::optional<bool> MBBRC;
+  std::optional<bool> AdaptiveI;
+  std::optional<bool> AdaptiveB;
+  std::optional<bool> AdaptiveRef;
+  std::optional<bool> AdaptiveCQM;
+  std::optional<bool> AdaptiveLTR;
+  std::optional<bool> AdaptiveMaxFrameSize;
+  std::optional<bool> RDO;
+  std::optional<bool> RawRef;
+  std::optional<bool> GPB;
+  std::optional<bool> DirectBiasAdjustment;
+  std::optional<bool> GopOptFlag;
+  std::optional<bool> WeightedPred;
+  std::optional<bool> WeightedBiPred;
+  std::optional<bool> GlobalMotionBiasAdjustment;
+  std::optional<bool> HRDConformance;
+  std::optional<bool> LowDelayHRD;
 
-  bool bLookahead;
-  bool bLookaheadLP;
-  bool bPPyramid;
-  bool bExtBRC;
-  bool bIntraRefEncoding;
-  bool bCustomBufferSize;
-  bool bEncTools;
-  bool video_fmt_10bit;
-  bool bResetAllowed;
-  bool bLowpower;
-  bool bPercEncPrefilter;
-  bool bVPPEnable;
+  bool Lookahead;
+  bool LookaheadLP;
+  bool PPyramid;
+  bool ExtBRC;
+  bool IntraRefEncoding;
+  bool CustomBufferSize;
+  bool EncTools;
+  bool VideoFormat10bit;
+  bool ResetAllowed;
+  bool Lowpower;
+  bool PercEncPrefilter;
+  bool ProcessingEnable;
 
-  std::optional<int> nTrellis;
-  std::optional<int> nVPPDenoiseMode;
-  std::optional<int> nVPPScalingMode;
-  std::optional<int> nVPPImageStabMode;
-  std::optional<int> nVPPDetail;
-  std::optional<int> nMVCostScalingFactor;
-  std::optional<int> nLookAheadDS;
-  std::optional<bool> nMotionVectorsOverPicBoundaries;
-  std::optional<int> nTuneQualityMode;
-  std::optional<int> nNumRefFrameLayers;
-  std::optional<int> nNumRefActiveP;
-  std::optional<int> nNumRefActiveBL0;
-  std::optional<int> nNumRefActiveBL1;
-  std::optional<int> nSAO;
+  std::optional<int> Trellis;
+  std::optional<int> VPPDenoiseMode;
+  std::optional<int> VPPScalingMode;
+  std::optional<int> VPPImageStabMode;
+  std::optional<int> VPPDetail;
+  std::optional<int> MVCostScalingFactor;
+  std::optional<int> LookAheadDS;
+  std::optional<bool> MotionVectorsOverPicBoundaries;
+  std::optional<int> TuneQualityMode;
+  std::optional<int> NumRefFrameLayers;
+  std::optional<int> NumRefActiveP;
+  std::optional<int> NumRefActiveBL0;
+  std::optional<int> NumRefActiveBL1;
+  std::optional<int> SAO;
 
-  mfxU32 nFourCC;
-  mfxU16 nChromaFormat;
+  mfxU32 FourCC;
+  mfxU16 ChromaFormat;
 
-  int nGPUNum;
+  int GPUNum;
 };
 
-enum {
-  MFX_FOURCC_IMC3 = MFX_MAKEFOURCC('I', 'M', 'C', '3'),
-  MFX_FOURCC_YUV400 = MFX_MAKEFOURCC('4', '0', '0', 'P'),
-  MFX_FOURCC_YUV411 = MFX_MAKEFOURCC('4', '1', '1', 'P'),
-  MFX_FOURCC_YUV422H = MFX_MAKEFOURCC('4', '2', '2', 'H'),
-  MFX_FOURCC_YUV422V = MFX_MAKEFOURCC('4', '2', '2', 'V'),
-  MFX_FOURCC_YUV444 = MFX_MAKEFOURCC('4', '4', '4', 'P'),
-  MFX_FOURCC_RGBP24 = MFX_MAKEFOURCC('R', 'G', 'B', 'P'),
-};
-
-template <typename T>
-static inline T GetTriState(const std::optional<bool> &Value,
-                            const T DefaultValue, const T OnValue,
-                            const T OffValue) {
-  if (!Value.has_value()) {
-    return DefaultValue;
-  }
-  return Value.value() ? OnValue : OffValue;
-}
-
-static inline mfxU16 GetCodingOpt(const std::optional<bool> &value) {
-  return static_cast<mfxU16>(GetTriState(value, MFX_CODINGOPTION_UNKNOWN,
-                                         MFX_CODINGOPTION_ON,
-                                         MFX_CODINGOPTION_OFF));
-}
-
-static inline std::string GetCodingOptStatus(const mfxU16 &value) {
-  if (value == MFX_CODINGOPTION_ON) {
-    return "ON";
-  } else if (value == MFX_CODINGOPTION_OFF) {
-    return "OFF";
-  } else {
-    return "AUTO";
-  }
-}

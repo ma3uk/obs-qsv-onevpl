@@ -66,6 +66,15 @@
 #ifndef _NEW_
 #include <new>
 #endif
+#ifndef _ALGORITHM_
+#include <algorithm>
+#endif
+#ifndef _ITERATOR_
+#include <iterator>
+#endif
+#ifndef _MUTEX_
+#include <mutex>
+#endif
 
 #ifndef __MFX_H__
 #include <vpl/mfx.h>
@@ -74,13 +83,26 @@
 #include <vpl/mfxvideo++.h>
 #endif
 
+extern "C" {
+#include <media-io/video-io.h>
+#include <obs-av1.h>
+#include <obs-avc.h>
+#include <obs-hevc.h>
+#include <obs-module.h>
+#include <obs.h>
+
+#include <util/base.h>
 #include <util/config-file.h>
-#include <util/dstr.h>
 #include <util/pipe.h>
 #include <util/platform.h>
+}
 
-#ifndef __QSV_VPL_HW_HANDLES_H__
+#ifndef __QSV_VPL_HWManager_H__
 #include "hw_d3d11.hpp"
+#endif
+
+#ifndef __QSV_VPL_ENCODER_PARAMS_H__
+#include "qsv_params.hpp"
 #endif
 
 #ifndef do_log
@@ -100,79 +122,66 @@
 #define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
 #endif
 #ifndef error_hr
-#define error_hr(msg) warn("%s: %s: 0x%08lX", __FUNCTION__, msg, static_cast<uint32_t>(hr));
-#endif
-#ifndef INFINITE
-#define INFINITE 0xFFFFFFFF // Infinite timeout
-#endif
-#ifndef WILL_READ
-#define WILL_READ 0x1000
-#endif
-#ifndef WILL_WRITE
-#define WILL_WRITE 0x2000
-#endif
-#ifndef MAX_ADAPTERS
-#define MAX_ADAPTERS 10
+#define error_hr(msg)                                                          \
+  warn("%s: %s: 0x%08lX", __FUNCTION__, msg, static_cast<uint32_t>(hr));
 #endif
 
-extern "C" void util_cpuid(int cpuinfo[4], int flags);
+constexpr int MAX_ADAPTERS = 10;
 
-void check_adapters(struct adapter_info *adapters, size_t *adapter_count);
+void GetAdaptersInfo(struct adapter_info *Adapters, size_t *AdaptersCount);
 
 struct adapter_info {
-  bool is_intel;
-  bool is_dgpu;
-  bool supports_av1;
-  bool supports_hevc;
-  bool supports_vp9;
+  bool IsIntel;
+  bool IsDGPU;
+  bool SupportAV1;
+  bool SupportHEVC;
 };
 
+extern struct adapter_info AdaptersInfo[MAX_ADAPTERS];
+extern size_t AdaptersCount;
 
-extern struct adapter_info adapters[MAX_ADAPTERS];
-extern size_t adapter_count;
-
-enum qsv_codec { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC, QSV_CODEC_VP9 };
+enum codec_enum { QSV_CODEC_AVC, QSV_CODEC_AV1, QSV_CODEC_HEVC };
 
 void ReleaseSessionData(void *);
 
-inline static void avx2_memcpy(uint8_t *dst, const uint8_t *src,
-                        unsigned long long size) {
-  if (size < 128) {
-    for (int i = 0; i < size; i++)
-      dst[i] = src[i];
+inline static void avx2_memcpy(uint8_t *Dst, const uint8_t *Src,
+                               unsigned long long Size) {
+  if (Size < 128) {
+    for (int i = 0; i < Size; i++)
+      Dst[i] = Src[i];
     return;
   }
-  uint8_t *dst_fin = dst + size;
-  const uint8_t *dst_aligned_fin = reinterpret_cast<uint8_t *>(
-      (reinterpret_cast<size_t>(dst_fin + 31) & ~31) - 128);
-  __m256i y0, y1, y2, y3;
-  const int start_align_diff =
-      static_cast<int>(reinterpret_cast<size_t>(dst) & 31);
-  if (start_align_diff) {
-    y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src));
-    _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst), y0);
-    dst += 32 - start_align_diff;
-    src += 32 - start_align_diff;
+  uint8_t *DstFin = Dst + Size;
+  const uint8_t *DstAlignedFin = reinterpret_cast<uint8_t *>(
+      (reinterpret_cast<size_t>(DstFin + 31) & ~31) - 128);
+  __m256i Y0, Y1, Y2, Y3;
+  const int StartAlignDiff =
+      static_cast<int>(reinterpret_cast<size_t>(Dst) & 31);
+  if (StartAlignDiff) {
+    Y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src));
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(Dst), Y0);
+    Dst += 32 - StartAlignDiff;
+    Src += 32 - StartAlignDiff;
   }
-  for (; dst < dst_aligned_fin; dst += 128, src += 128) {
-    y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 0));
-    y1 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 32));
-    y2 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 64));
-    y3 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 96));
-    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 0), y0);
-    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 32), y1);
-    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 64), y2);
-    _mm256_stream_si256(reinterpret_cast<__m256i *>(dst + 96), y3);
+  for (; Dst < DstAlignedFin; Dst += 128, Src += 128) {
+    Y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 0));
+    Y1 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 32));
+    Y2 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 64));
+    Y3 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 96));
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(Dst + 0), Y0);
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(Dst + 32), Y1);
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(Dst + 64), Y2);
+    _mm256_stream_si256(reinterpret_cast<__m256i *>(Dst + 96), Y3);
   }
-  uint8_t *dst_tmp = dst_fin - 128;
-  src -= (dst - dst_tmp);
-  y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 0));
-  y1 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 32));
-  y2 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 64));
-  y3 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + 96));
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 0), y0);
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 32), y1);
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 64), y2);
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst_tmp + 96), y3);
+  uint8_t *DstTmpl = DstFin - 128;
+  Src -= (Dst - DstTmpl);
+  Y0 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 0));
+  Y1 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 32));
+  Y2 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 64));
+  Y3 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(Src + 96));
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(DstTmpl + 0), Y0);
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(DstTmpl + 32), Y1);
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(DstTmpl + 64), Y2);
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(DstTmpl + 96), Y3);
   _mm256_zeroupper();
 }

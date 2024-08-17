@@ -1,5 +1,5 @@
 #include "common_utils.hpp"
-
+#include <util/dstr.h>
 
 
 void Release() {
@@ -10,8 +10,6 @@ void Release() {
 
 void ReleaseSessionData(void *) {}
 
-void util_cpuid(int cpuinfo[4], int flags) { return __cpuid(cpuinfo, flags); }
-
 static bool enum_luids(void *param, uint32_t idx, uint64_t luid) {
   dstr *cmd = static_cast<dstr *>(param);
   dstr_catf(cmd, " %llX", luid);
@@ -19,75 +17,76 @@ static bool enum_luids(void *param, uint32_t idx, uint64_t luid) {
   return true;
 }
 
-void check_adapters(struct adapter_info *adapters_info, size_t *adapters_count) {
-  char *test_exe = os_get_executable_path_ptr("obs-qsv-test.exe");
-  struct dstr cmd = {0};
-  struct dstr caps_str = {0};
-  os_process_pipe_t *pp = nullptr;
-  config_t *config = nullptr;
-  const char *error = nullptr;
-  size_t config_adapter_count;
+void GetAdaptersInfo(struct adapter_info *AdaptersInfo, size_t *AdaptersCount) {
+  char *TestExecutable = os_get_executable_path_ptr("obs-qsv-test.exe");
+  struct dstr CMD = {0};
+  struct dstr Caps = {0};
+  os_process_pipe_t *ProcessPipe = nullptr;
+  config_t *Config = nullptr;
+  const char *Error = nullptr;
+  size_t ConfigAdaptersCount;
 
-  dstr_init_move_array(&cmd, test_exe);
-  dstr_insert_ch(&cmd, 0, '\"');
-  dstr_cat(&cmd, "\"");
+  dstr_init_move_array(&CMD, TestExecutable);
+  dstr_insert_ch(&CMD, 0, '\"');
+  dstr_cat(&CMD, "\"");
 
-  enum_graphics_device_luids(enum_luids, &cmd);
+  enum_graphics_device_luids(enum_luids, &CMD);
 
-  pp = os_process_pipe_create(cmd.array, "r");
-  if (!pp) {
+  ProcessPipe = os_process_pipe_create(CMD.array, "r");
+  if (!ProcessPipe) {
     info("Failed to launch the QSV test process I guess");
     goto fail;
   }
 
   for (;;) {
-    char data[2048]{};
-    size_t len = os_process_pipe_read(pp, reinterpret_cast<uint8_t *>(data),
-                                      sizeof(data));
-    if (!len)
+    char Data[2048]{};
+    size_t CMDLength = os_process_pipe_read(
+        ProcessPipe, reinterpret_cast<uint8_t *>(Data), sizeof(Data));
+    if (!CMDLength)
       break;
 
-    dstr_ncat(&caps_str, data, len);
+    dstr_ncat(&Caps, Data, CMDLength);
   }
 
-  if (dstr_is_empty(&caps_str)) {
+  if (dstr_is_empty(&Caps)) {
     info("Seems the QSV test subprocess crashed. "
          "Better there than here I guess. "
          "Let's just skip loading QSV then I suppose.");
     goto fail;
   }
 
-  if (config_open_string(&config, caps_str.array) != 0) {
+  if (config_open_string(&Config, Caps.array) != 0) {
     info("Couldn't open QSV configuration string");
     goto fail;
   }
 
-  error = config_get_string(config, "error", "string");
-  if (error) {
-    info("Error querying QSV support: %s", error);
+  Error = config_get_string(Config, "error", "string");
+  if (Error) {
+    info("Error querying QSV support: %s", Error);
     goto fail;
   }
 
-  config_adapter_count = config_num_sections(config);
+  ConfigAdaptersCount = config_num_sections(Config);
 
-  if (config_adapter_count < *adapters_count)
-    *adapters_count = config_adapter_count;
+  if (ConfigAdaptersCount < *AdaptersCount)
+    *AdaptersCount = ConfigAdaptersCount;
 
-  for (size_t i = 0; i < *adapters_count; i++) {
-    char section[16];
-    snprintf(section, sizeof(section), "%d", (int)i);
+  for (size_t i = 0; i < *AdaptersCount; i++) {
+    char CMDSection[16];
+    snprintf(CMDSection, sizeof(CMDSection), "%d", (int)i);
 
-    struct adapter_info *adapter = &adapters_info[i];
-    adapter->is_intel = config_get_bool(config, section, "is_intel");
-    adapter->is_dgpu = config_get_bool(config, section, "is_dgpu");
-    adapter->supports_av1 = config_get_bool(config, section, "supports_av1");
-    adapter->supports_hevc = config_get_bool(config, section, "supports_hevc");
-    adapter->supports_vp9 = config_get_bool(config, section, "supports_hevc");
+    struct adapter_info *AdapterInfo = &AdaptersInfo[i];
+    AdapterInfo->IsIntel = config_get_bool(Config, CMDSection, "is_intel");
+    AdapterInfo->IsDGPU = config_get_bool(Config, CMDSection, "is_dgpu");
+    AdapterInfo->SupportAV1 =
+        config_get_bool(Config, CMDSection, "supports_av1");
+    AdapterInfo->SupportHEVC =
+        config_get_bool(Config, CMDSection, "supports_hevc");
   }
 
 fail:
-  config_close(config);
-  dstr_free(&caps_str);
-  dstr_free(&cmd);
-  os_process_pipe_destroy(pp);
+  config_close(Config);
+  dstr_free(&Caps);
+  dstr_free(&CMD);
+  os_process_pipe_destroy(ProcessPipe);
 }

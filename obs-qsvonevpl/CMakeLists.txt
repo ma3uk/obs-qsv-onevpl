@@ -10,6 +10,7 @@ target_sources(
   PRIVATE # cmake-format: sortable
   obs-qsv-onevpl-plugin-main.cpp
   obs-qsv-onevpl-plugin-init.cpp
+  obs-qsv-onevpl-plugin-init.hpp
   obs-qsv-onevpl-encoder.cpp
   obs-qsv-onevpl-encoder.hpp
   obs-qsv-onevpl-encoder-internal.cpp
@@ -39,7 +40,8 @@ target_compile_definitions(
 )
 
 # C++20 for C-like structs
-target_compile_features(obs-qsvonevpl PRIVATE cxx_std_20)
+target_compile_features(obs-qsvonevpl PRIVATE cxx_std_23)
+
 if(WIN32)
 target_compile_options(obs-qsvonevpl PRIVATE "/O2")  
 target_compile_options(obs-qsvonevpl PRIVATE "/Ot")

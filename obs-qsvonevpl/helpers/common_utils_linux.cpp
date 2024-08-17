@@ -10,8 +10,8 @@
 #define INTEL_VENDOR_ID 0x8086
 
 extern "C" void util_cpuid(int cpuinfo[4], int level) {
-  __get_cpuid(level, (unsigned int *)&cpuinfo[0], (unsigned int *)&cpuinfo[1],
-              (unsigned int *)&cpuinfo[2], (unsigned int *)&cpuinfo[3]);
+  __get_cpuid(level, reinterpret_cast<unsigned int *>(&cpuinfo[0]), reinterpret_cast<unsigned int *>(&cpuinfo[1]),
+              reinterpret_cast<unsigned int *>(&cpuinfo[2]), reinterpret_cast<unsigned int *>(&cpuinfo[3]));
 }
 
 static const char *default_h264_device = nullptr;
@@ -407,7 +407,7 @@ bool check_adapter(void *param, const char *node, uint32_t idx) {
   return true;
 }
 
-void check_adapters(struct adapter_info *adapters, size_t *adapter_count) {
+void GetAdaptersInfo(struct adapter_info *adapters, size_t *adapter_count) {
   obs_enter_graphics();
   uint32_t gs_count = gs_get_adapter_count();
   if (*adapter_count < gs_count) {

@@ -8,83 +8,43 @@
 #include "helpers/common_utils.hpp"
 #endif
 
-#include <obs-av1.h>
-#include <obs-avc.h>
-#include <obs-hevc.h>
-#include <obs-module.h>
-#include <obs.h>
-
-#include <util/darray.h>
-#include <util/dstr.h>
-#include <util/platform.h>
-#include <util/threading.h>
-
-#ifndef __QSV_VPL_ENCODER_INTERNAL_H__
+#ifndef __QSVEncoder_H__
 #include "obs-qsv-onevpl-encoder-internal.hpp"
 #endif
-#ifndef __QSV_VPL_ENCODER_PARAMS_H__
-#include "helpers/qsv_params.hpp"
+
+#ifndef __QSV_VPL_PLUGIN_INIT_H__
+#include "obs-qsv-onevpl-plugin-init.hpp"
 #endif
 
-struct qsv_context_t {};
-typedef qsv_context_t qsv_t;
-struct obs_qsv {
-  obs_encoder_t *encoder;
+static inline std::mutex Mutex;
 
-  enum qsv_codec codec;
+static unsigned short VPLVersionMajor;
+static unsigned short VPLVersionMinor;
 
-  qsv_param_t params;
-  qsv_t *context;
+void GetEncoderVersion(unsigned short *Major, unsigned short *Minor);
+bool OpenEncoder(std::unique_ptr<class QSVEncoder> &EncoderPTR,
+                 encoder_params *EncoderParams, enum codec_enum Codec,
+                 bool IsTextureEncoder);
+void DestroyPluginContext(void *);
+bool UpdateEncoderParams(void *Data, obs_data_t *Params);
 
-  DARRAY(uint8_t) packet_data;
+mfxU64 ConvertTSOBSMFX(int64_t TS, const video_output_info *VOI);
 
-  uint8_t *extra_data;
-  uint8_t *sei;
+int64_t ConvertTSMFXOBS(mfxI64 TS, const video_output_info *VOI);
 
-  size_t extra_data_size;
-  size_t sei_size;
+bool GetExtraData(void *Data, uint8_t **ExtraData, size_t *Size);
 
-  os_performance_token_t *performance_token;
+void ParseEncodedPacket(plugin_context *Context, encoder_packet *Packet,
+                  mfxBitstream *Bitstream, const video_output_info *VOI,
+                        bool *ReceivedPacketStatus);
 
-  uint32_t roi_increment;
-};
+bool EncodeTexture(void *Data, encoder_texture *Texture, int64_t PTS,
+                        uint64_t LockKey, uint64_t *NextKey, encoder_packet *Packet,
+                   bool *ReceivedPacketStatus);
 
-static inline pthread_mutex_t g_QsvLock = PTHREAD_MUTEX_INITIALIZER;
-static unsigned short g_verMajor;
-static unsigned short g_verMinor;
+bool EncodeFrame(void *Data, encoder_frame *Frame, encoder_packet *Packet,
+                 bool *ReceivedPacketStatus);
 
-void qsv_encoder_version(unsigned short *major, unsigned short *minor);
-qsv_t *qsv_encoder_open(qsv_param_t *, enum qsv_codec codec, bool useTexAlloc);
-bool qsv_encoder_is_dgpu(qsv_t *);
-void obs_qsv_destroy(void *data);
-bool obs_qsv_update(void *data, obs_data_t *settings);
+bool GetSEIData(void *Data, uint8_t **SEI, size_t *Size);
 
-mfxU64 ts_obs_to_mfx(int64_t ts, const video_output_info *voi);
-
-int64_t ts_mfx_to_obs(mfxI64 ts, const video_output_info *voi);
-
-void load_headers(obs_qsv *obsqsv);
-
-bool obs_qsv_extra_data(void *data, uint8_t **extra_data, size_t *size);
-
-void parse_packet(obs_qsv *obsqsv, encoder_packet *packet, mfxBitstream *pBS,
-                  const video_output_info *voi, bool *received_packet);
-
-//void qsv_encoder_add_roi(qsv_t *, const struct obs_encoder_roi *roi);
-//
-//void qsv_encoder_clear_roi(qsv_t *pContext);
-//
-//void roi_cb(void *param, obs_encoder_roi *roi);
-//
-//void obs_qsv_setup_rois(obs_qsv *obsqsv);
-
-bool obs_qsv_encode_tex(void *data, encoder_texture *tex, int64_t pts,
-                        uint64_t lock_key, uint64_t *next_key,
-                        encoder_packet *packet, bool *received_packet);
-
-bool obs_qsv_encode(void *data, encoder_frame *frame, encoder_packet *packet,
-                    bool *received_packet);
-
-bool obs_qsv_sei(void *data, uint8_t **sei, size_t *size);
-
-void obs_qsv_video_info(void *data, video_scale_info *info);
+void GetVideoInfo(void *Data, video_scale_info *Info);
