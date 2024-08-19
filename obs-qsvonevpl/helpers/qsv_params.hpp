@@ -10,8 +10,8 @@ struct encoder_params {
   mfxU16 Width;       /* source picture width */
   mfxU16 Height;      /* source picture height */
   mfxU16 AsyncDepth;
-  mfxU16 FpsNum;
-  mfxU16 FpsDen;
+  mfxU32 FpsNum;
+  mfxU32 FpsDen;
   mfxU16 TargetBitRate;
   mfxU16 MaxBitRate;
   mfxU16 BufferSize;

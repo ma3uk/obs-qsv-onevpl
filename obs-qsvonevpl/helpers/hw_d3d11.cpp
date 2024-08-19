@@ -157,7 +157,7 @@ mfxStatus HWManager::AllocateTexturePool(mfxFrameAllocRequest *Request) {
   Desc.BindFlags = (D3D11_BIND_DECODER | D3D11_BIND_VIDEO_ENCODER |
                     D3D11_BIND_SHADER_RESOURCE);
   Desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-
+  
   ID3D11Texture2D *Texture2D = nullptr;
   // Create textures
   HWTexturePool.reserve(static_cast<size_t>(Request->NumFrameSuggested + 100));
