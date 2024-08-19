@@ -577,8 +577,8 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
       (InputParams->KeyIntSec > 0)
           ? static_cast<mfxU16>(
                 InputParams->KeyIntSec *
-                QSVEncodeParams.mfx.FrameInfo.FrameRateExtN /
-                static_cast<float>(QSVEncodeParams.mfx.FrameInfo.FrameRateExtD))
+                static_cast<float>(QSVEncodeParams.mfx.FrameInfo.FrameRateExtN /
+                                   QSVEncodeParams.mfx.FrameInfo.FrameRateExtD))
           : 240;
 
   if ((!InputParams->AdaptiveI && !InputParams->AdaptiveB) ||
@@ -936,7 +936,8 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
 
     if (InputParams->WinBRCMaxAvgSize > 0) {
       CO3Params->WinBRCMaxAvgKbps =
-          static_cast<mfxU16>(InputParams->WinBRCMaxAvgSize);
+          static_cast<mfxU16>(InputParams->WinBRCMaxAvgSize *
+                              QSVEncodeParams.mfx.BRCParamMultiplier);
       info("\tWinBRCMaxSize set: %d", CO3Params->WinBRCMaxAvgKbps);
     }
 
@@ -1032,13 +1033,14 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     CODDIParams->RefreshFrameContext = MFX_CODINGOPTION_ON;
     CODDIParams->ChangeFrameContextIdxForTS = MFX_CODINGOPTION_ON;
     CODDIParams->SuperFrameForTS = MFX_CODINGOPTION_ON;
-    //if (Codec == QSV_CODEC_AVC) {
-    //  if (InputParams->NumRefActiveP.has_value() &&
-    //      InputParams->NumRefActiveP > 0) {
-    //    if (InputParams->NumRefActiveP.value() > InputParams->NumRefFrame) {
-    //      InputParams->NumRefActiveP = InputParams->NumRefFrame;
-    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame value");
-    //    }
+    // if (Codec == QSV_CODEC_AVC) {
+    //   if (InputParams->NumRefActiveP.has_value() &&
+    //       InputParams->NumRefActiveP > 0) {
+    //     if (InputParams->NumRefActiveP.value() > InputParams->NumRefFrame) {
+    //       InputParams->NumRefActiveP = InputParams->NumRefFrame;
+    //       warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame
+    //       value");
+    //     }
 
     //    CODDIParams->NumActiveRefP = InputParams->NumRefActiveP.value();
     //  }
@@ -1047,7 +1049,8 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     //      InputParams->NumRefActiveBL0 > 0) {
     //    if (InputParams->NumRefActiveBL0.value() > InputParams->NumRefFrame) {
     //      InputParams->NumRefActiveBL0 = InputParams->NumRefFrame;
-    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame value");
+    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame
+    //      value");
     //    }
 
     //    CODDIParams->NumActiveRefBL0 = InputParams->NumRefActiveBL0.value();
@@ -1057,7 +1060,8 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     //      InputParams->NumRefActiveBL1 > 0) {
     //    if (InputParams->NumRefActiveBL1.value() > InputParams->NumRefFrame) {
     //      InputParams->NumRefActiveBL1 = InputParams->NumRefFrame;
-    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame value");
+    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame
+    //      value");
     //    }
 
     //    CODDIParams->NumActiveRefBL1 = InputParams->NumRefActiveBL1.value();
@@ -1338,7 +1342,8 @@ mfxStatus QSVEncoder::InitTexturePool() {
 
     QSVAllocateRequest.NumFrameSuggested +=
         static_cast<mfxU16>(static_cast<mfxU32>(QSVEncodeParams.AsyncDepth) +
-                            QSVEncodeParams.mfx.FrameInfo.FrameRateExtN);
+                            static_cast<float>(QSVEncodeParams.mfx.FrameInfo.FrameRateExtN /
+                             QSVEncodeParams.mfx.FrameInfo.FrameRateExtD));
     // Allocate textures
     try {
       Status = HWManager->AllocateTexturePool(&QSVAllocateRequest);

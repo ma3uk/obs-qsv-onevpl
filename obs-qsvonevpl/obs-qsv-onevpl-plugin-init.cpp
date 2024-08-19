@@ -1201,8 +1201,8 @@ static void GetEncoderParams(plugin_context *Context, obs_data_t *Settings) {
   Context->EncoderParams.MaxBitRate = static_cast<mfxU16>(MaxBitrateData / 100);
   Context->EncoderParams.Width = static_cast<mfxU16>(VideoWidth);
   Context->EncoderParams.Height = static_cast<mfxU16>(VideoHeight);
-  Context->EncoderParams.FpsNum = static_cast<mfxU16>(VOI->fps_num);
-  Context->EncoderParams.FpsDen = static_cast<mfxU16>(VOI->fps_den);
+  Context->EncoderParams.FpsNum = static_cast<mfxU32>(VOI->fps_num);
+  Context->EncoderParams.FpsDen = static_cast<mfxU32>(VOI->fps_den);
 
   Context->EncoderParams.GOPRefDist = static_cast<mfxU16>(GopRefDistData);
   Context->EncoderParams.KeyIntSec = static_cast<mfxU16>(KeyIntervalData);

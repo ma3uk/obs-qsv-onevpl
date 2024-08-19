@@ -188,11 +188,11 @@ void GetVideoInfo(void *Data, video_scale_info *Info) {
 }
 
 mfxU64 ConvertTSOBSMFX(int64_t TS, const video_output_info *VOI) {
-  return static_cast<mfxU64>(TS * 90000 / VOI->fps_num);
+  return static_cast<mfxU64>(static_cast<float>(TS * 90000 / VOI->fps_num));
 }
 
 int64_t ConvertTSMFXOBS(mfxI64 TS, const video_output_info *VOI) {
-  return VOI->fps_num * TS / 90000;
+  return static_cast<int64_t>(static_cast<float>(VOI->fps_num * TS / 90000));
 }
 
 void ParseEncodedPacket(plugin_context *Context, encoder_packet *Packet,
