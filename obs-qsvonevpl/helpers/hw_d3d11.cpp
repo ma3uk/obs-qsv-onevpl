@@ -82,8 +82,7 @@ mfxStatus HWManager::CreateDevice(mfxIMPL &Impl) {
       HR = HWContext->QueryInterface(
           IID_ID3D10Multithread, reinterpret_cast<void **>(&D3D10Multithread));
       if (FAILED(HR)) {
-        throw std::runtime_error(
-            "SetMultitHReadProtected error");
+        throw std::runtime_error("SetMultitHReadProtected error");
       }
       D3D10Multithread->SetMultithreadProtected(true);
       D3D10Multithread->Release();
@@ -121,24 +120,24 @@ void HWManager::ReleaseDevice() {
   }
 }
 
-mfxStatus HWManager::AllocateTexturePool(mfxFrameAllocRequest *Request) {
+mfxStatus HWManager::AllocateTexturePool(MFXVideoParam &EncodeParams) {
   mfxStatus Status = MFX_ERR_NONE;
   HRESULT HR = S_OK;
   // warn("Res: %d x %d", Request->Info.Width, Request->Info.Height);
   //  Determine texture Format
   DXGI_FORMAT Format;
-  if (MFX_FOURCC_NV12 == Request->Info.FourCC) {
+  if (MFX_FOURCC_NV12 == EncodeParams.mfx.FrameInfo.FourCC) {
     Format = DXGI_FORMAT_NV12;
-  } else if (MFX_FOURCC_RGB4 == Request->Info.FourCC) {
+  } else if (MFX_FOURCC_RGB4 == EncodeParams.mfx.FrameInfo.FourCC) {
     Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  } else if (MFX_FOURCC_YUY2 == Request->Info.FourCC) {
+  } else if (MFX_FOURCC_YUY2 == EncodeParams.mfx.FrameInfo.FourCC) {
     Format = DXGI_FORMAT_YUY2;
-  } else if (MFX_FOURCC_P8 ==
-             Request->Info
-                 .FourCC) //|| MFX_FOURCC_P8_TEXTURE == Request->Info.FourCC
+  } else if (MFX_FOURCC_P8 == EncodeParams.mfx.FrameInfo
+                                  .FourCC) //|| MFX_FOURCC_P8_TEXTURE ==
+                                           // EncodeParams->mfx.FrameInfo.FourCC
   {
     Format = DXGI_FORMAT_P8;
-  } else if (MFX_FOURCC_P010 == Request->Info.FourCC) {
+  } else if (MFX_FOURCC_P010 == EncodeParams.mfx.FrameInfo.FourCC) {
     Format = DXGI_FORMAT_P010;
   } else {
     throw std::runtime_error("AllocateHWTexturePool(): Unsupported Format");
@@ -146,8 +145,8 @@ mfxStatus HWManager::AllocateTexturePool(mfxFrameAllocRequest *Request) {
 
   D3D11_TEXTURE2D_DESC Desc = {0};
 
-  Desc.Width = Request->Info.Width;
-  Desc.Height = Request->Info.Height;
+  Desc.Width = EncodeParams.mfx.FrameInfo.Width;
+  Desc.Height = EncodeParams.mfx.FrameInfo.Height;
   Desc.MipLevels = 1;
   Desc.ArraySize = 1;
   Desc.Format = Format;
@@ -157,13 +156,21 @@ mfxStatus HWManager::AllocateTexturePool(mfxFrameAllocRequest *Request) {
   Desc.BindFlags = (D3D11_BIND_DECODER | D3D11_BIND_VIDEO_ENCODER |
                     D3D11_BIND_SHADER_RESOURCE);
   Desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-  
+
   ID3D11Texture2D *Texture2D = nullptr;
   // Create textures
-  HWTexturePool.reserve(static_cast<size_t>(Request->NumFrameSuggested + 100));
+  HWTexturePool.reserve(static_cast<size_t>(
+      static_cast<int>(std::ceil(EncodeParams.mfx.FrameInfo.FrameRateExtN /
+                            EncodeParams.mfx.FrameInfo.FrameRateExtD)) *
+          2 +
+      100));
 
-  for (size_t i = 0; i < static_cast<size_t>(Request->NumFrameSuggested +
-                                             static_cast<mfxU16>(100));
+  for (size_t i = 0;
+       i < static_cast<size_t>(static_cast<int>(std::ceil(
+                                   EncodeParams.mfx.FrameInfo.FrameRateExtN /
+                                   EncodeParams.mfx.FrameInfo.FrameRateExtD)) *
+                                   2 +
+                               100);
        i++) {
     HR = HWDevice->CreateTexture2D(&Desc, nullptr, &Texture2D);
 

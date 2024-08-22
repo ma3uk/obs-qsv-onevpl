@@ -9,6 +9,9 @@
 #ifndef __QSV_VPL_COMMON_UTILS_H__
 #include "common_utils.hpp"
 #endif
+#ifndef __QSV_VPL_EXT_BUF_MANAGER_H__
+#include "ext_buf_manager.hpp"
+#endif
 extern "C" {
 #include <obs.h>
 }
@@ -24,7 +27,7 @@ public:
   mfxStatus CopyTexture(mfxSurfaceD3D11Tex2D &OuterTexture, void *TextureHandle,
                         mfxU64 LockKey, mfxU64 *NextKey);
 
-  mfxStatus AllocateTexturePool(mfxFrameAllocRequest *Request);
+  mfxStatus AllocateTexturePool(MFXVideoParam &EncodeParams);
 
   static inline int HWEncoderCounter = 0;
   static inline mfxHDL HWDeviceHandle = nullptr;

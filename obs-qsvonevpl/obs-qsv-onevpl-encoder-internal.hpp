@@ -144,4 +144,6 @@ private:
     MFX_FOURCC_YUV444 = MFX_MAKEFOURCC('4', '4', '4', 'P'),
     MFX_FOURCC_RGBP24 = MFX_MAKEFOURCC('R', 'G', 'B', 'P'),
   };
+
+  static const inline std::vector<int> ListAllowedGopRefDist{1, 2, 4, 8, 16};
 };

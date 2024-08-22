@@ -596,18 +596,18 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     QSVEncodeParams.mfx.NumSlice = 0;
     break;
   default:
+    QSVEncodeParams.mfx.IdrInterval = 0;
     QSVEncodeParams.mfx.NumSlice = 1;
     break;
   }
 
   QSVEncodeParams.mfx.GopRefDist = static_cast<mfxU16>(InputParams->GOPRefDist);
-  std::vector<int> listAllowedGopRefDist{1, 2, 4, 8, 16};
-  auto findAllowedGopRefDist{std::find(begin(listAllowedGopRefDist),
-                                       end(listAllowedGopRefDist),
-                                       QSVEncodeParams.mfx.GopRefDist)};
+
   if (Codec == QSV_CODEC_AV1 && InputParams->Lookahead == false &&
       InputParams->EncTools == true &&
-      findAllowedGopRefDist == end(listAllowedGopRefDist)) {
+      std::find(
+          std::begin(ListAllowedGopRefDist), std::end(ListAllowedGopRefDist),
+          QSVEncodeParams.mfx.GopRefDist) == std::end(ListAllowedGopRefDist)) {
     QSVEncodeParams.mfx.GopRefDist = 8;
     blog(LOG_WARNING,
          "\tThe AV1 Codec without Lookahead cannot be used with EncTools if "
@@ -626,10 +626,11 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     COParams->Header.BufferSz = sizeof(mfxExtCodingOption);
     /*Don't touch it!*/
     COParams->CAVLC = MFX_CODINGOPTION_OFF;
+    COParams->RefPicListReordering = MFX_CODINGOPTION_ON;
     COParams->RefPicMarkRep = MFX_CODINGOPTION_ON;
     COParams->PicTimingSEI = MFX_CODINGOPTION_ON;
     // COParams->AUDelimiter = MFX_CODINGOPTION_OFF;
-
+    COParams->MaxDecFrameBuffering = InputParams->NumRefFrame;
     COParams->ResetRefList = MFX_CODINGOPTION_ON;
     COParams->FieldOutput = MFX_CODINGOPTION_ON;
     COParams->IntraPredBlockSize = MFX_BLOCKSIZE_MIN_4X4;
@@ -666,7 +667,8 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     CO2Params->BufferingPeriodSEI = MFX_BPSEI_IFRAME;
     CO2Params->RepeatPPS = MFX_CODINGOPTION_OFF;
     CO2Params->FixedFrameRate = MFX_CODINGOPTION_ON;
-
+    CO2Params->DisableDeblockingIdc = MFX_CODINGOPTION_OFF;
+    CO2Params->EnableMAD = MFX_CODINGOPTION_ON;
     // if (QSVEncodeParams.mfx.RateControlMethod == MFX_RATECONTROL_CBR ||
     //     QSVEncodeParams.mfx.RateControlMethod == MFX_RATECONTROL_VBR) {
     //   CO2Params->MaxFrameSize = (QSVEncodeParams.mfx.TargetKbps *
@@ -1033,40 +1035,37 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     CODDIParams->RefreshFrameContext = MFX_CODINGOPTION_ON;
     CODDIParams->ChangeFrameContextIdxForTS = MFX_CODINGOPTION_ON;
     CODDIParams->SuperFrameForTS = MFX_CODINGOPTION_ON;
-    // if (Codec == QSV_CODEC_AVC) {
-    //   if (InputParams->NumRefActiveP.has_value() &&
-    //       InputParams->NumRefActiveP > 0) {
-    //     if (InputParams->NumRefActiveP.value() > InputParams->NumRefFrame) {
-    //       InputParams->NumRefActiveP = InputParams->NumRefFrame;
-    //       warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame
-    //       value");
-    //     }
+     if (Codec == QSV_CODEC_AVC) {
+       if (InputParams->NumRefActiveP.has_value() &&
+           InputParams->NumRefActiveP > 0) {
+         if (InputParams->NumRefActiveP.value() > InputParams->NumRefFrame) {
+           InputParams->NumRefActiveP = InputParams->NumRefFrame;
+           warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame value");
+         }
 
-    //    CODDIParams->NumActiveRefP = InputParams->NumRefActiveP.value();
-    //  }
+        CODDIParams->NumActiveRefP = InputParams->NumRefActiveP.value();
+      }
 
-    //  if (InputParams->NumRefActiveBL0.has_value() &&
-    //      InputParams->NumRefActiveBL0 > 0) {
-    //    if (InputParams->NumRefActiveBL0.value() > InputParams->NumRefFrame) {
-    //      InputParams->NumRefActiveBL0 = InputParams->NumRefFrame;
-    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame
-    //      value");
-    //    }
+      if (InputParams->NumRefActiveBL0.has_value() &&
+          InputParams->NumRefActiveBL0 > 0) {
+        if (InputParams->NumRefActiveBL0.value() > InputParams->NumRefFrame) {
+          InputParams->NumRefActiveBL0 = InputParams->NumRefFrame;
+          warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame value");
+        }
 
-    //    CODDIParams->NumActiveRefBL0 = InputParams->NumRefActiveBL0.value();
-    //  }
+        CODDIParams->NumActiveRefBL0 = InputParams->NumRefActiveBL0.value();
+      }
 
-    //  if (InputParams->NumRefActiveBL1.has_value() &&
-    //      InputParams->NumRefActiveBL1 > 0) {
-    //    if (InputParams->NumRefActiveBL1.value() > InputParams->NumRefFrame) {
-    //      InputParams->NumRefActiveBL1 = InputParams->NumRefFrame;
-    //      warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame
-    //      value");
-    //    }
+      if (InputParams->NumRefActiveBL1.has_value() &&
+          InputParams->NumRefActiveBL1 > 0) {
+        if (InputParams->NumRefActiveBL1.value() > InputParams->NumRefFrame) {
+          InputParams->NumRefActiveBL1 = InputParams->NumRefFrame;
+          warn("\tThe NumActiveRefP value cannot exceed the NumRefFrame value");
+        }
 
-    //    CODDIParams->NumActiveRefBL1 = InputParams->NumRefActiveBL1.value();
-    //  }
-    //}
+        CODDIParams->NumActiveRefBL1 = InputParams->NumRefActiveBL1.value();
+      }
+    }
   }
 #endif
 
@@ -1172,12 +1171,12 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
       info("\tTuneQualityMode set: OFF");
     }
 
-    // auto AV1ContentTools =
-    //     QSVEncodeParams.AddExtBuffer<mfxExtAV1ScreenContentTools>();
-    // AV1ContentTools->Header.BufferId = MFX_EXTBUFF_AV1_SCREEN_CONTENT_TOOLS;
-    // AV1ContentTools->Header.BufferSz = sizeof(mfxExtAV1ScreenContentTools);
-    // AV1ContentTools->IntraBlockCopy = MFX_CODINGOPTION_ON;
-    // AV1ContentTools->Palette = MFX_CODINGOPTION_ON;
+     //auto AV1ContentTools =
+     //    QSVEncodeParams.AddExtBuffer<mfxExtAV1ScreenContentTools>();
+     //AV1ContentTools->Header.BufferId = MFX_EXTBUFF_AV1_SCREEN_CONTENT_TOOLS;
+     //AV1ContentTools->Header.BufferSz = sizeof(mfxExtAV1ScreenContentTools);
+     //AV1ContentTools->IntraBlockCopy = MFX_CODINGOPTION_ON;
+     //AV1ContentTools->Palette = MFX_CODINGOPTION_ON;
   }
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -1333,20 +1332,9 @@ mfxStatus QSVEncoder::InitTexturePool() {
   mfxStatus Status = MFX_ERR_NONE;
 
   if (QSVIsTextureEncoder) {
-    // Query number of required Surfaces for encoder
-    Status = QSVEncode->QueryIOSurf(&QSVEncodeParams, &QSVAllocateRequest);
-    if (Status < MFX_ERR_NONE) {
-      error("Error code: %d", Status);
-      throw std::runtime_error("AllocateTexturePool(): QueryIOSurf error");
-    }
-
-    QSVAllocateRequest.NumFrameSuggested +=
-        static_cast<mfxU16>(static_cast<mfxU32>(QSVEncodeParams.AsyncDepth) +
-                            static_cast<float>(QSVEncodeParams.mfx.FrameInfo.FrameRateExtN /
-                             QSVEncodeParams.mfx.FrameInfo.FrameRateExtD));
     // Allocate textures
     try {
-      Status = HWManager->AllocateTexturePool(&QSVAllocateRequest);
+      Status = HWManager->AllocateTexturePool(QSVEncodeParams);
     } catch (const std::exception &e) {
       error("Error code: %d, %s", Status, e.what());
       throw;
