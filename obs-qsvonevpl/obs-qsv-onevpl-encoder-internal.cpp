@@ -513,15 +513,7 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
 
     QSVEncodeParams.mfx.BufferSizeInKB =
         (InputParams->Lookahead == true)
-            ? static_cast<mfxU16>(
-                  (QSVEncodeParams.mfx.TargetKbps / static_cast<float>(8)) /
-                  (static_cast<float>(
-                       QSVEncodeParams.mfx.FrameInfo.FrameRateExtN) /
-                   QSVEncodeParams.mfx.FrameInfo.FrameRateExtD) *
-                  (InputParams->LADepth +
-                   (static_cast<float>(
-                        QSVEncodeParams.mfx.FrameInfo.FrameRateExtN) /
-                    QSVEncodeParams.mfx.FrameInfo.FrameRateExtD)))
+            ? static_cast<mfxU16>((QSVEncodeParams.mfx.TargetKbps / 8) * 2)
             : static_cast<mfxU16>((QSVEncodeParams.mfx.TargetKbps / 8) * 1);
     if (InputParams->CustomBufferSize == true && InputParams->BufferSize > 0) {
       QSVEncodeParams.mfx.BufferSizeInKB =
@@ -1117,6 +1109,23 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
   }
 
   if (Codec == QSV_CODEC_AV1) {
+    if (QSVVersion.Major >= 2 && QSVVersion.Minor >= 12 ||
+        QSVVersion.Major > 2) {
+      if (QSVPlatform.CodeName >= MFX_PLATFORM_LUNARLAKE &&
+          QSVPlatform.CodeName != MFX_PLATFORM_ALDERLAKE_N &&
+          QSVPlatform.CodeName != MFX_PLATFORM_ARROWLAKE) {
+        auto AV1ScreenContentTools =
+            QSVEncodeParams.AddExtBuffer<mfxExtAV1ScreenContentTools>();
+        AV1ScreenContentTools->Header.BufferId =
+            MFX_EXTBUFF_AV1_SCREEN_CONTENT_TOOLS;
+        AV1ScreenContentTools->Header.BufferSz =
+            sizeof(mfxExtAV1ScreenContentTools);
+        AV1ScreenContentTools->Palette = MFX_CODINGOPTION_ON;
+
+        info("\AV1ScreenContentTools set: ON");
+      }
+    }
+
     auto AV1BitstreamParams =
         QSVEncodeParams.AddExtBuffer<mfxExtAV1BitstreamParam>();
     AV1BitstreamParams->Header.BufferId = MFX_EXTBUFF_AV1_BITSTREAM_PARAM;
@@ -1170,13 +1179,6 @@ mfxStatus QSVEncoder::SetEncoderParams(struct encoder_params *InputParams,
     } else {
       info("\tTuneQualityMode set: OFF");
     }
-
-     //auto AV1ContentTools =
-     //    QSVEncodeParams.AddExtBuffer<mfxExtAV1ScreenContentTools>();
-     //AV1ContentTools->Header.BufferId = MFX_EXTBUFF_AV1_SCREEN_CONTENT_TOOLS;
-     //AV1ContentTools->Header.BufferSz = sizeof(mfxExtAV1ScreenContentTools);
-     //AV1ContentTools->IntraBlockCopy = MFX_CODINGOPTION_ON;
-     //AV1ContentTools->Palette = MFX_CODINGOPTION_ON;
   }
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -1356,7 +1358,6 @@ QSVEncoder::InitBitstreamBuffer([[maybe_unused]] enum codec_enum Codec) {
     QSVBitstream.MaxLength =
         static_cast<mfxU32>(QSVEncodeParams.mfx.BufferSizeInKB * 1000 * 10);
     QSVBitstream.DataOffset = 0;
-    ;
     QSVBitstream.DataLength = 0;
 #if defined(_WIN32) || defined(_WIN64)
     if (nullptr == (QSVBitstream.Data = static_cast<mfxU8 *>(
@@ -1564,6 +1565,8 @@ mfxStatus QSVEncoder::GetVideoParam(enum codec_enum Codec) {
     QSVEncodeParams.mfx.BufferSizeInKB *= 25;
   } else if (Codec == QSV_CODEC_HEVC) {
     QSVEncodeParams.mfx.BufferSizeInKB *= 100;
+  } else {
+    QSVEncodeParams.mfx.BufferSizeInKB *= 75;
   }
 
   return Status;

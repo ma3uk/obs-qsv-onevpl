@@ -161,9 +161,7 @@ mfxStatus HWManager::AllocateTexturePool(MFXVideoParam &EncodeParams) {
   // Create textures
   HWTexturePool.reserve(static_cast<size_t>(
       static_cast<int>(std::ceil(EncodeParams.mfx.FrameInfo.FrameRateExtN /
-                            EncodeParams.mfx.FrameInfo.FrameRateExtD)) *
-          2 +
-      100));
+                            EncodeParams.mfx.FrameInfo.FrameRateExtD))));
 
   for (size_t i = 0;
        i < static_cast<size_t>(static_cast<int>(std::ceil(
